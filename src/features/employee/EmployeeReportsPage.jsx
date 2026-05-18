@@ -39,16 +39,22 @@ const EmployeeReportsPage = () => {
         isManager ? adminService.getUsers() : Promise.resolve({ data: [] })
       ]);
 
-      setTickets(ticketRes.data);
+      const loadedTickets = ticketRes.data;
+      const loadedEmployees = isManager ? userRes.data.filter(u => u.role === 'Employee') : [];
+
+      setTickets(loadedTickets);
       if (isManager) {
-        setEmployees(userRes.data.filter(u => u.role === 'Employee'));
+        setEmployees(loadedEmployees);
       }
+
+      // Auto-trigger search with fetched data to immediately load reports on mount
+      await triggerSearch(loadedTickets, loadedEmployees);
     } catch (error) {
       notification.error({ message: 'Failed to load initial data' });
     }
   };
 
-  const handleSearch = async () => {
+  const triggerSearch = async (currentTickets = tickets, currentEmployees = employees) => {
     setLoading(true);
     try {
       let start, end;
@@ -81,14 +87,14 @@ const EmployeeReportsPage = () => {
         if (isManager && selectedEmployee && Number(report.userId) !== Number(selectedEmployee)) return;
 
         const employeeName = isManager 
-          ? (report.user?.fullName || employees.find(u => Number(u.id) === Number(report.userId))?.name || 'Unknown')
+          ? (report.user?.fullName || currentEmployees.find(u => Number(u.id) === Number(report.userId))?.name || 'Unknown')
           : currentUser.name;
 
         report.items.forEach(item => {
           // If a specific ticket is selected, filter here
           if (selectedTicket && item.ticketId !== selectedTicket) return;
           
-          const ticketInfo = (tickets || []).find(t => Number(t.id) === Number(item.ticketId));
+          const ticketInfo = (currentTickets || []).find(t => Number(t.id) === Number(item.ticketId));
           reports.push({
             date: report.date || report.reportDate,
             employeeName: employeeName,
@@ -113,6 +119,8 @@ const EmployeeReportsPage = () => {
       setLoading(false);
     }
   };
+
+  const handleSearch = () => triggerSearch(tickets, employees);
 
   const handleExport = () => {
     if (filteredData.length === 0) {

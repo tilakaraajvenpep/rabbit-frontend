@@ -55,7 +55,20 @@ const PendingReviewPage = () => {
 
   const columns = [
     { title: 'Project Code', dataIndex: 'code', key: 'code', render: (text) => <Text code strong>{text}</Text> },
-    { title: 'Project Name', dataIndex: 'name', key: 'name', render: (text) => <Text strong>{text}</Text> },
+    { 
+      title: 'Project Name', 
+      dataIndex: 'name', 
+      key: 'name', 
+      render: (text, record) => (
+        <Button 
+          type="link" 
+          style={{ padding: 0, fontWeight: 600, fontSize: '14px', textAlign: 'left' }} 
+          onClick={() => navigate(`/accounts/projects/${record.id}/cost`)}
+        >
+          {text}
+        </Button>
+      ) 
+    },
     { title: 'Client Name', dataIndex: 'client', key: 'client' },
     { title: 'Submitted Date', dataIndex: 'createdAt', key: 'createdAt', render: (date) => dayjs(date).format('DD MMM YYYY') },
     { 

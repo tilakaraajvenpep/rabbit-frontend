@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, InputNumber, DatePicker, Button, Space, Table, Modal, Alert, notification, Row, Col, Typography, Divider, Descriptions, Result } from 'antd';
+import { Card, Form, Input, InputNumber, DatePicker, Button, Space, Table, Modal, Alert, notification, Row, Col, Typography, Divider, Descriptions, Result, Select } from 'antd';
 import { 
   PlusOutlined, 
   DeleteOutlined, 
@@ -13,6 +13,7 @@ import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { projectService } from '../../services/projectService';
+import { adminService } from '../../services/adminService';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 
@@ -28,6 +29,10 @@ const CostAnalysisPage = () => {
   const [isReturnModalVisible, setIsReturnModalVisible] = useState(false);
   const [returnComments, setReturnComments] = useState('');
   const [latestDoc, setLatestDoc] = useState(null);
+  const [teamLeads, setTeamLeads] = useState([]);
+  const [isSelectTLModalVisible, setIsSelectTLModalVisible] = useState(false);
+  const [selectedTLId, setSelectedTLId] = useState(undefined);
+  const [tempFormData, setTempFormData] = useState(null);
 
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
     defaultValues: {
@@ -90,6 +95,17 @@ const CostAnalysisPage = () => {
         // No documents yet
       }
 
+      // Fetch Team Leads list
+      try {
+        const usersRes = await adminService.getUsers();
+        if (usersRes.data) {
+          const tls = usersRes.data.filter(u => u.role === 'TeamLead' && u.isActive);
+          setTeamLeads(tls);
+        }
+      } catch (err) {
+        console.error('Failed to load team leads:', err);
+      }
+
     } catch (error) {
       console.error('Fetch Project Details Error:', error);
       notification.error({ message: 'Error', description: 'Failed to load project details.' });
@@ -104,13 +120,25 @@ const CostAnalysisPage = () => {
       return;
     }
     
+    setTempFormData(data);
+    setIsSelectTLModalVisible(true);
+  };
+
+  const handleForwardToTL = async () => {
+    if (!selectedTLId) {
+      notification.error({ message: 'Validation', description: 'Please select a Team Lead.' });
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await projectService.submitCostAnalysis(id, data);
-      await projectService.approveDocument(id);
-      notification.success({ message: 'Approved', description: 'Cost analysis submitted and project approved.' });
+      await projectService.submitCostAnalysis(id, tempFormData);
+      await projectService.approveDocument(id, selectedTLId);
+      notification.success({ message: 'Approved & Forwarded', description: 'Cost analysis submitted, project approved and successfully forwarded to the Team Lead.' });
+      setIsSelectTLModalVisible(false);
       navigate('/accounts/pending');
     } catch (error) {
+      console.error('Submit Cost Analysis Error:', error);
       notification.error({ message: 'Error', description: 'Failed to submit analysis.' });
     } finally {
       setSubmitting(false);
@@ -379,6 +407,31 @@ const CostAnalysisPage = () => {
             onChange={e => setReturnComments(e.target.value)}
             placeholder="Detailed reason for return (min 20 characters)..."
           />
+        </Space>
+      </Modal>
+
+      <Modal
+        title="Forward to Team Lead"
+        open={isSelectTLModalVisible}
+        onOk={handleForwardToTL}
+        onCancel={() => setIsSelectTLModalVisible(false)}
+        okText="Approve & Forward"
+        okButtonProps={{ loading: submitting }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Text>Select a Team Lead to assign this project to. Once approved, the project will be forwarded to them.</Text>
+          <Select
+            placeholder="Select a Team Lead"
+            style={{ width: '100%', marginTop: 8 }}
+            onChange={value => setSelectedTLId(value)}
+            value={selectedTLId}
+          >
+            {teamLeads.map(tl => (
+              <Select.Option key={tl.id} value={tl.id}>
+                {tl.name} ({tl.email})
+              </Select.Option>
+            ))}
+          </Select>
         </Space>
       </Modal>
     </div>

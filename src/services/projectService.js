@@ -73,7 +73,11 @@ export const projectService = {
     }
     const formData = new FormData();
     formData.append('file', file);
-    const response = await apiClient.post(`/projects/${projectId}/documents`, formData);
+    const response = await apiClient.post(`/projects/${projectId}/documents`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return { data: response.data.data };
   },
 
@@ -143,12 +147,15 @@ export const projectService = {
     return { data: response.data.data };
   },
 
-  approveDocument: async (projectId) => {
+  approveDocument: async (projectId, assignedTeamLeadId) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 800));
       return { data: { success: true } };
     }
-    const response = await apiClient.put(`/projects/${projectId}/status`, { status: 'Approved' });
+    const response = await apiClient.put(`/projects/${projectId}/status`, { 
+      status: 'Approved',
+      assignedTeamLeadId: assignedTeamLeadId ? Number(assignedTeamLeadId) : undefined
+    });
     return { data: response.data.data };
   },
 

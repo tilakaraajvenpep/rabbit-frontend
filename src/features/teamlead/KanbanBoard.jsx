@@ -5,7 +5,8 @@ import {
   PointerSensor, 
   useSensor, 
   useSensors, 
-  closestCorners 
+  closestCorners,
+  useDroppable
 } from '@dnd-kit/core';
 import { 
   SortableContext, 
@@ -45,11 +46,17 @@ const SortableTicket = ({ ticket, onClick }) => {
   };
 
   const user = mockUsers.find(u => u.id === ticket.assignedTo);
-  const isOverdue = new Date(ticket.dueDate) < new Date() && ticket.status !== 'Done';
+  const displayDate = ticket.dueDate || ticket.createdAt;
+  const isOverdue = displayDate && new Date(displayDate) < new Date() && ticket.status !== 'Done';
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} onClick={() => onClick(ticket)}>
-      <Card size="small" hoverable style={{ borderLeft: `4px solid ${getPriorityColor(ticket.priority)}` }}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <Card 
+        size="small" 
+        hoverable 
+        style={{ borderLeft: `4px solid ${getPriorityColor(ticket.priority)}` }}
+        onClick={() => onClick(ticket)}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <Text type="secondary" style={{ fontSize: '12px' }}><code>{ticket.code}</code></Text>
           <PriorityBadge priority={ticket.priority} />
@@ -65,7 +72,7 @@ const SortableTicket = ({ ticket, onClick }) => {
           <Space>
             <CalendarOutlined style={{ color: isOverdue ? '#ff4d4f' : '#8c8c8c' }} />
             <Text style={{ fontSize: '11px', color: isOverdue ? '#ff4d4f' : '#8c8c8c' }}>
-              {new Date(ticket.dueDate).toLocaleDateString()}
+              {displayDate ? new Date(displayDate).toLocaleDateString() : 'No Date'}
             </Text>
           </Space>
         </div>
@@ -82,6 +89,30 @@ const getPriorityColor = (priority) => {
     case 'Low': return '#52c41a';
     default: return '#d9d9d9';
   }
+};
+
+// Droppable Column Component
+const DroppableColumn = ({ colId, tickets, openTicketDetail }) => {
+  const { setNodeRef } = useDroppable({ id: colId });
+
+  return (
+    <div style={{ width: 300, minWidth: 300, background: '#f5f5f5', borderRadius: 8, padding: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
+        <Title level={5} style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
+          {colId.replace(/([A-Z])/g, ' $1').trim()}
+        </Title>
+        <Badge count={tickets.length} style={{ backgroundColor: '#bfbfbf' }} />
+      </div>
+
+      <SortableContext id={colId} items={tickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
+        <div ref={setNodeRef} style={{ minHeight: 400, height: '100%', paddingBottom: 20 }}>
+          {tickets.map(ticket => (
+            <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} />
+          ))}
+        </div>
+      </SortableContext>
+    </div>
+  );
 };
 
 const KanbanBoard = () => {
@@ -179,9 +210,9 @@ const KanbanBoard = () => {
             <Select
               placeholder="Select Project"
               style={{ width: 250 }}
-              value={projectId}
+              value={projectId ? String(projectId) : undefined}
               onChange={handleProjectChange}
-              options={allProjects.map(p => ({ label: `${p.code} - ${p.name}`, value: p.id }))}
+              options={allProjects.map(p => ({ label: p.name, value: String(p.id) }))}
             />
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>Create Ticket</Button>
           </Space>
@@ -191,22 +222,12 @@ const KanbanBoard = () => {
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
         <div style={{ display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16 }}>
           {Object.entries(kanbanColumns).map(([colId, tickets]) => (
-            <div key={colId} style={{ width: 300, minWidth: 300, background: '#f5f5f5', borderRadius: 8, padding: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
-                <Title level={5} style={{ margin: 0 }}>
-                  {colId.replace(/([A-Z])/g, ' $1').trim()}
-                </Title>
-                <Badge count={tickets.length} style={{ backgroundColor: '#bfbfbf' }} />
-              </div>
-
-              <SortableContext id={colId} items={tickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                <div ref={null} style={{ minHeight: 100 }}>
-                  {tickets.map(ticket => (
-                    <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} />
-                  ))}
-                </div>
-              </SortableContext>
-            </div>
+            <DroppableColumn
+              key={colId}
+              colId={colId}
+              tickets={tickets}
+              openTicketDetail={openTicketDetail}
+            />
           ))}
         </div>
       </DndContext>
@@ -250,8 +271,13 @@ const KanbanBoard = () => {
             </Space>
 
             <Space direction="vertical">
-              <Text strong>Due Date</Text>
-              <Text>{new Date(selectedTicket.dueDate).toLocaleDateString()}</Text>
+              <Text strong>Date</Text>
+              <Text>
+                {selectedTicket.dueDate 
+                  ? new Date(selectedTicket.dueDate).toLocaleDateString() 
+                  : (selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleDateString() : 'No Date')
+                }
+              </Text>
             </Space>
           </Space>
         )}

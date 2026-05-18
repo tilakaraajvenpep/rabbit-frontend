@@ -10,10 +10,23 @@ export const adminService = {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 800));
       const { tenantCode } = useAuthStore.getState();
-      return { data: mockUsers.filter(u => u.tenantCode === tenantCode) };
+      const filtered = mockUsers.filter(u => u.tenantCode === tenantCode);
+      const mapped = filtered.map(u => ({
+        ...u,
+        id: u.id,
+        name: u.name || u.fullName,
+        fullName: u.fullName || u.name
+      }));
+      return { data: mapped };
     }
     const response = await apiClient.get('/users');
-    return { data: response.data.data };
+    const mapped = response.data.data.map(u => ({
+      ...u,
+      id: u.id || u.userId,
+      name: u.name || u.fullName,
+      fullName: u.fullName || u.name
+    }));
+    return { data: mapped };
   },
 
   inviteUser: async (data) => {
@@ -62,6 +75,16 @@ export const adminService = {
       return { data: { success: true } };
     }
     return apiClient.put(`/users/${id}/status`);
+  },
+
+  deleteUser: async (id) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const idx = mockUsers.findIndex(u => u.id === id);
+      if (idx !== -1) mockUsers.splice(idx, 1);
+      return { data: { success: true } };
+    }
+    return apiClient.delete(`/users/${id}`);
   },
 
   getSubscription: async () => {

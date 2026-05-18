@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Switch, notification, Space, Typography, Tag, Skeleton } from 'antd';
-import { UserAddOutlined, SearchOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, Select, Switch, notification, Space, Typography, Tag, Skeleton, Popconfirm } from 'antd';
+import { UserAddOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { projectService } from '../../services/projectService';
 import PageHeader from '../../components/common/PageHeader';
@@ -71,6 +71,16 @@ const UserManagementPage = () => {
     }
   };
 
+  const handleDeleteUser = async (userId) => {
+    try {
+      await adminService.deleteUser(userId);
+      notification.success({ message: 'User Deleted successfully' });
+      fetchUsers();
+    } catch (error) {
+      notification.error({ message: 'Delete Failed', description: 'Failed to delete user.' });
+    }
+  };
+
   if (loading) return <Skeleton active paragraph={{ rows: 10 }} />;
 
   const columns = [
@@ -106,24 +116,43 @@ const UserManagementPage = () => {
     {
       title: 'Status',
       key: 'status',
-      render: (_, record) => (
-        <Space>
-          <Switch 
-            size="small" 
-            checked={record.status !== 'Inactive'} 
-            onChange={() => handleStatusToggle(record.id)} 
-          />
-          <Tag color={record.status === 'Inactive' ? 'red' : 'green'}>
-            {record.status === 'Inactive' ? 'Inactive' : 'Active'}
-          </Tag>
-        </Space>
-      )
+      render: (_, record) => {
+        const isActive = record.isActive !== undefined ? record.isActive : (record.status !== 'Inactive');
+        return (
+          <Space>
+            <Switch 
+              size="small" 
+              checked={isActive} 
+              onChange={() => handleStatusToggle(record.id)} 
+            />
+            <Tag color={isActive ? 'green' : 'red'}>
+              {isActive ? 'Active' : 'Inactive'}
+            </Tag>
+          </Space>
+        );
+      }
     },
     {
       title: 'Last Login',
       dataIndex: 'lastLogin',
       key: 'lastLogin',
       render: (date) => date || 'Never'
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Popconfirm
+          title="Delete User"
+          description="Are you sure you want to delete this user? This action cannot be undone."
+          onConfirm={() => handleDeleteUser(record.id)}
+          okText="Yes"
+          cancelText="No"
+          okButtonProps={{ danger: true }}
+        >
+          <Button type="text" danger icon={<DeleteOutlined />} />
+        </Popconfirm>
+      )
     }
   ];
 

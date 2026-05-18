@@ -231,12 +231,18 @@ const EODReportPage = () => {
       await reportService.submitDailyReport(reportData);
       
       if (data.isAlertIssue && data.alertMessage) {
+        const firstItem = data.items?.[0];
+        const selectedTicket = myTickets.find(t => t.id === firstItem?.ticketId);
+        const resolvedProjectId = selectedTicket 
+          ? Number(selectedTicket.projectId) 
+          : (allProjects?.[0]?.id || 1);
+
         await analyticsService.createAlert({
           type: 'Employee Report Alert',
           severity: 'Critical',
           message: data.alertMessage,
           employeeName: currentUser.name,
-          projectId: 'Multiple/None',
+          projectId: resolvedProjectId,
           projectName: 'EOD Report'
         });
       }
