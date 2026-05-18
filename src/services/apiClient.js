@@ -5,74 +5,69 @@ import { logger } from '../utils/logger';
 const apiClient = axios.create({
   baseURL: `${import.meta.env.VITE_API_URL}/api`,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
-// Request interceptor
+/* -----------------------
+   REQUEST INTERCEPTOR
+------------------------ */
 apiClient.interceptors.request.use(
   (config) => {
     const { token, tenantCode } = useAuthStore.getState();
 
-    // Attach JWT token
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Attach tenant code
     if (tenantCode) {
       config.headers['X-Tenant-Code'] = tenantCode;
     }
 
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor
+/* -----------------------
+   RESPONSE INTERCEPTOR
+------------------------ */
 apiClient.interceptors.response.use(
   (response) => response,
 
   async (error) => {
     const originalRequest = error.config;
 
-    // Handle token expiration
-    if (
-      error.response?.status === 401 &&
-      !originalRequest._retry
-    ) {
+    // Always safe guard
+    const status = error?.response?.status;
+
+    /* -----------------------
+       TOKEN EXPIRED (401)
+    ------------------------ */
+    if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
-        const { refreshToken, refreshTokens } =
-          useAuthStore.getState();
+        const { refreshToken, refreshTokens } = useAuthStore.getState();
 
         if (!refreshToken) {
           throw new Error('No refresh token available');
         }
 
-        // Refresh token request
-        const response = await axios.post(
-          `${import.meta.env.VITE_API_URL}/api/auth/refresh`,
-          {
-            refreshToken
-          }
-        );
+        // IMPORTANT: use apiClient instead of raw axios
+        const response = await apiClient.post('/auth/refresh', {
+          refreshToken,
+        });
 
         const { token, newRefreshToken } = response.data;
 
-        // Update tokens in store
         refreshTokens(token, newRefreshToken);
 
-        // Retry original request
         originalRequest.headers.Authorization = `Bearer ${token}`;
 
         return apiClient(originalRequest);
-
       } catch (refreshError) {
-        logger.error('Session expired. Please login again.');
+        logger.error('Session expired. Redirecting to login.');
 
         useAuthStore.getState().logout();
 
@@ -82,18 +77,27 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // Forbidden
-    if (error.response?.status === 403) {
+    /* -----------------------
+       FORBIDDEN (403)
+    ------------------------ */
+    if (status === 403) {
       window.location.href = '/forbidden';
     }
 
-    // Tenant not found
+    /* -----------------------
+       TENANT NOT FOUND (404)
+    ------------------------ */
     if (
-      error.response?.status === 404 &&
-      error.response.data?.type === 'TenantNotFound'
+      status === 404 &&
+      error.response?.data?.type === 'TenantNotFound'
     ) {
       window.location.href = '/tenant-not-found';
     }
+
+    /* -----------------------
+       GENERIC ERROR
+    ------------------------ */
+    logger?.error?.(error?.response?.data || error.message);
 
     return Promise.reject(error);
   }
