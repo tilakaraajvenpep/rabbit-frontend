@@ -1,0 +1,159 @@
+import React from 'react';
+import { Layout, Menu, Typography } from 'antd';
+import { 
+  DashboardOutlined, 
+  ProjectOutlined, 
+  TeamOutlined, 
+  CheckSquareOutlined, 
+  FileTextOutlined, 
+  BarChartOutlined, 
+  BellOutlined, 
+  MessageOutlined,
+  SettingOutlined,
+  GlobalOutlined,
+  DollarOutlined
+} from '@ant-design/icons';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
+import { useThemeStore } from '../../store/themeStore';
+import { theme as antdTheme } from 'antd';
+
+const { Sider } = Layout;
+const { Title, Text } = Typography;
+
+const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { role } = useAuthStore();
+  const { isDarkMode } = useThemeStore();
+  const { token } = antdTheme.useToken();
+
+  const handleMenuClick = ({ key }) => {
+    navigate(key);
+    if (isMobile && closeDrawer) {
+      closeDrawer();
+    }
+  };
+
+  const getMenuItems = () => {
+    const items = [];
+
+    if (role === 'SuperAdmin') {
+      items.push(
+        { key: '/superadmin/tenants', icon: <GlobalOutlined />, label: 'Tenants' },
+        { key: '/superadmin/settings', icon: <SettingOutlined />, label: 'Platform Settings' }
+      );
+    }
+
+    if (role === 'TenantAdmin') {
+      items.push(
+        { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
+        { key: '/admin/subscription', icon: <DollarOutlined />, label: 'Subscription' }
+      );
+    }
+
+    if (role === 'Sales') {
+      items.push(
+        { key: '/sales/projects', icon: <ProjectOutlined />, label: 'Projects' },
+        { key: '/sales/projects/create', icon: <FileTextOutlined />, label: 'Create Project' },
+        { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' }
+      );
+    }
+
+    if (role === 'Accounts') {
+      items.push(
+        { key: '/accounts/pending', icon: <CheckSquareOutlined />, label: 'Pending Review' },
+        { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' }
+      );
+    }
+
+    if (role === 'TeamLead') {
+      items.push(
+        { key: '/teamlead/projects', icon: <ProjectOutlined />, label: 'My Projects' },
+        { key: '/teamlead/board', icon: <DashboardOutlined />, label: 'Kanban Board' },
+        { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' }
+      );
+    }
+
+    if (role === 'Employee') {
+      items.push(
+        { key: '/employee/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
+        { key: '/employee/report', icon: <FileTextOutlined />, label: 'Daily Report' },
+        { key: '/employee/reports', icon: <BarChartOutlined />, label: 'Work Reports' }
+      );
+    }
+
+    if (role === 'ProjectManager') {
+      items.push(
+        { key: '/pm/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
+        { key: '/pm/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
+        { key: '/pm/alerts', icon: <BellOutlined />, label: 'Alerts Feed' },
+        { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },
+        { key: '/pm/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' }
+      );
+    }
+
+    // Common items
+    items.push({ key: '/chatbot', icon: <MessageOutlined />, label: 'Rabbit Assistant' });
+
+    return items;
+  };
+
+  return (
+    <Sider 
+      trigger={null} 
+      collapsible 
+      collapsed={collapsed} 
+      theme={isDarkMode ? "dark" : "light"} 
+      width={240}
+      style={{ 
+        boxShadow: isDarkMode ? 'none' : '2px 0 8px 0 rgba(29,35,41,.05)',
+        height: '100vh',
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        zIndex: 101,
+        borderRight: isDarkMode ? `1px solid ${token.colorBorderSecondary}` : 'none'
+      }}
+    >
+      <div style={{ 
+        height: 64, 
+        display: 'flex', 
+        alignItems: 'center', 
+        padding: collapsed ? '0 24px' : '0 24px', 
+        background: isDarkMode ? token.colorBgContainer : '#fff',
+        borderBottom: `1px solid ${token.colorBorderSecondary}` 
+      }}>
+        <div style={{ 
+          width: 32, 
+          height: 32, 
+          background: token.colorPrimary, 
+          borderRadius: 6, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          marginRight: collapsed ? 0 : 12 
+        }}>
+          <Text strong style={{ color: '#fff', fontSize: '18px' }}>R</Text>
+        </div>
+        {!collapsed && (
+          <Title level={4} style={{ margin: 0, color: token.colorPrimary, fontSize: '20px', fontWeight: 700, letterSpacing: '-0.5px' }}>
+            Rabbit 4.0
+          </Title>
+        )}
+      </div>
+      <Menu
+        theme={isDarkMode ? "dark" : "light"}
+        mode="inline"
+        selectedKeys={[location.pathname]}
+        onClick={handleMenuClick}
+        items={getMenuItems()}
+        style={{ height: 'calc(100vh - 64px)', overflowY: 'auto', overflowX: 'hidden', borderRight: 0 }}
+      />
+    </Sider>
+  );
+};
+
+
+export default Sidebar;
