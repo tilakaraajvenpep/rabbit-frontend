@@ -14,6 +14,7 @@ const TeamLeadDashboardPage = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
 
   // Alert Modal State
   const [isAlertModalVisible, setIsAlertModalVisible] = useState(false);
@@ -156,11 +157,21 @@ const TeamLeadDashboardPage = () => {
           prefix={<SearchOutlined />} 
           placeholder="Filter my projects..." 
           style={{ width: 300 }} 
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
         />
       </div>
 
       <Table 
-        dataSource={projects} 
+        dataSource={projects.filter(project => {
+          const term = searchText.toLowerCase();
+          return (
+            project.name?.toLowerCase().includes(term) ||
+            project.code?.toLowerCase().includes(term) ||
+            project.client?.toLowerCase().includes(term) ||
+            project.status?.toLowerCase().includes(term)
+          );
+        })} 
         columns={columns} 
         rowKey="id" 
         pagination={{ pageSize: 10 }}

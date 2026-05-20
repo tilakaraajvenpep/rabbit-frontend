@@ -12,6 +12,7 @@ const UserManagementPage = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -164,10 +165,29 @@ const UserManagementPage = () => {
       />
 
       <div style={{ marginBottom: 16 }}>
-        <Input prefix={<SearchOutlined />} placeholder="Search users by name or email..." style={{ width: 300 }} />
+        <Input 
+          prefix={<SearchOutlined />} 
+          placeholder="Search users by name or email..." 
+          style={{ width: 300 }} 
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
       </div>
 
-      <Table dataSource={users} columns={columns} rowKey="id" pagination={{ pageSize: 10 }} />
+      <Table 
+        dataSource={users.filter(user => {
+          const term = searchText.toLowerCase();
+          return (
+            user.name?.toLowerCase().includes(term) ||
+            user.fullName?.toLowerCase().includes(term) ||
+            user.email?.toLowerCase().includes(term) ||
+            user.role?.toLowerCase().includes(term)
+          );
+        })} 
+        columns={columns} 
+        rowKey="id" 
+        pagination={{ pageSize: 10 }} 
+      />
 
       <Modal
         title="Add New User"

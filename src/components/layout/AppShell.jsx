@@ -56,16 +56,14 @@ const AppShell = () => {
         marginLeft: isMobile ? 0 : (collapsed ? 80 : 240), 
         transition: 'margin-left 0.2s',
         minHeight: '100vh',
-        background: isDarkMode ? '#000' : token.colorBgLayout
+        background: token.colorBgLayout
       }}>
         <Header collapsed={isMobile ? false : collapsed} setCollapsed={toggleSidebar} />
         <Content style={{ 
-          margin: isMobile ? '12px 8px' : '24px', 
-          padding: isMobile ? 16 : 24, 
-          background: token.colorBgContainer, 
-          borderRadius: 8, 
-          minHeight: 'calc(100vh - 112px)',
-          boxShadow: isDarkMode ? 'none' : '0 1px 2px rgba(0,0,0,0.03)'
+          margin: isMobile ? '16px 12px' : '24px 32px', 
+          padding: 0, 
+          background: 'transparent', 
+          minHeight: 'calc(100vh - 112px)'
         }}>
           <Outlet />
         </Content>

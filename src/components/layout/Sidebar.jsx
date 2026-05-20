@@ -114,7 +114,8 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         top: 0,
         bottom: 0,
         zIndex: 101,
-        borderRight: isDarkMode ? `1px solid ${token.colorBorderSecondary}` : 'none'
+        borderRight: isDarkMode ? `1px solid ${token.colorBorderSecondary}` : 'none',
+        background: isDarkMode ? '#111827' : '#ffffff'
       }}
     >
       <div style={{ 
@@ -122,8 +123,8 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         display: 'flex', 
         alignItems: 'center', 
         padding: collapsed ? '0 24px' : '0 24px', 
-        background: isDarkMode ? token.colorBgContainer : '#fff',
-        borderBottom: `1px solid ${token.colorBorderSecondary}` 
+        background: 'transparent',
+        borderBottom: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}` 
       }}>
         <div style={{ 
           width: 32, 
@@ -149,7 +150,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         selectedKeys={[location.pathname]}
         onClick={handleMenuClick}
         items={getMenuItems()}
-        style={{ height: 'calc(100vh - 64px)', overflowY: 'auto', overflowX: 'hidden', borderRight: 0 }}
+        style={{ height: 'calc(100vh - 64px)', overflowY: 'auto', overflowX: 'hidden', borderRight: 0, background: 'transparent' }}
       />
     </Sider>
   );

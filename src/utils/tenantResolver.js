@@ -10,6 +10,11 @@ export const resolveTenant = () => {
     return 'dev';
   }
 
+  // Handle Vercel default subdomains to fall back to 'dev' automatically
+  if (hostname.includes('vercel.app') && hostname.includes('rabbit-frontend')) {
+    return 'dev';
+  }
+
   const parts = hostname.split('.');
   if (parts.length > 2) {
     return parts[0];
@@ -17,3 +22,4 @@ export const resolveTenant = () => {
   
   return 'dev';
 };
+

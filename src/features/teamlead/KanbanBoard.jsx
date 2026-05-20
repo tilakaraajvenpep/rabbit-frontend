@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, Drawer, Skeleton, Select } from 'antd';
+import { Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, Drawer, Skeleton, Select, theme } from 'antd';
 import { 
   DndContext, 
   PointerSensor, 
@@ -20,6 +20,7 @@ import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
 import { useTicketStore } from '../../store/ticketStore';
 import { mockUsers } from '../../mocks/mockUsers';
+import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import PriorityBadge from '../../components/common/PriorityBadge';
@@ -92,16 +93,23 @@ const getPriorityColor = (priority) => {
 };
 
 // Droppable Column Component
-const DroppableColumn = ({ colId, tickets, openTicketDetail }) => {
+const DroppableColumn = ({ colId, tickets, openTicketDetail, isDarkMode, token }) => {
   const { setNodeRef } = useDroppable({ id: colId });
 
   return (
-    <div style={{ width: 300, minWidth: 300, background: '#f5f5f5', borderRadius: 8, padding: 12 }}>
+    <div style={{ 
+      width: 300, 
+      minWidth: 300, 
+      background: isDarkMode ? '#18181b' : '#f5f5f5', 
+      borderRadius: 8, 
+      padding: 12,
+      border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`
+    }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
         <Title level={5} style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
           {colId.replace(/([A-Z])/g, ' $1').trim()}
         </Title>
-        <Badge count={tickets.length} style={{ backgroundColor: '#bfbfbf' }} />
+        <Badge count={tickets.length} style={{ backgroundColor: isDarkMode ? '#3f3f46' : '#bfbfbf', color: isDarkMode ? '#f4f4f5' : undefined }} />
       </div>
 
       <SortableContext id={colId} items={tickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
@@ -118,6 +126,8 @@ const DroppableColumn = ({ colId, tickets, openTicketDetail }) => {
 const KanbanBoard = () => {
   const { id: projectId } = useParams();
   const navigate = useNavigate();
+  const { token } = theme.useToken();
+  const { isDarkMode } = useThemeStore();
   const { kanbanColumns, setTickets, moveTicket, loading } = useTicketStore();
   const [allProjects, setAllProjects] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -227,6 +237,8 @@ const KanbanBoard = () => {
               colId={colId}
               tickets={tickets}
               openTicketDetail={openTicketDetail}
+              isDarkMode={isDarkMode}
+              token={token}
             />
           ))}
         </div>

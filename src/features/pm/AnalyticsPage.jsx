@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Select, DatePicker, Typography, Skeleton, Table, Space, Button, Divider, notification, Result, Tag } from 'antd';
+import { Row, Col, Card, Select, DatePicker, Typography, Skeleton, Table, Space, Button, Divider, notification, Result, Tag, theme } from 'antd';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, ReferenceLine
@@ -7,6 +7,7 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 import { analyticsService } from '../../services/analyticsService';
 import { projectService } from '../../services/projectService';
+import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
 
 const { Title, Text } = Typography;
@@ -15,6 +16,8 @@ const { RangePicker } = DatePicker;
 const AnalyticsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { token } = theme.useToken();
+  const { isDarkMode } = useThemeStore();
   const [data, setData] = useState(null);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +75,12 @@ const AnalyticsPage = () => {
     return (
       <div style={{ paddingBottom: 40 }}>
         <PageHeader title="Project Analytics" />
-        <Card style={{ textAlign: 'center', padding: '100px 0', background: '#fafafa', border: '2px dashed #d9d9d9' }}>
+        <Card style={{ 
+          textAlign: 'center', 
+          padding: '100px 0', 
+          background: isDarkMode ? 'rgba(255, 255, 255, 0.02)' : '#fafafa', 
+          border: `2px dashed ${isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#d9d9d9'}` 
+        }}>
           <Title level={3} type="secondary">Welcome to Analytics</Title>
           <Text type="secondary" style={{ fontSize: '16px', display: 'block', marginBottom: 24 }}>
             Select a project from the dropdown below to view its performance metrics.
@@ -131,10 +139,10 @@ const AnalyticsPage = () => {
             <div style={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.employeeWork}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <RechartsTooltip />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? 'rgba(255,255,255,0.08)' : '#e5e7eb'} />
+                  <XAxis dataKey="name" stroke={isDarkMode ? 'rgba(255,255,255,0.45)' : '#888888'} tick={{ fill: isDarkMode ? 'rgba(255,255,255,0.65)' : '#6b7280' }} />
+                  <YAxis stroke={isDarkMode ? 'rgba(255,255,255,0.45)' : '#888888'} tick={{ fill: isDarkMode ? 'rgba(255,255,255,0.65)' : '#6b7280' }} />
+                  <RechartsTooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e1e24' : '#ffffff', borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e5e7eb', borderRadius: '6px', color: isDarkMode ? '#f9fafb' : '#374151' }} />
                   <Legend />
                   <Bar dataKey="planned" fill="#1890ff" name="Planned Hrs" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="actual" fill="#52c41a" name="Actual Hrs" radius={[4, 4, 0, 0]} />
@@ -150,14 +158,14 @@ const AnalyticsPage = () => {
             <div style={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.timeline}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <RechartsTooltip />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? 'rgba(255,255,255,0.08)' : '#e5e7eb'} />
+                  <XAxis dataKey="date" stroke={isDarkMode ? 'rgba(255,255,255,0.45)' : '#888888'} tick={{ fill: isDarkMode ? 'rgba(255,255,255,0.65)' : '#6b7280' }} />
+                  <YAxis stroke={isDarkMode ? 'rgba(255,255,255,0.45)' : '#888888'} tick={{ fill: isDarkMode ? 'rgba(255,255,255,0.65)' : '#6b7280' }} />
+                  <RechartsTooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e1e24' : '#ffffff', borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e5e7eb', borderRadius: '6px', color: isDarkMode ? '#f9fafb' : '#374151' }} />
                   <Legend />
                   <Line type="monotone" dataKey="planned" stroke="#1890ff" strokeDasharray="5 5" name="Planned" />
                   <Line type="monotone" dataKey="actual" stroke="#52c41a" strokeWidth={2} name="Actual" />
-                  <ReferenceLine y={500} label="Total Budgeted" stroke="red" strokeDasharray="3 3" />
+                  <ReferenceLine y={500} label={{ value: "Total Budgeted", fill: isDarkMode ? '#f3f4f6' : '#ff4d4f' }} stroke="red" strokeDasharray="3 3" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -181,7 +189,7 @@ const AnalyticsPage = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <RechartsTooltip />
+                  <RechartsTooltip contentStyle={{ backgroundColor: isDarkMode ? '#1e1e24' : '#ffffff', borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e5e7eb', borderRadius: '6px', color: isDarkMode ? '#f9fafb' : '#374151' }} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -195,12 +203,15 @@ const AnalyticsPage = () => {
             <div style={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={data.burnRate}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <RechartsTooltip formatter={(v) => `₹ ${v.toLocaleString('en-IN')}`} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? 'rgba(255,255,255,0.08)' : '#e5e7eb'} />
+                  <XAxis dataKey="date" stroke={isDarkMode ? 'rgba(255,255,255,0.45)' : '#888888'} tick={{ fill: isDarkMode ? 'rgba(255,255,255,0.65)' : '#6b7280' }} />
+                  <YAxis stroke={isDarkMode ? 'rgba(255,255,255,0.45)' : '#888888'} tick={{ fill: isDarkMode ? 'rgba(255,255,255,0.65)' : '#6b7280' }} />
+                  <RechartsTooltip 
+                    formatter={(v) => `₹ ${v.toLocaleString('en-IN')}`}
+                    contentStyle={{ backgroundColor: isDarkMode ? '#1e1e24' : '#ffffff', borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#e5e7eb', borderRadius: '6px', color: isDarkMode ? '#f9fafb' : '#374151' }} 
+                  />
                   <Area type="monotone" dataKey="cost" stroke="#1890ff" fill="#1890ff" fillOpacity={0.1} />
-                  <ReferenceLine y={600000} stroke="red" strokeDasharray="3 3" label="Budget Limit" />
+                  <ReferenceLine y={600000} stroke="red" strokeDasharray="3 3" label={{ value: "Budget Limit", fill: isDarkMode ? '#f3f4f6' : '#ff4d4f' }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

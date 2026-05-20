@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, Typography, Alert, Space, ConfigProvider, theme, Modal, notification } from 'antd';
+import { Form, Input, Button, Card, Typography, Space, Modal, notification } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +11,6 @@ const { Title, Text } = Typography;
 
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const navigate = useNavigate();
   const { login, tenantCode: currentTenantCode } = useAuthStore();
@@ -25,16 +24,17 @@ const LoginPage = () => {
 
   const onSubmit = async (data) => {
     setLoading(true);
-    setError(null);
 
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (import.meta.env.VITE_USE_MOCK === 'true') {
-      // (Keep mock logic just in case, but usually we'll use the real API now)
+      // (Mock logic if needed, but not used since USE_MOCK is false)
     } else {
       try {
-        const response = await authService.login(data.email, data.password, currentTenantCode);
+        // Lowercase the email to support any casing
+        const normalizedEmail = data.email.toLowerCase().trim();
+        const response = await authService.login(normalizedEmail, data.password, currentTenantCode);
         
         if (response.success) {
           const { user, accessToken, refreshToken } = response.data;
@@ -53,10 +53,35 @@ const LoginPage = () => {
             default: navigate('/');
           }
         } else {
-          setError(response.message || 'Login failed');
+          // Toast error message
+          notification.error({
+            message: 'Login Failed',
+            description: response.message || 'Invalid credentials'
+          });
         }
       } catch (err) {
-        setError(err.response?.data?.message || 'Connection error. Is the backend running?');
+        const serverMsg = err?.response?.data?.message || '';
+
+        // Map specific backend messages to user-friendly toasts
+        if (serverMsg.toLowerCase().includes('not registered') || serverMsg.toLowerCase().includes('email')) {
+          notification.error({
+            message: 'Email Not Found',
+            description: `The email address is not registered in the "${currentTenantCode.toUpperCase()}" workspace. Please check your email or workspace code.`,
+            duration: 6,
+          });
+        } else if (serverMsg.toLowerCase().includes('incorrect password') || serverMsg.toLowerCase().includes('password')) {
+          notification.error({
+            message: 'Wrong Password',
+            description: 'The password you entered is incorrect. Please try again.',
+            duration: 5,
+          });
+        } else {
+          notification.error({
+            message: 'Login Error',
+            description: serverMsg || 'Unable to connect. Please check that the backend server is running.',
+            duration: 5,
+          });
+        }
       }
     }
     
@@ -64,19 +89,19 @@ const LoginPage = () => {
   };
 
   const handleWorkspaceChange = () => {
-    useAuthStore.setState({ tenantCode: newTenantCode.toLowerCase() });
+    useAuthStore.setState({ tenantCode: newTenantCode.toLowerCase().trim() });
     setIsWorkspaceModalOpen(false);
     notification.success({ message: 'Workspace Updated', description: `Switched to ${newTenantCode.toUpperCase()}` });
   };
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm }}>
-      <div style={{ 
+    <div style={{ 
       display: 'flex', 
       justifyContent: 'center', 
       alignItems: 'center', 
       minHeight: '100vh',
-      background: '#f0f2f5' 
+      background: '#f0f2f5',
+      width: '100vw'
     }}>
       <Card style={{ width: 400, textAlign: 'center', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -87,8 +112,6 @@ const LoginPage = () => {
               <Button type="link" size="small" onClick={() => setIsWorkspaceModalOpen(true)}>Change</Button>
             </div>
           </div>
-
-          {error && <Alert message={error} type="error" showIcon />}
 
           <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
             <Form.Item 
@@ -147,7 +170,7 @@ const LoginPage = () => {
           </Text>
         </Space>
       </Card>
-      </div>
+
       <Modal
         title="Switch Workspace"
         open={isWorkspaceModalOpen}
@@ -161,9 +184,10 @@ const LoginPage = () => {
           value={newTenantCode} 
           onChange={(e) => setNewTenantCode(e.target.value)} 
           placeholder="Workspace Code"
+          onPressEnter={handleWorkspaceChange}
         />
       </Modal>
-    </ConfigProvider>
+    </div>
   );
 };
 

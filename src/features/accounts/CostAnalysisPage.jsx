@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, InputNumber, DatePicker, Button, Space, Table, Modal, Alert, notification, Row, Col, Typography, Divider, Descriptions, Result, Select } from 'antd';
+import { Card, Form, Input, InputNumber, DatePicker, Button, Space, Table, Modal, Alert, notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme } from 'antd';
 import { 
   PlusOutlined, 
   DeleteOutlined, 
@@ -14,6 +14,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { projectService } from '../../services/projectService';
 import { adminService } from '../../services/adminService';
+import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 
@@ -23,6 +24,8 @@ const { Title, Text } = Typography;
 const CostAnalysisPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { token } = theme.useToken();
+  const { isDarkMode } = useThemeStore();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -202,8 +205,8 @@ const CostAnalysisPage = () => {
       />
 
       <Card style={{ marginBottom: 24 }}>
-        <Row gutter={24}>
-          <Col span={18}>
+        <Row gutter={24} align="middle">
+          <Col xs={24} sm={18}>
             <Descriptions column={2}>
               <Descriptions.Item label="Project Code"><Text code>{project.code}</Text></Descriptions.Item>
               <Descriptions.Item label="Client">{project.client}</Descriptions.Item>
@@ -211,15 +214,16 @@ const CostAnalysisPage = () => {
               <Descriptions.Item label="Created At">{dayjs(project.createdAt).format('DD MMM YYYY')}</Descriptions.Item>
             </Descriptions>
           </Col>
-          <Col span={6} style={{ textAlign: 'right' }}>
+          <Col xs={24} sm={6} style={{ textAlign: 'right' }}>
             <Button 
               icon={<DownloadOutlined />} 
               type="primary" 
               ghost 
               onClick={handleDownload}
               disabled={!latestDoc}
+              style={{ width: '100%', maxWidth: '240px' }}
             >
-              Download {latestDoc ? latestDoc.fileName : 'Scope.pdf'}
+              Download Scope
             </Button>
           </Col>
         </Row>
@@ -355,15 +359,14 @@ const CostAnalysisPage = () => {
           )}
         </Card>
 
-        {/* Sticky action bar */}
+        {/* Action bar */}
         <div style={{ 
-          position: 'fixed', 
-          bottom: 0, 
-          left: 0, 
-          right: 0, 
-          background: '#fff', 
+          marginTop: 24,
+          background: token.colorBgContainer, 
           padding: '16px 24px', 
-          boxShadow: '0 -2px 8px rgba(0,0,0,0.1)',
+          border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`,
+          borderRadius: 8,
+          boxShadow: isDarkMode ? 'none' : '0 1px 2px rgba(0,0,0,0.03)',
           display: 'flex',
           justifyContent: 'flex-end',
           zIndex: 1000

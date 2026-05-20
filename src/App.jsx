@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, theme } from 'antd';
 import AppShell from './components/layout/AppShell';
@@ -49,19 +49,64 @@ const OverallReportsPage = React.lazy(() => import('./features/shared/OverallRep
 // Chatbot
 const ChatbotPage = React.lazy(() => import('./features/chatbot/ChatbotPage'));
 
+// Profile
+const ProfilePage = React.lazy(() => import('./features/profile/ProfilePage'));
+
 // Placeholder components for routes (to be implemented in later stages)
 const Placeholder = ({ title }) => <div><h1>{title}</h1><p>Stage 1 complete. This feature will be built in the next stage.</p></div>;
 
 const App = () => {
   const { isDarkMode } = useThemeStore();
 
+  useEffect(() => {
+    document.body.classList.toggle('dark-mode', isDarkMode);
+  }, [isDarkMode]);
+
   return (
     <ConfigProvider theme={{
       algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
       token: {
-        colorPrimary: '#1890ff',
-        borderRadius: 6,
+        colorPrimary: '#4f46e5', // Modern Indigo
+        colorInfo: '#6366f1',
+        colorSuccess: '#10b981', // Vibrant Emerald
+        colorWarning: '#f59e0b', // Modern Amber
+        colorError: '#ef4444', // Premium Rose
+        colorLink: '#4f46e5',
+        borderRadius: 10,
+        fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        colorBgLayout: isDarkMode ? '#09090b' : '#f8fafc',
+        colorBgContainer: isDarkMode ? '#18181b' : '#ffffff',
       },
+      components: {
+        Card: {
+          colorBorderSecondary: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+          boxShadowSecondary: isDarkMode 
+            ? '0 4px 20px rgba(0, 0, 0, 0.4)' 
+            : '0 4px 20px rgba(99, 102, 241, 0.04)',
+        },
+        Button: {
+          controlHeight: 40,
+          controlHeightLG: 46,
+          borderRadius: 8,
+          fontWeight: 600,
+        },
+        Input: {
+          controlHeight: 40,
+          borderRadius: 8,
+        },
+        Select: {
+          controlHeight: 40,
+          borderRadius: 8,
+        },
+        Menu: {
+          itemBorderRadius: 8,
+          itemSelectedBg: isDarkMode ? 'rgba(99, 102, 241, 0.25)' : 'rgba(99, 102, 241, 0.08)',
+        },
+        Layout: {
+          colorBgHeader: isDarkMode ? '#18181b' : '#ffffff',
+          colorBgBody: isDarkMode ? '#09090b' : '#f8fafc',
+        }
+      }
     }}>
       <BrowserRouter>
         <Suspense fallback={<LoadingScreen />}>
@@ -128,16 +173,17 @@ const App = () => {
                 <Route path="/pm/employee-reports" element={<EmployeeReportsPage />} />
               </Route>
 
-              {/* Shared Project Overview (Accessible to all authenticated) */}
-              <Route path="/projects/:id/overview" element={<ProjectOverviewPage />} />
-
               {/* Shared Reports for Managers */}
               <Route element={<ProtectedRoute allowedRoles={['Accounts', 'Sales', 'ProjectManager']} />}>
                 <Route path="/shared/reports" element={<OverallReportsPage />} />
               </Route>
 
               {/* All Auth Roles */}
-              <Route path="/chatbot" element={<ChatbotPage />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/projects/:id/overview" element={<ProjectOverviewPage />} />
+                <Route path="/chatbot" element={<ChatbotPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+              </Route>
             </Route>
 
             {/* Fallback */}

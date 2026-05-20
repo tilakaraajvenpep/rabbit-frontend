@@ -28,20 +28,23 @@ const Header = ({ collapsed, setCollapsed }) => {
   };
 
   const userMenuItems = [
-    { key: 'profile', icon: <UserOutlined />, label: 'Profile' },
+    { key: 'profile', icon: <UserOutlined />, label: 'Profile', onClick: () => navigate('/profile') },
     { key: 'logout', icon: <LogoutOutlined />, label: 'Logout', onClick: handleLogout },
   ];
 
   return (
     <AntHeader style={{ 
       padding: '0 24px', 
-      background: token.colorBgContainer, 
+      background: isDarkMode ? 'rgba(17, 24, 39, 0.85)' : 'rgba(255, 255, 255, 0.75)', 
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
       display: 'flex', 
       alignItems: 'center', 
       justifyContent: 'space-between', 
       height: 64,
       lineHeight: '64px',
-      boxShadow: `0 2px 8px ${isDarkMode ? 'rgba(0,0,0,0.5)' : '#f0f1f2'}`,
+      boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.2)' : '0 4px 20px rgba(0,0,0,0.02)',
+      borderBottom: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`,
       position: 'sticky',
       top: 0,
       zIndex: 100,

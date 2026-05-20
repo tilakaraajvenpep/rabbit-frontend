@@ -44,7 +44,11 @@ apiClient.interceptors.response.use(
     /* -----------------------
        TOKEN EXPIRED (401)
     ------------------------ */
-    if (status === 401 && !originalRequest._retry) {
+    const isAuthEndpoint =
+      originalRequest.url?.includes('/auth/login') ||
+      originalRequest.url?.includes('/auth/refresh');
+
+    if (status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {

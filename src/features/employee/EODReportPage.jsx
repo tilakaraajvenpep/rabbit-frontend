@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Form, Input, InputNumber, Select, Button, Space, Typography,
-  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio
+  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, SendOutlined, CheckCircleOutlined,
@@ -15,6 +15,7 @@ import { reportService } from '../../services/reportService';
 import { ticketService } from '../../services/ticketService';
 import { analyticsService } from '../../services/analyticsService';
 import { useAuthStore } from '../../store/authStore';
+import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
 
 const { TextArea } = Input;
@@ -23,6 +24,8 @@ const { Title, Text } = Typography;
 const EODReportPage = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
+  const { token } = theme.useToken();
+  const { isDarkMode } = useThemeStore();
 
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [baseDate, setBaseDate] = useState(dayjs().startOf('week').add(1, 'day'));
@@ -301,8 +304,12 @@ const EODReportPage = () => {
                   }}
                   style={{
                     textAlign: 'center', cursor: 'pointer', padding: '8px 12px', borderRadius: 12, minWidth: 90,
-                    background: isSelected ? '#e6f7ff' : 'transparent',
-                    border: isSelected ? '1px solid #1890ff' : '1px solid #f0f0f0'
+                    background: isSelected 
+                      ? (isDarkMode ? 'rgba(79, 70, 229, 0.2)' : '#e6f7ff') 
+                      : 'transparent',
+                    border: isSelected 
+                      ? `1px solid ${token.colorPrimary}` 
+                      : `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#f0f0f0'}`
                   }}
                 >
                   <Text type="secondary" style={{ fontSize: 12 }}>{date.format('ddd')}</Text>
@@ -328,7 +335,7 @@ const EODReportPage = () => {
         <Result icon={<CheckCircleOutlined style={{ color: '#faad14' }} />} title="Happy Sunday!" />
       ) : (
         <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
-          <Card style={{ marginBottom: 24, background: '#fafafa' }}>
+          <Card style={{ marginBottom: 24, background: isDarkMode ? 'rgba(255, 255, 255, 0.02)' : '#fafafa' }}>
             <Row align="middle" gutter={24}>
               <Col span={12}>
                 <Title level={5} style={{ margin: 0 }}>{dayjs(selectedDate).format('DD MMMM YYYY')}</Title>
