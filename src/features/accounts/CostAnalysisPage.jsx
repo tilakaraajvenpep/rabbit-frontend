@@ -118,12 +118,23 @@ const CostAnalysisPage = () => {
   };
 
   const onSubmit = async (data) => {
-    if (totalPhaseHours !== Math.round(Number(watchedHours))) {
-      notification.warning({ message: 'Validation Warning', description: 'Phase hours must match total estimated hours.' });
+    const submitHours = Math.round(data.phases.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0));
+    const targetHours = Math.round(Number(data.estimatedHours) || 0);
+    const submitCost = Math.round(data.phases.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0));
+    const targetBudget = Math.round(Number(data.totalBudget) || 0);
+
+    if (submitHours !== targetHours) {
+      notification.warning({ 
+        message: 'Validation Warning', 
+        description: `Phase hours must match total estimated hours. (Total: ${submitHours}, Estimated: ${targetHours})` 
+      });
       return;
     }
-    if (totalPhaseCost > Math.round(Number(watchedBudget))) {
-      notification.warning({ message: 'Validation Warning', description: 'Total phase cost cannot exceed total budget.' });
+    if (submitCost > targetBudget) {
+      notification.warning({ 
+        message: 'Validation Warning', 
+        description: `Total phase cost cannot exceed total budget. (Total: ₹${submitCost.toLocaleString('en-IN')}, Budget: ₹${targetBudget.toLocaleString('en-IN')})` 
+      });
       return;
     }
 
