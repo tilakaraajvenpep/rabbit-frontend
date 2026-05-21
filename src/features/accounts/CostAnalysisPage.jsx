@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Input, InputNumber, DatePicker, Button, Space, Table, Modal, Alert, notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme } from 'antd';
-import { 
-  PlusOutlined, 
-  DeleteOutlined, 
-  CheckCircleOutlined, 
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  CheckCircleOutlined,
   RollbackOutlined,
   DownloadOutlined,
   CalculatorOutlined,
@@ -118,13 +118,31 @@ const CostAnalysisPage = () => {
   };
 
   const onSubmit = async (data) => {
-    if (totalPhaseHours !== watchedHours) {
+    if (totalPhaseHours !== Math.round(Number(watchedHours))) {
       notification.warning({ message: 'Validation Warning', description: 'Phase hours must match total estimated hours.' });
       return;
     }
-    
-    setTempFormData(data);
-    setIsSelectTLModalVisible(true);
+    if (totalPhaseCost > Math.round(Number(watchedBudget))) {
+      notification.warning({ message: 'Validation Warning', description: 'Total phase cost cannot exceed total budget.' });
+      return;
+    }
+
+    if (project?.status === 'Approved') {
+      setSubmitting(true);
+      try {
+        await projectService.submitCostAnalysis(id, data);
+        notification.success({ message: 'Updated', description: 'Cost analysis successfully updated.' });
+        navigate('/accounts/pending');
+      } catch (error) {
+        console.error('Update Cost Analysis Error:', error);
+        notification.error({ message: 'Error', description: 'Failed to update analysis.' });
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      setTempFormData(data);
+      setIsSelectTLModalVisible(true);
+    }
   };
 
   const handleForwardToTL = async () => {
@@ -191,7 +209,7 @@ const CostAnalysisPage = () => {
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: 80 }}>
-      <PageHeader 
+      <PageHeader
         title={`Cost & Timeline Analysis — ${project.name}`}
         breadcrumbs={[
           { label: 'Pending Review', path: '/accounts/pending' },
@@ -215,10 +233,10 @@ const CostAnalysisPage = () => {
             </Descriptions>
           </Col>
           <Col xs={24} sm={6} style={{ textAlign: 'right' }}>
-            <Button 
-              icon={<DownloadOutlined />} 
-              type="primary" 
-              ghost 
+            <Button
+              icon={<DownloadOutlined />}
+              type="primary"
+              ghost
               onClick={handleDownload}
               disabled={!latestDoc}
               style={{ width: '100%', maxWidth: '240px' }}
@@ -239,9 +257,9 @@ const CostAnalysisPage = () => {
                   control={control}
                   rules={{ required: true, min: 1 }}
                   render={({ field }) => (
-                    <InputNumber 
-                      {...field} 
-                      style={{ width: '100%' }} 
+                    <InputNumber
+                      {...field}
+                      style={{ width: '100%' }}
                       formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                       parser={value => value.replace(/\₹\s?|(,*)/g, '')}
                       size="large"
@@ -310,8 +328,8 @@ const CostAnalysisPage = () => {
                     control={control}
                     rules={{ required: true, min: 1 }}
                     render={({ field }) => (
-                      <InputNumber 
-                        {...field} 
+                      <InputNumber
+                        {...field}
                         style={{ width: '100%' }}
                         formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                         parser={value => value.replace(/\₹\s?|(,*)/g, '')}
@@ -321,11 +339,11 @@ const CostAnalysisPage = () => {
                 </Form.Item>
               </Col>
               <Col span={2}>
-                <Button 
-                  icon={<DeleteOutlined />} 
-                  danger 
-                  onClick={() => remove(index)} 
-                  disabled={fields.length === 1} 
+                <Button
+                  icon={<DeleteOutlined />}
+                  danger
+                  onClick={() => remove(index)}
+                  disabled={fields.length === 1}
                   style={{ marginBottom: index === 0 ? 0 : 0 }}
                 />
               </Col>
@@ -349,21 +367,21 @@ const CostAnalysisPage = () => {
           </Row>
 
           {(totalPhaseHours !== Math.round(Number(watchedHours)) || totalPhaseCost > Math.round(Number(watchedBudget))) && (
-            <Alert 
-              message="Total phase mismatch" 
-              description="Phase totals must align with project totals before approval." 
-              type="warning" 
-              showIcon 
-              style={{ marginTop: 16 }} 
+            <Alert
+              message="Total phase mismatch"
+              description="Phase totals must align with project totals before approval."
+              type="warning"
+              showIcon
+              style={{ marginTop: 16 }}
             />
           )}
         </Card>
 
         {/* Action bar */}
-        <div style={{ 
+        <div style={{
           marginTop: 24,
-          background: token.colorBgContainer, 
-          padding: '16px 24px', 
+          background: token.colorBgContainer,
+          padding: '16px 24px',
           border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`,
           borderRadius: 8,
           boxShadow: isDarkMode ? 'none' : '0 1px 2px rgba(0,0,0,0.03)',
@@ -372,18 +390,18 @@ const CostAnalysisPage = () => {
           zIndex: 1000
         }}>
           <Space>
-            <Button 
-              size="large" 
-              danger 
+            <Button
+              size="large"
+              danger
               icon={<RollbackOutlined />}
               onClick={() => setIsReturnModalVisible(true)}
             >
               Return to Sales
             </Button>
-            <Button 
-              type="primary" 
-              size="large" 
-              htmlType="submit" 
+            <Button
+              type="primary"
+              size="large"
+              htmlType="submit"
               icon={<CheckCircleOutlined />}
               loading={submitting}
               style={{ background: '#52c41a', borderColor: '#52c41a' }}
@@ -404,9 +422,9 @@ const CostAnalysisPage = () => {
       >
         <Space direction="vertical" style={{ width: '100%' }}>
           <Text>Provide a reason for returning this document. The sales team will be notified to revise the scope.</Text>
-          <TextArea 
-            rows={4} 
-            value={returnComments} 
+          <TextArea
+            rows={4}
+            value={returnComments}
             onChange={e => setReturnComments(e.target.value)}
             placeholder="Detailed reason for return (min 20 characters)..."
           />

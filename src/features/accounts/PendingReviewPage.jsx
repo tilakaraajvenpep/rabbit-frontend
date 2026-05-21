@@ -88,16 +88,18 @@ const PendingReviewPage = () => {
     {
       title: 'Actions',
       key: 'actions',
-      render: (_, record) => (
-        <Button 
-          type="primary" 
-          icon={<CalculatorOutlined />} 
-          onClick={() => navigate(`/accounts/projects/${record.id}/cost`)}
-          disabled={record.status === 'Approved'}
-        >
-          Review & Analyze
-        </Button>
-      ),
+      render: (_, record) => {
+        const isApproved = record.status === 'Approved';
+        return (
+          <Button 
+            type={isApproved ? "default" : "primary"} 
+            icon={<CalculatorOutlined />} 
+            onClick={() => navigate(`/accounts/projects/${record.id}/cost`)}
+          >
+            {isApproved ? 'Edit Cost Analysis' : 'Review & Analyze'}
+          </Button>
+        );
+      },
     },
   ];
 
