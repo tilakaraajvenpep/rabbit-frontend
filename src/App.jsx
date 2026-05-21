@@ -20,6 +20,7 @@ const TenantDetailPage = React.lazy(() => import('./features/superadmin/TenantDe
 // TenantAdmin
 const UserManagementPage = React.lazy(() => import('./features/tenantadmin/UserManagementPage'));
 const SubscriptionPage = React.lazy(() => import('./features/tenantadmin/SubscriptionPage'));
+const HourAllocationPage = React.lazy(() => import('./features/tenantadmin/HourAllocationPage'));
 
 // Sales
 const ProjectListPage = React.lazy(() => import('./features/sales/ProjectListPage'));
@@ -131,6 +132,7 @@ const App = () => {
               <Route element={<ProtectedRoute allowedRoles={['TenantAdmin']} />}>
                 <Route path="/admin/users" element={<UserManagementPage />} />
                 <Route path="/admin/subscription" element={<SubscriptionPage />} />
+                <Route path="/admin/hours" element={<HourAllocationPage />} />
               </Route>
 
               {/* Sales Routes */}

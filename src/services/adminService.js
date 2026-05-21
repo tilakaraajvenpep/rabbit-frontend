@@ -121,5 +121,14 @@ export const adminService = {
       isActive: d.isActive,
       createdAt: d.createdAt,
     }};
+  },
+
+  setAllocatedHours: async (userId, hours) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      return { data: { id: userId, allocatedHours: hours } };
+    }
+    const response = await apiClient.put(`/users/${userId}/allocated-hours`, { allocatedHours: hours });
+    return { data: response.data.data };
   }
 };

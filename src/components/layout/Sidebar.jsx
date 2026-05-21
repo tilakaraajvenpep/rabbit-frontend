@@ -48,7 +48,8 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
     if (role === 'TenantAdmin') {
       items.push(
         { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
-        { key: '/admin/subscription', icon: <DollarOutlined />, label: 'Subscription' }
+        { key: '/admin/hours', icon: <DollarOutlined />, label: 'Hour Allocation' },
+        { key: '/admin/subscription', icon: <SettingOutlined />, label: 'Subscription' }
       );
     }
 

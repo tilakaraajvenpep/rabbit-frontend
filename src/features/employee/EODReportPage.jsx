@@ -57,7 +57,8 @@ const EODReportPage = () => {
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const watchedItems = watch('items');
   const totalHours = watchedItems?.reduce((acc, curr) => acc + (curr.hours || 0), 0) || 0;
-  const REQUIRED_HOURS = 8.5;
+  // Use the employee's allocated hours from their profile (set by TenantAdmin), default 8.5
+  const REQUIRED_HOURS = Number(currentUser?.allocatedHours) || 8.5;
 
   const selectedTicketIds = watchedItems?.map(item => item.ticketId).filter(id => !!id) || [];
 
@@ -221,6 +222,16 @@ const EODReportPage = () => {
   };
 
   const onSubmit = async (data) => {
+    // Enforce allocated hours cap
+    const submittedTotal = data.items.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0);
+    if (submittedTotal > REQUIRED_HOURS) {
+      notification.error({
+        message: 'Hours Exceeded',
+        description: `You can only report up to ${REQUIRED_HOURS}h/day. You've entered ${submittedTotal.toFixed(1)}h. Please reduce your task hours.`,
+        duration: 5
+      });
+      return;
+    }
     setSubmitting(true);
     try {
       const reportData = {
@@ -339,7 +350,15 @@ const EODReportPage = () => {
             <Row align="middle" gutter={24}>
               <Col span={12}>
                 <Title level={5} style={{ margin: 0 }}>{dayjs(selectedDate).format('DD MMMM YYYY')}</Title>
-                <Text type="secondary">Target: {REQUIRED_HOURS}h | Logged: <Text strong type={totalHours >= REQUIRED_HOURS ? 'success' : 'warning'}>{totalHours}h</Text></Text>
+                <Text type="secondary">
+                  Allocated: <Text strong>{REQUIRED_HOURS}h</Text> &nbsp;|&nbsp; Logged: 
+                  <Text strong type={totalHours >= REQUIRED_HOURS ? 'success' : totalHours > REQUIRED_HOURS * 0.8 ? 'warning' : 'secondary'}>
+                    {' '}{totalHours.toFixed(1)}h
+                  </Text>
+                  {totalHours > REQUIRED_HOURS && (
+                    <Text type="danger" style={{ marginLeft: 8, fontSize: 12 }}>⚠ Exceeds allocation!</Text>
+                  )}
+                </Text>
               </Col>
               <Col span={12}>
                 <Progress

@@ -3,6 +3,8 @@ import { Layout, Grid, Drawer, FloatButton, theme } from 'antd';
 import { RobotOutlined } from '@ant-design/icons';
 import { Outlet } from 'react-router-dom';
 import { useThemeStore } from '../../store/themeStore';
+import { useAuthStore } from '../../store/authStore';
+import { authService } from '../../services/authService';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import AssistantDrawer from '../common/AssistantDrawer';
@@ -18,6 +20,16 @@ const AppShell = () => {
   
   const { isDarkMode } = useThemeStore();
   const { token } = theme.useToken();
+  const { isAuthenticated, setUser } = useAuthStore();
+
+  // Refresh user profile on mount to pick up latest allocatedHours / role changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      authService.me()
+        .then(res => { if (res?.data?.data) setUser(res.data.data); })
+        .catch(() => {}); // Silent fail — don't log out on refresh error
+    }
+  }, [isAuthenticated]);
 
   // Auto-collapse on smaller screens
   useEffect(() => {
