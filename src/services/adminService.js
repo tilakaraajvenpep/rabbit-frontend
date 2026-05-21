@@ -98,9 +98,28 @@ export const adminService = {
         maxProjects: 20,
         activeProjects: 8,
         storageQuota: 100,
-        storageUsed: 42
+        storageUsed: 42,
+        tenantName: 'Demo Workspace',
+        tenantCode: 'demo',
+        isActive: true,
+        createdAt: new Date().toISOString(),
       }};
     }
-    return apiClient.get('/admin/subscription');
+    const response = await apiClient.get('/tenants/my');
+    const d = response.data.data;
+    return { data: {
+      planName: d.plan || 'Free',
+      renewalDate: d.subscriptionExpiry,
+      maxUsers: d.maxUsers,
+      activeUsers: d.activeUsers,
+      maxProjects: d.maxProjects,
+      activeProjects: d.activeProjects,
+      storageQuota: Number(d.storageQuotaGb) || 1,
+      storageUsed: 0,
+      tenantName: d.tenantName,
+      tenantCode: d.tenantCode,
+      isActive: d.isActive,
+      createdAt: d.createdAt,
+    }};
   }
 };
