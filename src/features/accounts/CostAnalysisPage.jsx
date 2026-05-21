@@ -56,8 +56,8 @@ const CostAnalysisPage = () => {
   const watchedBudget = watch('totalBudget');
   const watchedHours = watch('estimatedHours');
 
-  const totalPhaseHours = watchedPhases.reduce((acc, curr) => acc + (curr.hours || 0), 0);
-  const totalPhaseCost = watchedPhases.reduce((acc, curr) => acc + (curr.cost || 0), 0);
+  const totalPhaseHours = Math.round(watchedPhases.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0));
+  const totalPhaseCost = Math.round(watchedPhases.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0));
 
   useEffect(() => {
     fetchProject();
@@ -340,15 +340,15 @@ const CostAnalysisPage = () => {
           <Row gutter={24}>
             <Col span={12}>
               <Text strong>Total Phase Hours: </Text>
-              <Text type={totalPhaseHours === watchedHours ? 'success' : 'danger'}>{totalPhaseHours}</Text> / {watchedHours}
+              <Text type={totalPhaseHours === Math.round(Number(watchedHours)) ? 'success' : 'danger'}>{totalPhaseHours}</Text> / {Math.round(Number(watchedHours) || 0)}
             </Col>
             <Col span={12} style={{ textAlign: 'right' }}>
               <Text strong>Total Phase Cost: </Text>
-              <Text type={totalPhaseCost <= watchedBudget ? 'success' : 'danger'}>₹ {totalPhaseCost.toLocaleString('en-IN')}</Text> / ₹ {watchedBudget?.toLocaleString('en-IN')}
+              <Text type={totalPhaseCost <= Math.round(Number(watchedBudget)) ? 'success' : 'danger'}>₹ {totalPhaseCost.toLocaleString('en-IN')}</Text> / ₹ {Math.round(Number(watchedBudget) || 0).toLocaleString('en-IN')}
             </Col>
           </Row>
 
-          {(totalPhaseHours !== watchedHours || totalPhaseCost > watchedBudget) && (
+          {(totalPhaseHours !== Math.round(Number(watchedHours)) || totalPhaseCost > Math.round(Number(watchedBudget))) && (
             <Alert 
               message="Total phase mismatch" 
               description="Phase totals must align with project totals before approval." 
