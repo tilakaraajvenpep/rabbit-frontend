@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Card, Select, InputNumber, Button, Table, Typography, Space, Tag,
-  notification, Skeleton, Avatar, Tooltip, Row, Col, Statistic, theme
+  Card, InputNumber, Button, Typography, Space, Tag, Avatar,
+  notification, Skeleton, Row, Col, Statistic, Divider, Tooltip, theme, Badge
 } from 'antd';
 import {
   ClockCircleOutlined, UserOutlined, SaveOutlined, TeamOutlined,
-  CheckCircleOutlined, EditOutlined
+  CheckCircleOutlined, EditOutlined, CloseOutlined, ThunderboltOutlined
 } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import PageHeader from '../../components/common/PageHeader';
@@ -13,20 +13,179 @@ import { useThemeStore } from '../../store/themeStore';
 
 const { Title, Text } = Typography;
 
-const ROLE_COLORS = {
-  Employee: 'blue',
-  TeamLead: 'purple',
-  Sales: 'cyan',
-  Accounts: 'gold',
-  ProjectManager: 'green',
+const ROLE_META = {
+  Employee:       { color: '#6366f1', bg: 'rgba(99,102,241,0.1)',   label: 'Employee'        },
+  TeamLead:       { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',   label: 'Team Lead'       },
+  Sales:          { color: '#06b6d4', bg: 'rgba(6,182,212,0.1)',    label: 'Sales'           },
+  Accounts:       { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',   label: 'Accounts'        },
+  ProjectManager: { color: '#10b981', bg: 'rgba(16,185,129,0.1)',   label: 'Project Manager' },
+};
+
+const getInitials = (name = '') =>
+  name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
+const EmployeeCard = ({ user, onSave }) => {
+  const { token } = theme.useToken();
+  const { isDarkMode } = useThemeStore();
+  const [hours, setHours] = useState(Number(user.allocatedHours) || 8.5);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const currentSaved = Number(user.allocatedHours) || 8.5;
+  const isDirty = hours !== currentSaved;
+
+  const meta = ROLE_META[user.role] || { color: '#6b7280', bg: 'rgba(107,114,128,0.1)', label: user.role };
+
+  const handleSave = async () => {
+    if (!hours || hours <= 0) {
+      notification.warning({ message: 'Invalid', description: 'Hours must be greater than 0.' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(user.id, hours);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      // error shown by parent
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const pct = Math.min(Math.round((hours / 12) * 100), 100);
+
+  return (
+    <Card
+      style={{
+        borderRadius: 16,
+        border: isDirty
+          ? `1.5px solid ${meta.color}`
+          : `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#f0f0f0'}`,
+        transition: 'border 0.2s, box-shadow 0.2s',
+        boxShadow: isDirty ? `0 0 0 3px ${meta.color}22` : undefined,
+        background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#fff',
+        position: 'relative',
+        overflow: 'visible',
+      }}
+      bodyStyle={{ padding: '20px 20px 16px' }}
+      hoverable
+    >
+      {/* Top row: avatar + info */}
+      <Row align="middle" gutter={12} wrap={false}>
+        <Col flex="none">
+          <Avatar
+            size={48}
+            style={{ background: `${meta.color}30`, color: meta.color, fontWeight: 700, fontSize: 16, flexShrink: 0 }}
+          >
+            {getInitials(user.name)}
+          </Avatar>
+        </Col>
+        <Col flex="auto" style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {user.name}
+          </div>
+          <Text type="secondary" style={{ fontSize: 12, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {user.email}
+          </Text>
+        </Col>
+        <Col flex="none">
+          <Tag
+            style={{
+              background: meta.bg,
+              color: meta.color,
+              border: `1px solid ${meta.color}40`,
+              borderRadius: 20,
+              fontWeight: 600,
+              fontSize: 11,
+              padding: '2px 10px',
+            }}
+          >
+            {meta.label}
+          </Tag>
+        </Col>
+      </Row>
+
+      <Divider style={{ margin: '14px 0 12px' }} />
+
+      {/* Current allocation display */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10
+      }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>Current Quota</Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ClockCircleOutlined style={{ color: meta.color, fontSize: 13 }} />
+          <Text strong style={{ color: meta.color, fontSize: 15 }}>{currentSaved}h/day</Text>
+        </div>
+      </div>
+
+      {/* Hour bar */}
+      <div style={{
+        height: 6, borderRadius: 99, background: isDarkMode ? 'rgba(255,255,255,0.08)' : '#f0f0f0', marginBottom: 14
+      }}>
+        <div style={{
+          height: '100%', borderRadius: 99, width: `${pct}%`,
+          background: `linear-gradient(90deg, ${meta.color}, ${meta.color}99)`,
+          transition: 'width 0.4s ease'
+        }} />
+      </div>
+
+      {/* Input + Save row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>Set hours:</Text>
+        <InputNumber
+          value={hours}
+          min={0.5}
+          max={24}
+          step={0.5}
+          precision={1}
+          style={{ flex: 1 }}
+          onChange={val => { if (val != null) setHours(val); }}
+          keyboard
+          controls
+          size="middle"
+        />
+        <Button
+          type={isDirty ? 'primary' : 'default'}
+          icon={saved ? <CheckCircleOutlined /> : <SaveOutlined />}
+          loading={saving}
+          onClick={handleSave}
+          disabled={!isDirty || saving}
+          style={{
+            background: isDirty ? meta.color : undefined,
+            borderColor: isDirty ? meta.color : undefined,
+            color: isDirty ? '#fff' : undefined,
+            transition: 'all 0.2s',
+            minWidth: 80,
+          }}
+        >
+          {saved ? 'Saved!' : 'Save'}
+        </Button>
+      </div>
+
+      {isDirty && (
+        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            Change: {currentSaved}h → <Text strong style={{ color: meta.color }}>{hours}h</Text>
+          </Text>
+          <Button
+            type="link"
+            size="small"
+            icon={<CloseOutlined />}
+            onClick={() => setHours(currentSaved)}
+            style={{ padding: 0, fontSize: 11, height: 'auto' }}
+          >
+            Reset
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
 };
 
 const HourAllocationPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState(null);
-  const [editingHours, setEditingHours] = useState({}); // { userId: hours }
-  const { isDarkMode } = useThemeStore();
   const { token } = theme.useToken();
 
   useEffect(() => { fetchUsers(); }, []);
@@ -35,13 +194,8 @@ const HourAllocationPage = () => {
     setLoading(true);
     try {
       const res = await adminService.getUsers();
-      // Only show non-admin users
-      const filtered = res.data.filter(u => !['TenantAdmin', 'SuperAdmin'].includes(u.role));
+      const filtered = (res.data || []).filter(u => !['TenantAdmin', 'SuperAdmin'].includes(u.role));
       setUsers(filtered);
-      // Seed editingHours with current allocatedHours
-      const initial = {};
-      filtered.forEach(u => { initial[u.id] = Number(u.allocatedHours) || 8.5; });
-      setEditingHours(initial);
     } catch (err) {
       notification.error({ message: 'Error', description: 'Failed to load users.' });
     } finally {
@@ -49,172 +203,92 @@ const HourAllocationPage = () => {
     }
   };
 
-  const handleSave = async (userId) => {
-    const hours = editingHours[userId];
-    if (!hours || hours <= 0) {
-      notification.warning({ message: 'Invalid', description: 'Hours must be greater than 0.' });
-      return;
-    }
-    setSavingId(userId);
+  const handleSave = useCallback(async (userId, hours) => {
     try {
       await adminService.setAllocatedHours(userId, hours);
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, allocatedHours: hours } : u));
-      notification.success({ message: 'Saved', description: `Allocated ${hours}h/day for this employee.` });
+      // Update local state so the card reflects the new saved value
+      setUsers(prev => prev.map(u =>
+        u.id === userId ? { ...u, allocatedHours: String(hours) } : u
+      ));
+      notification.success({
+        message: '✅ Hours Updated',
+        description: `Daily quota set to ${hours}h for this employee.`,
+        duration: 3,
+      });
     } catch (err) {
-      notification.error({ message: 'Error', description: 'Failed to update allocated hours.' });
-    } finally {
-      setSavingId(null);
+      notification.error({ message: 'Save Failed', description: err?.response?.data?.message || 'Please try again.' });
+      throw err;
     }
-  };
+  }, []);
 
-  const totalEmployees = users.length;
-  const avgHours = users.length > 0
-    ? (users.reduce((sum, u) => sum + (Number(u.allocatedHours) || 8.5), 0) / users.length).toFixed(1)
-    : 0;
-  const totalHoursPerDay = users.reduce((sum, u) => sum + (Number(u.allocatedHours) || 8.5), 0);
-
-  const columns = [
-    {
-      title: 'Employee',
-      dataIndex: 'name',
-      key: 'name',
-      render: (name, record) => (
-        <Space>
-          <Avatar
-            style={{ background: token.colorPrimary, flexShrink: 0 }}
-            icon={<UserOutlined />}
-            size={36}
-          />
-          <div>
-            <div style={{ fontWeight: 600, lineHeight: 1.3 }}>{name}</div>
-            <Text type="secondary" style={{ fontSize: 12 }}>{record.email}</Text>
-          </div>
-        </Space>
-      ),
-    },
-    {
-      title: 'Role',
-      dataIndex: 'role',
-      key: 'role',
-      render: role => <Tag color={ROLE_COLORS[role] || 'default'}>{role}</Tag>,
-    },
-    {
-      title: 'Status',
-      dataIndex: 'isActive',
-      key: 'isActive',
-      render: active => active
-        ? <Tag color="success" icon={<CheckCircleOutlined />}>Active</Tag>
-        : <Tag color="error">Inactive</Tag>,
-    },
-    {
-      title: 'Current Allocated Hours/Day',
-      dataIndex: 'allocatedHours',
-      key: 'allocatedHours',
-      render: (h) => (
-        <Space>
-          <ClockCircleOutlined style={{ color: token.colorPrimary }} />
-          <Text strong style={{ color: token.colorPrimary }}>{Number(h || 8.5).toFixed(1)}h</Text>
-        </Space>
-      ),
-    },
-    {
-      title: 'Set New Hours',
-      key: 'setHours',
-      render: (_, record) => (
-        <Space>
-          <InputNumber
-            value={editingHours[record.id] ?? Number(record.allocatedHours) ?? 8.5}
-            min={1}
-            max={24}
-            step={0.5}
-            precision={1}
-            style={{ width: 100 }}
-            onChange={val => setEditingHours(prev => ({ ...prev, [record.id]: val }))}
-            addonAfter="h/day"
-          />
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            loading={savingId === record.id}
-            onClick={() => handleSave(record.id)}
-            disabled={editingHours[record.id] === Number(record.allocatedHours)}
-          >
-            Save
-          </Button>
-        </Space>
-      ),
-    },
-  ];
+  const totalTeam    = users.length;
+  const avgHours     = totalTeam > 0
+    ? (users.reduce((s, u) => s + (Number(u.allocatedHours) || 8.5), 0) / totalTeam).toFixed(1)
+    : '—';
+  const totalPerDay  = users.reduce((s, u) => s + (Number(u.allocatedHours) || 8.5), 0).toFixed(1);
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: 80 }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 80 }}>
       <PageHeader
         title="Work Hour Allocation"
         breadcrumbs={[{ label: 'Admin' }, { label: 'Hour Allocation' }]}
       />
 
-      {/* Summary Stats */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={8}>
-          <Card style={{ borderRadius: 12, borderLeft: `4px solid ${token.colorPrimary}` }}>
-            <Statistic
-              title={<Text type="secondary">Total Team Members</Text>}
-              value={totalEmployees}
-              prefix={<TeamOutlined style={{ color: token.colorPrimary }} />}
-              valueStyle={{ color: token.colorPrimary, fontWeight: 700 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card style={{ borderRadius: 12, borderLeft: '4px solid #10b981' }}>
-            <Statistic
-              title={<Text type="secondary">Avg Hours/Day</Text>}
-              value={avgHours}
-              suffix="h"
-              prefix={<ClockCircleOutlined style={{ color: '#10b981' }} />}
-              valueStyle={{ color: '#10b981', fontWeight: 700 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card style={{ borderRadius: 12, borderLeft: '4px solid #f59e0b' }}>
-            <Statistic
-              title={<Text type="secondary">Total Team Hours/Day</Text>}
-              value={totalHoursPerDay.toFixed(1)}
-              suffix="h"
-              prefix={<ClockCircleOutlined style={{ color: '#f59e0b' }} />}
-              valueStyle={{ color: '#f59e0b', fontWeight: 700 }}
-            />
-          </Card>
-        </Col>
+      {/* Summary strip */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 28 }}>
+        {[
+          { label: 'Team Members',     value: totalTeam,    suffix: '',    color: token.colorPrimary,  icon: <TeamOutlined /> },
+          { label: 'Avg Quota/Day',    value: avgHours,     suffix: 'h',   color: '#10b981',           icon: <ClockCircleOutlined /> },
+          { label: 'Total Hours/Day',  value: totalPerDay,  suffix: 'h',   color: '#f59e0b',           icon: <ThunderboltOutlined /> },
+        ].map(s => (
+          <Col xs={24} sm={8} key={s.label}>
+            <Card style={{ borderRadius: 14, borderLeft: `4px solid ${s.color}` }} bodyStyle={{ padding: '16px 20px' }}>
+              <Statistic
+                title={<Text type="secondary" style={{ fontSize: 12 }}>{s.label}</Text>}
+                value={s.value}
+                suffix={s.suffix}
+                prefix={<span style={{ color: s.color }}>{s.icon}</span>}
+                valueStyle={{ color: s.color, fontWeight: 700, fontSize: 22 }}
+              />
+            </Card>
+          </Col>
+        ))}
       </Row>
 
-      <Card
-        style={{ borderRadius: 16 }}
-        title={
-          <Space>
-            <EditOutlined style={{ color: token.colorPrimary }} />
-            <span style={{ fontWeight: 700 }}>Employee Hour Quotas</span>
-          </Space>
-        }
-        extra={
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Set the maximum daily hours each employee can report in their EOD
-          </Text>
-        }
-      >
-        {loading ? (
-          <Skeleton active paragraph={{ rows: 6 }} />
-        ) : (
-          <Table
-            columns={columns}
-            dataSource={users}
-            rowKey="id"
-            pagination={{ pageSize: 10 }}
-            rowClassName={(_, i) => i % 2 === 0 ? '' : (isDarkMode ? 'dark-alt-row' : 'light-alt-row')}
-          />
-        )}
-      </Card>
+      <div style={{ marginBottom: 20 }}>
+        <Title level={5} style={{ margin: 0 }}>
+          <EditOutlined style={{ color: token.colorPrimary, marginRight: 8 }} />
+          Employee Quotas
+        </Title>
+        <Text type="secondary" style={{ fontSize: 13 }}>
+          Set the maximum daily hours each employee can report in their EOD. Changes take effect immediately on next login.
+        </Text>
+      </div>
+
+      {loading ? (
+        <Row gutter={[16, 16]}>
+          {[1, 2, 3].map(i => (
+            <Col xs={24} sm={12} lg={8} key={i}>
+              <Card style={{ borderRadius: 16 }}><Skeleton active avatar paragraph={{ rows: 3 }} /></Card>
+            </Col>
+          ))}
+        </Row>
+      ) : users.length === 0 ? (
+        <Card style={{ borderRadius: 16, textAlign: 'center', padding: 40 }}>
+          <UserOutlined style={{ fontSize: 48, color: token.colorTextQuaternary }} />
+          <div style={{ marginTop: 16 }}>
+            <Text type="secondary">No employees found in this workspace.</Text>
+          </div>
+        </Card>
+      ) : (
+        <Row gutter={[16, 16]}>
+          {users.map(user => (
+            <Col xs={24} sm={12} lg={8} key={user.id}>
+              <EmployeeCard user={user} onSave={handleSave} />
+            </Col>
+          ))}
+        </Row>
+      )}
     </div>
   );
 };
