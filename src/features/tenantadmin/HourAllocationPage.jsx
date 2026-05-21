@@ -136,7 +136,6 @@ const EmployeeCard = ({ user, onSave }) => {
         <InputNumber
           value={hours}
           min={0.5}
-          max={24}
           step={0.5}
           precision={1}
           style={{ flex: 1 }}
@@ -194,7 +193,7 @@ const HourAllocationPage = () => {
     setLoading(true);
     try {
       const res = await adminService.getUsers();
-      const filtered = (res.data || []).filter(u => !['TenantAdmin', 'SuperAdmin'].includes(u.role));
+      const filtered = (res.data || []).filter(u => u.role === 'Employee');
       setUsers(filtered);
     } catch (err) {
       notification.error({ message: 'Error', description: 'Failed to load users.' });

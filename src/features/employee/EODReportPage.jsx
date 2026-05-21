@@ -296,6 +296,50 @@ const EODReportPage = () => {
     <div style={{ maxWidth: 900, margin: '0 auto', paddingBottom: 40 }}>
       <PageHeader title="Weekly Work Report" />
 
+      {/* Allocated Hours Banner */}
+      <Card
+        style={{
+          marginBottom: 20,
+          borderRadius: 12,
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(139,92,246,0.08) 100%)',
+          border: '1px solid rgba(99,102,241,0.25)',
+        }}
+        bodyStyle={{ padding: '14px 20px' }}
+      >
+        <Row align="middle" justify="space-between">
+          <Col>
+            <Space size={12}>
+              <ClockCircleOutlined style={{ fontSize: 22, color: '#6366f1' }} />
+              <div>
+                <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
+                  Your Daily Work Quota (allocated by Admin)
+                </Text>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#6366f1', lineHeight: 1.2 }}>
+                  {REQUIRED_HOURS}h / day
+                </div>
+              </div>
+            </Space>
+          </Col>
+          <Col>
+            <Space size={24}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b' }}>
+                  {totalHours.toFixed(1)}h
+                </div>
+                <Text type="secondary" style={{ fontSize: 11 }}>Logged today</Text>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: totalHours >= REQUIRED_HOURS ? '#6b7280' : '#6366f1' }}>
+                  {Math.max(0, REQUIRED_HOURS - totalHours).toFixed(1)}h
+                </div>
+                <Text type="secondary" style={{ fontSize: 11 }}>Remaining</Text>
+              </div>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
+
+
       {/* Weekly Navigator */}
       <Card style={{ marginBottom: 24, borderRadius: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
