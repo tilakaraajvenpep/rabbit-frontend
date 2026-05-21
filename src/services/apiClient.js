@@ -82,13 +82,6 @@ apiClient.interceptors.response.use(
     }
 
     /* -----------------------
-       FORBIDDEN (403)
-    ------------------------ */
-    if (status === 403) {
-      window.location.href = '/forbidden';
-    }
-
-    /* -----------------------
        TENANT NOT FOUND (404)
     ------------------------ */
     if (
