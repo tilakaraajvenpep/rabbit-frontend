@@ -73,6 +73,7 @@ const AlertsFeedPage = () => {
   };
 
   const filteredAlerts = alerts.filter(a => {
+    if (a.type === 'Leave Request Alert') return false;
     if (activeTab === 'all') return true;
     if (activeTab === 'unread') return !a.acknowledged;
     if (activeTab === 'acknowledged') return a.acknowledged;
