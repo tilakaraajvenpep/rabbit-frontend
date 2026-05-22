@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, Drawer, Skeleton, Select, theme } from 'antd';
+import { Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, Drawer, Skeleton, Select, theme, Modal, message } from 'antd';
 import { 
   DndContext, 
   PointerSensor, 
@@ -15,7 +15,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlusOutlined, UserOutlined, CalendarOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
@@ -32,7 +32,7 @@ const { Content } = Layout;
 const { Title, Text } = Typography;
 
 // Sortable Ticket Card
-const SortableTicket = ({ ticket, onClick, user }) => {
+const SortableTicket = ({ ticket, onClick, user, onDelete }) => {
   const {
     attributes,
     listeners,
@@ -60,7 +60,17 @@ const SortableTicket = ({ ticket, onClick, user }) => {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <Text type="secondary" style={{ fontSize: '12px' }}><code>{ticket.code}</code></Text>
-          <PriorityBadge priority={ticket.priority} />
+          <Space size={4}>
+            <PriorityBadge priority={ticket.priority} />
+            <Button
+              size="small"
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              style={{ padding: '0 4px', height: 'auto' }}
+              onClick={(e) => { e.stopPropagation(); onDelete(ticket); }}
+            />
+          </Space>
         </div>
         <Title level={5} style={{ margin: '0 0 12px 0' }} ellipsis={{ rows: 2 }}>{ticket.title}</Title>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -95,7 +105,7 @@ const getPriorityColor = (priority) => {
 };
 
 // Droppable Column Component
-const DroppableColumn = ({ colId, tickets, openTicketDetail, isDarkMode, token, users }) => {
+const DroppableColumn = ({ colId, tickets, openTicketDetail, onDeleteTicket, isDarkMode, token, users }) => {
   const { setNodeRef } = useDroppable({ id: colId });
 
   return (
@@ -118,7 +128,7 @@ const DroppableColumn = ({ colId, tickets, openTicketDetail, isDarkMode, token, 
         <div ref={setNodeRef} style={{ minHeight: 400, height: '100%', paddingBottom: 20 }}>
           {tickets.map(ticket => {
             const user = users.find(u => u.id === ticket.assignedTo) || mockUsers.find(u => u.id === ticket.assignedTo);
-            return <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} user={user} />;
+            return <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} onDelete={onDeleteTicket} user={user} />;
           })}
         </div>
       </SortableContext>
@@ -225,6 +235,26 @@ const KanbanBoard = () => {
     setIsDrawerOpen(true);
   };
 
+  const handleDeleteTicket = (ticket) => {
+    Modal.confirm({
+      title: 'Delete this ticket?',
+      content: `Permanently delete ticket "${ticket.code} - ${ticket.title}"? This cannot be undone.`,
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: async () => {
+        try {
+          await ticketService.deleteTicket(ticket.id);
+          message.success('Ticket deleted successfully.');
+          loadTickets();
+        } catch (error) {
+          console.error('Failed to delete ticket', error);
+          message.error('Failed to delete ticket. Please try again.');
+        }
+      }
+    });
+  };
+
   const currentAssignee = selectedTicket ? (
     users.find(u => u.id === selectedTicket.assignedTo) || 
     mockUsers.find(u => u.id === selectedTicket.assignedTo)
@@ -250,12 +280,13 @@ const KanbanBoard = () => {
 
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
         <div style={{ display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16 }}>
-          {Object.entries(kanbanColumns).map(([colId, tickets]) => (
+                  {Object.entries(kanbanColumns).map(([colId, tickets]) => (
             <DroppableColumn
               key={colId}
               colId={colId}
               tickets={tickets}
               openTicketDetail={openTicketDetail}
+              onDeleteTicket={handleDeleteTicket}
               isDarkMode={isDarkMode}
               token={token}
               users={users}

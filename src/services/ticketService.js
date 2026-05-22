@@ -86,5 +86,15 @@ export const ticketService = {
       return { data: ticket };
     }
     return apiClient.get(`/tickets/${ticketId}`);
+  },
+
+  deleteTicket: async (ticketId) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      const idx = mockTickets.findIndex(t => t.id === ticketId);
+      if (idx !== -1) mockTickets.splice(idx, 1);
+      return { data: { success: true } };
+    }
+    return apiClient.delete(`/tickets/${ticketId}`);
   }
 };

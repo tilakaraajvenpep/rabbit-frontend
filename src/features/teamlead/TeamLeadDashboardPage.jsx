@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Typography, Tag, Skeleton, Input, Modal, Form, Select, notification } from 'antd';
-import { EyeOutlined, SearchOutlined, DashboardOutlined, AlertOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Typography, Tag, Skeleton, Input, Modal, Form, Select, notification, message } from 'antd';
+import { EyeOutlined, SearchOutlined, DashboardOutlined, AlertOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { projectService } from '../../services/projectService';
 import { analyticsService } from '../../services/analyticsService';
@@ -50,6 +50,26 @@ const TeamLeadDashboardPage = () => {
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to download document.' });
     }
+  };
+
+  const handleDeleteProject = (record) => {
+    Modal.confirm({
+      title: 'Delete this project?',
+      content: `This will permanently delete "${record.name}" (${record.code}) and all associated data. This cannot be undone.`,
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: async () => {
+        try {
+          await projectService.deleteProject(record.id);
+          message.success('Project deleted successfully.');
+          fetchProjects();
+        } catch (error) {
+          console.error('Failed to delete project', error);
+          message.error('Failed to delete project. Please try again.');
+        }
+      }
+    });
   };
 
   const handleRaiseAlert = async (values) => {
@@ -133,6 +153,14 @@ const TeamLeadDashboardPage = () => {
             onClick={() => navigate(`/teamlead/projects/${record.id}/kanban`)}
           >
             Kanban
+          </Button>
+          <Button
+            type="link"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteProject(record)}
+          >
+            Delete
           </Button>
         </Space>
       )
