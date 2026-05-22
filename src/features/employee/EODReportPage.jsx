@@ -81,7 +81,7 @@ const EODReportPage = () => {
       return sum + dayHours;
     }, 0);
 
-  const weeklyAllocated = baseRequiredHours * 5;
+  const weeklyAllocated = baseRequiredHours;
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
 
