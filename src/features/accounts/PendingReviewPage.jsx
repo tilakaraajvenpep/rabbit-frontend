@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tabs, notification, Skeleton, Typography } from 'antd';
-import { DownloadOutlined, CalculatorOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tabs, notification, Skeleton, Typography, Modal, message } from 'antd';
+import { DownloadOutlined, CalculatorOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { projectService } from '../../services/projectService';
@@ -48,6 +48,26 @@ const PendingReviewPage = () => {
     }
   };
 
+  const handleDelete = (record) => {
+    Modal.confirm({
+      title: 'Cancel and delete this project?',
+      content: `This will permanently delete "${record.name}" (${record.code}) and all associated data from the database. This cannot be undone.`,
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: async () => {
+        try {
+          await projectService.deleteProject(record.id);
+          message.success('Project deleted successfully.');
+          fetchPendingProjects();
+        } catch (error) {
+          console.error('Failed to delete project', error);
+          message.error('Failed to delete project. Please try again.');
+        }
+      }
+    });
+  };
+
   const filteredProjects = projects.filter(p => {
     if (activeTab === 'All') return true;
     return p.status === activeTab;
@@ -91,13 +111,23 @@ const PendingReviewPage = () => {
       render: (_, record) => {
         const isApproved = record.status === 'Approved';
         return (
-          <Button 
-            type={isApproved ? "default" : "primary"} 
-            icon={<CalculatorOutlined />} 
-            onClick={() => navigate(`/accounts/projects/${record.id}/cost`)}
-          >
-            {isApproved ? 'Edit Cost Analysis' : 'Review & Analyze'}
-          </Button>
+          <Space size="middle">
+            <Button 
+              type={isApproved ? "default" : "primary"} 
+              icon={<CalculatorOutlined />} 
+              onClick={() => navigate(`/accounts/projects/${record.id}/cost`)}
+            >
+              {isApproved ? 'Edit Cost Analysis' : 'Review & Analyze'}
+            </Button>
+            <Button
+              type="link"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record)}
+            >
+              Cancel
+            </Button>
+          </Space>
         );
       },
     },
