@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, DatePicker, Radio, Input, Button, Table, Tag, Space, notification, Typography, Alert } from 'antd';
-import { CalendarOutlined, PlusOutlined, ClockCircleOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Card, Form, DatePicker, Radio, Input, Button, Table, Tag, Space, notification, Typography, Alert, Modal, message } from 'antd';
+import { CalendarOutlined, PlusOutlined, ClockCircleOutlined, CheckCircleOutlined, CloseCircleOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { leaveService } from '../../services/leaveService';
 import PageHeader from '../../components/common/PageHeader';
@@ -14,6 +14,11 @@ const LeaveRequestsPage = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
+  
+  // Edit State
+  const [editingLeave, setEditingLeave] = useState(null);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [editForm] = Form.useForm();
 
   useEffect(() => {
     fetchLeaves();
@@ -29,6 +34,52 @@ const LeaveRequestsPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditLeave = (record) => {
+    setEditingLeave(record);
+    editForm.setFieldsValue({
+      leaveDate: dayjs(record.leaveDate),
+      type: record.type,
+      reason: record.reason
+    });
+    setIsEditModalVisible(true);
+  };
+
+  const handleSaveEdit = async (values) => {
+    try {
+      await leaveService.updateLeave(editingLeave.leaveId, {
+        leaveDate: values.leaveDate.format('YYYY-MM-DD'),
+        type: values.type,
+        reason: values.reason
+      });
+      notification.success({ message: 'Leave request updated successfully.' });
+      setIsEditModalVisible(false);
+      fetchLeaves();
+    } catch (e) {
+      const errMsg = e.response?.data?.message || 'Failed to update leave request.';
+      notification.error({ message: 'Error', description: errMsg });
+    }
+  };
+
+  const handleDeleteLeave = (leaveId) => {
+    Modal.confirm({
+      title: 'Delete Leave Request',
+      content: 'Are you sure you want to cancel and delete this leave request?',
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: async () => {
+        try {
+          await leaveService.deleteLeave(leaveId);
+          message.success('Leave request deleted.');
+          fetchLeaves();
+        } catch (error) {
+          console.error('Failed to delete leave request', error);
+          message.error('Failed to delete leave request.');
+        }
+      }
+    });
   };
 
   const handleApplyLeave = async (values) => {
@@ -133,6 +184,34 @@ const LeaveRequestsPage = () => {
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (date) => dayjs(date).format('DD MMM YYYY, hh:mm A'),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => {
+        if (record.status !== 'Pending') return null;
+        return (
+          <Space size="small">
+            <Button 
+              type="link" 
+              size="small" 
+              icon={<EditOutlined />}
+              onClick={() => handleEditLeave(record)}
+            >
+              Edit
+            </Button>
+            <Button 
+              type="link" 
+              danger 
+              size="small" 
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteLeave(record.leaveId)}
+            >
+              Delete
+            </Button>
+          </Space>
+        );
+      }
     }
   ];
 
@@ -219,6 +298,52 @@ const LeaveRequestsPage = () => {
           </Card>
         </div>
       </div>
+
+      <Modal
+        title="Edit Leave Request"
+        open={isEditModalVisible}
+        onCancel={() => setIsEditModalVisible(false)}
+        onOk={() => editForm.submit()}
+        okText="Save Changes"
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleSaveEdit}>
+          <Form.Item 
+            name="leaveDate" 
+            label="Leave Date" 
+            rules={[{ required: true, message: 'Please select a leave date' }]}
+          >
+            <DatePicker 
+              style={{ width: '100%' }} 
+              format="DD/MM/YYYY"
+              disabledDate={(current) => current && current.day() === 0} // Disable Sundays
+            />
+          </Form.Item>
+
+          <Form.Item 
+            name="type" 
+            label="Duration Type" 
+            rules={[{ required: true }]}
+          >
+            <Radio.Group style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <Radio.Button value="FullDay" style={{ textAlign: 'center', height: 40, lineHeight: '38px', borderRadius: 8 }}>
+                Full Day
+              </Radio.Button>
+              <Radio.Button value="HalfDay" style={{ textAlign: 'center', height: 40, lineHeight: '38px', borderRadius: 8 }}>
+                Half Day
+              </Radio.Button>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item 
+            name="reason" 
+            label="Reason for Leave" 
+            rules={[{ required: true, message: 'Please provide a reason' }]}
+          >
+            <TextArea rows={4} placeholder="E.g. medical checkup, family function..." />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Row, Col, Card, Typography, Tabs, Button, Drawer, Space, 
-  Skeleton, notification, FloatButton, Select, Input, Divider, Tag 
+  Skeleton, notification, FloatButton, Select, Input, Divider, Tag, Modal, message
 } from 'antd';
-import { CalendarOutlined, EyeOutlined, EditOutlined, SaveOutlined } from '@ant-design/icons';
+import { CalendarOutlined, EyeOutlined, EditOutlined, SaveOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
@@ -46,6 +46,26 @@ const MyTicketsPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteTicket = (ticket) => {
+    Modal.confirm({
+      title: 'Cancel Ticket',
+      content: `Are you sure you want to cancel/delete ticket "${ticket.code} - ${ticket.title}"?`,
+      okText: 'Yes, Cancel',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: async () => {
+        try {
+          await ticketService.deleteTicket(ticket.id);
+          message.success('Ticket cancelled successfully.');
+          fetchMyTickets();
+        } catch (error) {
+          console.error('Failed to cancel ticket', error);
+          message.error('Failed to cancel ticket. Please try again.');
+        }
+      }
+    });
   };
 
   const openTicketDetail = (ticket) => {
@@ -123,7 +143,8 @@ const MyTicketsPage = () => {
                 <Card 
                   hoverable
                   actions={[
-                    <Button type="link" icon={<EyeOutlined />} onClick={() => openTicketDetail(ticket)}>View Details</Button>
+                    <Button type="link" icon={<EyeOutlined />} onClick={() => openTicketDetail(ticket)}>View Details</Button>,
+                    <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDeleteTicket(ticket)}>Cancel</Button>
                   ]}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>

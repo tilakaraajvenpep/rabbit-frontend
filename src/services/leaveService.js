@@ -24,5 +24,15 @@ export const leaveService = {
   updateLeaveStatus: async (id, status) => {
     const response = await apiClient.put(`/leaves/${id}/status`, { status });
     return response.data;
+  },
+
+  updateLeave: async (id, data) => {
+    const response = await apiClient.put(`/leaves/${id}`, data);
+    return response.data;
+  },
+
+  deleteLeave: async (id) => {
+    const response = await apiClient.delete(`/leaves/${id}`);
+    return response.data;
   }
 };

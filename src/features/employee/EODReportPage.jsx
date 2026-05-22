@@ -41,6 +41,7 @@ const EODReportPage = () => {
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [existingReport, setExistingReport] = useState(null);
   const [currentLeave, setCurrentLeave] = useState(null);
+  const [weeklyReports, setWeeklyReports] = useState([]);
 
 
   // Modal State for New Ticket
@@ -70,6 +71,17 @@ const EODReportPage = () => {
 
 
   const selectedTicketIds = watchedItems?.map(item => item.ticketId).filter(id => !!id) || [];
+
+  const hoursReportedOtherDays = weeklyReports
+    .filter(r => r.date !== selectedDate)
+    .reduce((sum, r) => {
+      const dayHours = r.items?.reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
+      return sum + dayHours;
+    }, 0);
+
+  const weeklyAllocated = baseRequiredHours * 5;
+  const loggedThisWeek = hoursReportedOtherDays + totalHours;
+  const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
 
   useEffect(() => {
     updateWeekDates(baseDate);
@@ -113,6 +125,7 @@ const EODReportPage = () => {
       const start = dates[0].format('YYYY-MM-DD');
       const end = dates[6].format('YYYY-MM-DD');
       const res = await reportService.getReportsByRange(currentUser.id, start, end);
+      setWeeklyReports(res.data || []);
 
       let userLeaves = [];
       try {
@@ -342,35 +355,44 @@ const EODReportPage = () => {
         }}
         bodyStyle={{ padding: '14px 20px' }}
       >
-        <Row align="middle" justify="space-between">
-          <Col>
+        <Row align="middle" justify="space-between" gutter={[16, 16]}>
+          <Col xs={24} sm={10}>
             <Space size={12}>
               <ClockCircleOutlined style={{ fontSize: 22, color: '#6366f1' }} />
               <div>
                 <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  Your Daily Work Quota (allocated by Admin)
+                  Weekly Work Quota
                 </Text>
                 <div style={{ fontSize: 22, fontWeight: 800, color: '#6366f1', lineHeight: 1.2 }}>
-                  {REQUIRED_HOURS}h / day
+                  {weeklyAllocated.toFixed(1)}h / week
                 </div>
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  Daily Quota: {REQUIRED_HOURS}h/day
+                </Text>
               </div>
             </Space>
           </Col>
-          <Col>
-            <Space size={24}>
+          <Col xs={24} sm={14}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 24 }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#10b981' }}>
                   {totalHours.toFixed(1)}h
                 </div>
-                <Text type="secondary" style={{ fontSize: 11 }}>Logged today</Text>
+                <Text type="secondary" style={{ fontSize: 11 }}>Logged Today</Text>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: totalHours >= REQUIRED_HOURS ? '#6b7280' : '#6366f1' }}>
-                  {Math.max(0, REQUIRED_HOURS - totalHours).toFixed(1)}h
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#6366f1' }}>
+                  {loggedThisWeek.toFixed(1)}h
                 </div>
-                <Text type="secondary" style={{ fontSize: 11 }}>Remaining</Text>
+                <Text type="secondary" style={{ fontSize: 11 }}>Logged This Week</Text>
               </div>
-            </Space>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: remainingWeekly > 0 ? '#fa9e0b' : '#6b7280' }}>
+                  {remainingWeekly.toFixed(1)}h
+                </div>
+                <Text type="secondary" style={{ fontSize: 11 }}>Remaining Weekly</Text>
+              </div>
+            </div>
           </Col>
         </Row>
       </Card>
