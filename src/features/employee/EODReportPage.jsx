@@ -15,6 +15,7 @@ import { reportService } from '../../services/reportService';
 import { ticketService } from '../../services/ticketService';
 import { analyticsService } from '../../services/analyticsService';
 import { leaveService } from '../../services/leaveService';
+import { adminService } from '../../services/adminService';
 
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -42,6 +43,7 @@ const EODReportPage = () => {
   const [existingReport, setExistingReport] = useState(null);
   const [currentLeave, setCurrentLeave] = useState(null);
   const [weeklyReports, setWeeklyReports] = useState([]);
+  const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(Number(currentUser?.allocatedHours) || 8.5);
 
 
   // Modal State for New Ticket
@@ -64,7 +66,7 @@ const EODReportPage = () => {
   const totalHours = watchedItems?.reduce((acc, curr) => acc + (curr.hours || 0), 0) || 0;
   
   // Dynamic quota based on half-day/full-day leave
-  const baseRequiredHours = Number(currentUser?.allocatedHours) || 8.5;
+  const baseRequiredHours = allocatedHoursPerDay;
   const REQUIRED_HOURS = currentLeave 
     ? (currentLeave.type === 'HalfDay' ? baseRequiredHours / 2 : 0)
     : baseRequiredHours;
@@ -87,6 +89,11 @@ const EODReportPage = () => {
     updateWeekDates(baseDate);
     fetchTickets();
     fetchProjects();
+    // Fetch fresh allocatedHours from server
+    adminService.getMyProfile().then(res => {
+      const fresh = Number(res?.data?.allocatedHours);
+      if (fresh && fresh > 0) setAllocatedHoursPerDay(fresh);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {

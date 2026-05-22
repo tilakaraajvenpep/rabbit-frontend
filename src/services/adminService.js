@@ -130,5 +130,10 @@ export const adminService = {
     }
     const response = await apiClient.put(`/users/${userId}/allocated-hours`, { allocatedHours: hours });
     return { data: response.data.data };
+  },
+
+  getMyProfile: async () => {
+    const response = await apiClient.get('/users/me');
+    return { data: response.data.data };
   }
 };
