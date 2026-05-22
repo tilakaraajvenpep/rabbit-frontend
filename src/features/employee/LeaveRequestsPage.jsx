@@ -6,6 +6,7 @@ import { leaveService } from '../../services/leaveService';
 import PageHeader from '../../components/common/PageHeader';
 
 const { TextArea } = Input;
+const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 
 const LeaveRequestsPage = () => {
@@ -33,21 +34,36 @@ const LeaveRequestsPage = () => {
   const handleApplyLeave = async (values) => {
     setSubmitting(true);
     try {
-      const leaveDate = values.leaveDate.format('YYYY-MM-DD');
+      const [fromMoment, toMoment] = values.leaveDates;
+      const fromDate = fromMoment.format('YYYY-MM-DD');
+      const toDate = toMoment.format('YYYY-MM-DD');
       
       // Client-side check for duplicate leave date
-      const alreadyHasLeave = leaves.some(l => dayjs(l.leaveDate).format('YYYY-MM-DD') === leaveDate);
-      if (alreadyHasLeave) {
-        notification.error({
-          message: 'Validation Error',
-          description: 'You have already applied for a leave on this date.'
-        });
-        setSubmitting(false);
-        return;
+      // Generate dates in range to check against existing
+      const dates = [];
+      const start = dayjs(fromDate);
+      const end = dayjs(toDate);
+      let curr = start;
+      while (curr.isBefore(end) || curr.isSame(end, 'day')) {
+        dates.push(curr.format('YYYY-MM-DD'));
+        curr = curr.add(1, 'day');
+      }
+
+      for (const d of dates) {
+        const alreadyHasLeave = leaves.some(l => dayjs(l.leaveDate).format('YYYY-MM-DD') === d);
+        if (alreadyHasLeave) {
+          notification.error({
+            message: 'Validation Error',
+            description: `You have already applied for a leave on ${dayjs(d).format('DD/MM/YYYY')}.`
+          });
+          setSubmitting(false);
+          return;
+        }
       }
 
       await leaveService.applyLeave({
-        leaveDate,
+        fromDate,
+        toDate,
         type: values.type,
         reason: values.reason
       });
@@ -138,11 +154,11 @@ const LeaveRequestsPage = () => {
           >
             <Form form={form} layout="vertical" onFinish={handleApplyLeave} initialValues={{ type: 'FullDay' }}>
               <Form.Item 
-                name="leaveDate" 
-                label="Select Date" 
-                rules={[{ required: true, message: 'Please select a leave date' }]}
+                name="leaveDates" 
+                label="Select Date Range (From - To)" 
+                rules={[{ required: true, message: 'Please select leave dates' }]}
               >
-                <DatePicker 
+                <RangePicker 
                   style={{ width: '100%' }} 
                   format="DD/MM/YYYY"
                   disabledDate={(current) => current && current.day() === 0} // Disable Sundays
