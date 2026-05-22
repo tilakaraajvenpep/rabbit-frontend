@@ -16,8 +16,10 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PlusOutlined, UserOutlined, CalendarOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
+import { adminService } from '../../services/adminService';
 import { useTicketStore } from '../../store/ticketStore';
 import { mockUsers } from '../../mocks/mockUsers';
 import { useThemeStore } from '../../store/themeStore';
@@ -30,7 +32,7 @@ const { Content } = Layout;
 const { Title, Text } = Typography;
 
 // Sortable Ticket Card
-const SortableTicket = ({ ticket, onClick }) => {
+const SortableTicket = ({ ticket, onClick, user }) => {
   const {
     attributes,
     listeners,
@@ -46,9 +48,7 @@ const SortableTicket = ({ ticket, onClick }) => {
     cursor: 'pointer'
   };
 
-  const user = mockUsers.find(u => u.id === ticket.assignedTo);
-  const displayDate = ticket.dueDate || ticket.createdAt;
-  const isOverdue = displayDate && new Date(displayDate) < new Date() && ticket.status !== 'Done';
+  const isOverdue = ticket.dueDate && new Date(ticket.dueDate) < new Date() && ticket.status !== 'Done';
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
@@ -65,17 +65,19 @@ const SortableTicket = ({ ticket, onClick }) => {
         <Title level={5} style={{ margin: '0 0 12px 0' }} ellipsis={{ rows: 2 }}>{ticket.title}</Title>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space>
-            <Tooltip title={user?.name}>
+            <Tooltip title={user?.name || 'Unassigned'}>
               <Avatar size="small" src={user?.avatar} icon={<UserOutlined />} />
             </Tooltip>
             <Text type="secondary" style={{ fontSize: '12px' }}>{ticket.estimatedHours}h</Text>
           </Space>
-          <Space>
-            <CalendarOutlined style={{ color: isOverdue ? '#ff4d4f' : '#8c8c8c' }} />
-            <Text style={{ fontSize: '11px', color: isOverdue ? '#ff4d4f' : '#8c8c8c' }}>
-              {displayDate ? new Date(displayDate).toLocaleDateString() : 'No Date'}
-            </Text>
-          </Space>
+          {ticket.dueDate && (
+            <Space>
+              <CalendarOutlined style={{ color: isOverdue ? '#ff4d4f' : '#8c8c8c' }} />
+              <Text style={{ fontSize: '11px', color: isOverdue ? '#ff4d4f' : '#8c8c8c' }}>
+                {dayjs(ticket.dueDate).format('DD MMM YYYY')}
+              </Text>
+            </Space>
+          )}
         </div>
       </Card>
     </div>
@@ -93,7 +95,7 @@ const getPriorityColor = (priority) => {
 };
 
 // Droppable Column Component
-const DroppableColumn = ({ colId, tickets, openTicketDetail, isDarkMode, token }) => {
+const DroppableColumn = ({ colId, tickets, openTicketDetail, isDarkMode, token, users }) => {
   const { setNodeRef } = useDroppable({ id: colId });
 
   return (
@@ -114,9 +116,10 @@ const DroppableColumn = ({ colId, tickets, openTicketDetail, isDarkMode, token }
 
       <SortableContext id={colId} items={tickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} style={{ minHeight: 400, height: '100%', paddingBottom: 20 }}>
-          {tickets.map(ticket => (
-            <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} />
-          ))}
+          {tickets.map(ticket => {
+            const user = users.find(u => u.id === ticket.assignedTo) || mockUsers.find(u => u.id === ticket.assignedTo);
+            return <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} user={user} />;
+          })}
         </div>
       </SortableContext>
     </div>
@@ -133,6 +136,7 @@ const KanbanBoard = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [users, setUsers] = useState([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -144,6 +148,7 @@ const KanbanBoard = () => {
 
   useEffect(() => {
     fetchProjects();
+    fetchUsers();
   }, []);
 
   const fetchProjects = async () => {
@@ -152,6 +157,15 @@ const KanbanBoard = () => {
       setAllProjects(res.data);
     } catch (error) {
       console.error('Failed to fetch projects');
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await adminService.getUsers();
+      setUsers(res.data);
+    } catch (error) {
+      console.error('Failed to fetch users');
     }
   };
 
@@ -211,6 +225,11 @@ const KanbanBoard = () => {
     setIsDrawerOpen(true);
   };
 
+  const currentAssignee = selectedTicket ? (
+    users.find(u => u.id === selectedTicket.assignedTo) || 
+    mockUsers.find(u => u.id === selectedTicket.assignedTo)
+  ) : null;
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <PageHeader 
@@ -239,6 +258,7 @@ const KanbanBoard = () => {
               openTicketDetail={openTicketDetail}
               isDarkMode={isDarkMode}
               token={token}
+              users={users}
             />
           ))}
         </div>
@@ -272,8 +292,8 @@ const KanbanBoard = () => {
             <Space direction="vertical">
               <Text strong>Assignee</Text>
               <Space>
-                <Avatar src={mockUsers.find(u => u.id === selectedTicket.assignedTo)?.avatar} />
-                <Text>{mockUsers.find(u => u.id === selectedTicket.assignedTo)?.name}</Text>
+                <Avatar src={currentAssignee?.avatar} icon={<UserOutlined />} />
+                <Text>{currentAssignee?.name || 'Unassigned'}</Text>
               </Space>
             </Space>
 
@@ -283,11 +303,11 @@ const KanbanBoard = () => {
             </Space>
 
             <Space direction="vertical">
-              <Text strong>Date</Text>
+              <Text strong>Due Date</Text>
               <Text>
                 {selectedTicket.dueDate 
-                  ? new Date(selectedTicket.dueDate).toLocaleDateString() 
-                  : (selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleDateString() : 'No Date')
+                  ? dayjs(selectedTicket.dueDate).format('DD MMM YYYY') 
+                  : 'No Due Date'
                 }
               </Text>
             </Space>

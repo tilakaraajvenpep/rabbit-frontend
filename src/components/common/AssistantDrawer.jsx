@@ -8,8 +8,7 @@ import {
   MessageOutlined,
   WarningOutlined,
   ProjectOutlined,
-  InfoCircleOutlined,
-  SparklesOutlined
+  InfoCircleOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useChatStore } from '../../store/chatStore';

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Select, Space, Avatar, Typography, notification } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
 import { ticketService } from '../../services/ticketService';
+import { adminService } from '../../services/adminService';
 import { mockUsers } from '../../mocks/mockUsers';
 
 const { Text } = Typography;
@@ -9,6 +10,24 @@ const { Text } = Typography;
 const AssignTicketModal = ({ open, onClose, ticket, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState(ticket?.assignedTo);
+  const [employees, setEmployees] = useState([]);
+
+  useEffect(() => {
+    if (open) {
+      fetchEmployees();
+      setSelectedUser(ticket?.assignedTo);
+    }
+  }, [open, ticket]);
+
+  const fetchEmployees = async () => {
+    try {
+      const res = await adminService.getUsers();
+      setEmployees(res.data.filter(u => u.role === 'Employee'));
+    } catch (e) {
+      console.error('Failed to fetch employees');
+      setEmployees(mockUsers.filter(u => u.role === 'Employee'));
+    }
+  };
 
   const handleAssign = async () => {
     if (!selectedUser) return;
@@ -26,7 +45,7 @@ const AssignTicketModal = ({ open, onClose, ticket, onSuccess }) => {
     }
   };
 
-  const employees = mockUsers.filter(u => u.role === 'Employee');
+  const currentEmployee = employees.find(u => u.id === ticket?.assignedTo) || mockUsers.find(u => u.id === ticket?.assignedTo);
 
   return (
     <Modal
@@ -42,8 +61,8 @@ const AssignTicketModal = ({ open, onClose, ticket, onSuccess }) => {
           <Text type="secondary">Currently Assigned to:</Text>
           <div style={{ marginTop: 8 }}>
             <Space>
-              <Avatar src={mockUsers.find(u => u.id === ticket?.assignedTo)?.avatar} />
-              <Text strong>{mockUsers.find(u => u.id === ticket?.assignedTo)?.name || 'Unassigned'}</Text>
+              <Avatar src={currentEmployee?.avatar} icon={<UserOutlined />} />
+              <Text strong>{currentEmployee?.name || 'Unassigned'}</Text>
             </Space>
           </div>
         </div>
@@ -59,7 +78,7 @@ const AssignTicketModal = ({ open, onClose, ticket, onSuccess }) => {
             {employees.map(emp => (
               <Select.Option key={emp.id} value={emp.id}>
                 <Space>
-                  <Avatar size="small" src={emp.avatar} />
+                  <Avatar size="small" src={emp.avatar} icon={<UserOutlined />} />
                   {emp.name}
                 </Space>
               </Select.Option>

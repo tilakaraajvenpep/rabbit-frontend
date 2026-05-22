@@ -117,7 +117,7 @@ const MyTicketsPage = () => {
       ) : filteredTickets.length > 0 ? (
         <Row gutter={[16, 16]}>
           {filteredTickets.map(ticket => {
-            const isOverdue = new Date(ticket.dueDate) < new Date() && ticket.status !== 'Done';
+            const isOverdue = ticket.dueDate && new Date(ticket.dueDate) < new Date() && ticket.status !== 'Done';
             return (
               <Col xs={24} sm={12} md={8} key={ticket.id}>
                 <Card 
@@ -142,12 +142,14 @@ const MyTicketsPage = () => {
 
                   <HoursProgress consumed={ticket.consumedHours} total={ticket.estimatedHours} />
 
-                  <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <CalendarOutlined style={{ color: isOverdue ? '#ff4d4f' : '#8c8c8c' }} />
-                    <Text type={isOverdue ? 'danger' : 'secondary'} style={{ fontSize: '12px' }}>
-                      Due: {dayjs(ticket.dueDate).format('DD MMM YYYY')}
-                    </Text>
-                  </div>
+                  {ticket.dueDate && (
+                    <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <CalendarOutlined style={{ color: isOverdue ? '#ff4d4f' : '#8c8c8c' }} />
+                      <Text type={isOverdue ? 'danger' : 'secondary'} style={{ fontSize: '12px' }}>
+                        Due: {dayjs(ticket.dueDate).format('DD MMM YYYY')}
+                      </Text>
+                    </div>
+                  )}
                 </Card>
               </Col>
             );
@@ -244,7 +246,7 @@ const MyTicketsPage = () => {
 
             <Space direction="vertical">
               <Text strong>Due Date</Text>
-              <Text>{dayjs(selectedTicket.dueDate).format('DD MMM YYYY')}</Text>
+              <Text>{selectedTicket.dueDate ? dayjs(selectedTicket.dueDate).format('DD MMM YYYY') : 'No Due Date'}</Text>
             </Space>
           </Space>
         )}

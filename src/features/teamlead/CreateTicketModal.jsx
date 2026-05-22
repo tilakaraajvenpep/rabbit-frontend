@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Form, Input, Select, InputNumber, DatePicker, notification, Space, Alert } from 'antd';
 import { useForm, Controller } from 'react-hook-form';
+import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { adminService } from '../../services/adminService';
 
@@ -44,7 +45,7 @@ const CreateTicketModal = ({ open, onClose, projectId, onSuccess }) => {
         priority: data.priority,
         estimatedHours: data.estimatedHours,
         assignedToUserId: data.assignedTo,
-        dueDate: data.dueDate ? data.dueDate.toISOString() : null,
+        dueDate: data.dueDate && dayjs(data.dueDate).isValid() ? dayjs(data.dueDate).toISOString() : null,
         milestone: data.milestone
       };
       await ticketService.createTicket(projectId, formattedData);
@@ -135,7 +136,14 @@ const CreateTicketModal = ({ open, onClose, projectId, onSuccess }) => {
               name="dueDate"
               control={control}
               rules={{ required: 'Due date is required' }}
-              render={({ field }) => <DatePicker {...field} style={{ width: '100%' }} />}
+              render={({ field }) => (
+                <DatePicker 
+                  {...field} 
+                  format={['DD/MM/YYYY', 'DD/MM/YY', 'YYYY-MM-DD']} 
+                  placeholder="DD/MM/YYYY" 
+                  style={{ width: '100%' }} 
+                />
+              )}
             />
           </Form.Item>
         </div>
