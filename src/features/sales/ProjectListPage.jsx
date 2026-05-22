@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Table, Input, Button, Space, Typography, Skeleton } from 'antd';
-import { PlusOutlined, SearchOutlined, EyeOutlined } from '@ant-design/icons';
+import { Table, Input, Button, Space, Typography, Skeleton, Modal, message } from 'antd';
+import { PlusOutlined, SearchOutlined, EyeOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { projectService } from '../../services/projectService';
@@ -30,6 +30,26 @@ const ProjectListPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = (record) => {
+    Modal.confirm({
+      title: 'Are you sure you want to cancel and delete this project?',
+      content: `This will permanently delete the project "${record.name}" (${record.code}) and remove all associated data from the database. This action cannot be undone.`,
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: async () => {
+        try {
+          await projectService.deleteProject(record.id);
+          message.success('Project and associated data successfully deleted from database.');
+          fetchProjects();
+        } catch (error) {
+          console.error('Failed to delete project', error);
+          message.error('Failed to delete project. Please try again.');
+        }
+      }
+    });
   };
 
   const filteredProjects = useMemo(() => {
@@ -78,13 +98,23 @@ const ProjectListPage = () => {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
-        <Button 
-          type="link" 
-          icon={<EyeOutlined />} 
-          onClick={() => navigate(`/sales/projects/${record.id}/scope`)}
-        >
-          View
-        </Button>
+        <Space size="middle" onClick={(e) => e.stopPropagation()}>
+          <Button 
+            type="link" 
+            icon={<EyeOutlined />} 
+            onClick={() => navigate(`/sales/projects/${record.id}/scope`)}
+          >
+            View
+          </Button>
+          <Button 
+            type="link" 
+            danger
+            icon={<DeleteOutlined />} 
+            onClick={() => handleDelete(record)}
+          >
+            Cancel
+          </Button>
+        </Space>
       ),
     },
   ];
