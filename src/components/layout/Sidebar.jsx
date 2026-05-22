@@ -11,7 +11,8 @@ import {
   MessageOutlined,
   SettingOutlined,
   GlobalOutlined,
-  DollarOutlined
+  DollarOutlined,
+  CalendarOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -72,7 +73,9 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       items.push(
         { key: '/teamlead/projects', icon: <ProjectOutlined />, label: 'My Projects' },
         { key: '/teamlead/board', icon: <DashboardOutlined />, label: 'Kanban Board' },
-        { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' }
+        { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
+        { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' }
+
       );
     }
 
@@ -80,7 +83,9 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       items.push(
         { key: '/employee/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
         { key: '/employee/report', icon: <FileTextOutlined />, label: 'Daily Report' },
-        { key: '/employee/reports', icon: <BarChartOutlined />, label: 'Work Reports' }
+        { key: '/employee/reports', icon: <BarChartOutlined />, label: 'Work Reports' },
+        { key: '/employee/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' }
+
       );
     }
 
@@ -90,7 +95,9 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/pm/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
         { key: '/pm/alerts', icon: <BellOutlined />, label: 'Alerts Feed' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },
-        { key: '/pm/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' }
+        { key: '/pm/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
+        { key: '/pm/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' }
+
       );
     }
 

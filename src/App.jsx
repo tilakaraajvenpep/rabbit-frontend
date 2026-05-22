@@ -39,11 +39,15 @@ const KanbanBoard = React.lazy(() => import('./features/teamlead/KanbanBoard'));
 // Employee
 const MyTicketsPage = React.lazy(() => import('./features/employee/MyTicketsPage'));
 const EODReportPage = React.lazy(() => import('./features/employee/EODReportPage'));
+const LeaveRequestsPage = React.lazy(() => import('./features/employee/LeaveRequestsPage'));
+
 
 // PM & Shared
 const PMDashboardPage = React.lazy(() => import('./features/pm/PMDashboardPage'));
 const AnalyticsPage = React.lazy(() => import('./features/pm/AnalyticsPage'));
 const AlertsFeedPage = React.lazy(() => import('./features/pm/AlertsFeedPage'));
+const LeaveApprovalsPage = React.lazy(() => import('./features/pm/LeaveApprovalsPage'));
+
 const ProjectOverviewPage = React.lazy(() => import('./features/shared/ProjectOverviewPage'));
 const OverallReportsPage = React.lazy(() => import('./features/shared/OverallReportsPage'));
 
@@ -155,6 +159,7 @@ const App = () => {
                 <Route path="/teamlead/projects/:id/kanban" element={<KanbanBoard />} />
                 <Route path="/teamlead/board" element={<Navigate to="/teamlead/projects/p1/kanban" replace />} />
                 <Route path="/teamlead/employee-reports" element={<EmployeeReportsPage />} />
+                <Route path="/teamlead/leaves" element={<LeaveApprovalsPage />} />
               </Route>
 
               {/* Employee Routes */}
@@ -162,6 +167,7 @@ const App = () => {
                 <Route path="/employee/tickets" element={<MyTicketsPage />} />
                 <Route path="/employee/report" element={<EODReportPage />} />
                 <Route path="/employee/reports" element={<EmployeeReportsPage />} />
+                <Route path="/employee/leaves" element={<LeaveRequestsPage />} />
               </Route>
 
               {/* ProjectManager Routes */}
@@ -173,7 +179,9 @@ const App = () => {
                 <Route path="/pm/analytics/:id" element={<AnalyticsPage />} />
                 <Route path="/pm/alerts" element={<AlertsFeedPage />} />
                 <Route path="/pm/employee-reports" element={<EmployeeReportsPage />} />
+                <Route path="/pm/leaves" element={<LeaveApprovalsPage />} />
               </Route>
+
 
               {/* Shared Reports for Managers */}
               <Route element={<ProtectedRoute allowedRoles={['Accounts', 'Sales', 'ProjectManager']} />}>

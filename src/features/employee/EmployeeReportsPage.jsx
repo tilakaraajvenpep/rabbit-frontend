@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, DatePicker, Select, Button, Table, 
-  Typography, Space, notification, Divider 
+  Typography, Space, notification, Tag
 } from 'antd';
-import { DownloadOutlined, SearchOutlined, FileTextOutlined } from '@ant-design/icons';
+import { DownloadOutlined, SearchOutlined, CalendarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { reportService } from '../../services/reportService';
 import { ticketService } from '../../services/ticketService';
 import { useAuthStore } from '../../store/authStore';
 import { adminService } from '../../services/adminService';
+import { leaveService } from '../../services/leaveService';
 import PageHeader from '../../components/common/PageHeader';
 import { downloadCSV } from '../../utils/exportUtils';
 
@@ -62,7 +63,6 @@ const EmployeeReportsPage = () => {
         start = dateRange[0].format('YYYY-MM-DD');
         end = dateRange[1].format('YYYY-MM-DD');
       } else {
-        // Broad range to catch everything if no date is selected
         start = '2000-01-01';
         end = '2100-12-31';
       }
@@ -74,12 +74,48 @@ const EmployeeReportsPage = () => {
         res = await reportService.getReportsByRange(currentUser.id, start, end);
       }
       
+      // Fetch leaves in range
+      let leaveRows = [];
+      try {
+        const leavesRes = isManager 
+          ? await leaveService.getAllLeaves() 
+          : await leaveService.getMyLeaves();
+        const allLeaves = leavesRes.data || [];
+        allLeaves
+          .filter(l => {
+            const lDate = dayjs(l.leaveDate).format('YYYY-MM-DD');
+            const inRange = lDate >= start && lDate <= end;
+            const statusOk = l.status !== 'Rejected';
+            const empMatch = !isManager || !selectedEmployee || Number(l.userId) === Number(selectedEmployee);
+            return inRange && statusOk && empMatch;
+          })
+          .forEach(l => {
+            const empName = isManager
+              ? (l.user?.fullName || 'Employee')
+              : currentUser.name;
+            leaveRows.push({
+              date: dayjs(l.leaveDate).format('YYYY-MM-DD'),
+              employeeName: empName,
+              ticketCode: '—',
+              ticketTitle: `${l.type === 'FullDay' ? 'Full Day' : 'Half Day'} Leave (${l.status})`,
+              hours: l.type === 'FullDay' ? 0 : (Number(currentUser?.allocatedHours) || 8.5) / 2,
+              workDone: l.reason || 'Leave',
+              blockers: '—',
+              rowType: 'leave',
+              leaveStatus: l.status,
+              leaveType: l.type,
+              key: `leave-${l.leaveId}`
+            });
+          });
+      } catch (leaveErr) {
+        console.error('Failed to fetch leaves for report:', leaveErr);
+      }
+      
       if (!res || !res.data) {
-        setFilteredData([]);
+        setFilteredData(leaveRows);
         return;
       }
 
-      // Flattening the data for the table and export
       let reports = [];
       res.data.forEach(report => {
         if (!report || !report.items) return;
@@ -91,7 +127,6 @@ const EmployeeReportsPage = () => {
           : currentUser.name;
 
         report.items.forEach(item => {
-          // If a specific ticket is selected, filter here
           if (selectedTicket && item.ticketId !== selectedTicket) return;
           
           const ticketInfo = (currentTickets || []).find(t => Number(t.id) === Number(item.ticketId));
@@ -103,12 +138,17 @@ const EmployeeReportsPage = () => {
             hours: Number(item.hours || 0),
             workDone: item.workDone || '',
             blockers: report.blockers || 'None',
+            rowType: 'work',
             key: `${report.userId}-${report.date || report.reportDate}-${item.ticketId || Math.random()}`
           });
         });
       });
 
-      setFilteredData(reports);
+      // Merge work + leave rows, sorted by date
+      const merged = [...reports, ...leaveRows].sort((a, b) => 
+        dayjs(b.date).unix() - dayjs(a.date).unix()
+      );
+      setFilteredData(merged);
     } catch (error) {
       console.error('Report Search Error:', error);
       notification.error({ 
@@ -130,11 +170,33 @@ const EmployeeReportsPage = () => {
   };
 
   const columns = [
-    { title: 'Date', dataIndex: 'date', key: 'date', width: 120 },
+    { 
+      title: 'Date', dataIndex: 'date', key: 'date', width: 120,
+      render: (date) => dayjs(date).format('DD MMM YYYY')
+    },
     ...(isManager ? [{ title: 'Employee', dataIndex: 'employeeName', key: 'employeeName', width: 150 }] : []),
-    { title: 'Ticket', dataIndex: 'ticketCode', key: 'ticketCode', width: 100 },
-    { title: 'Work Description', dataIndex: 'workDone', key: 'workDone' },
-    { title: 'Hours', dataIndex: 'hours', key: 'hours', width: 80, align: 'right' },
+    { 
+      title: 'Type', dataIndex: 'rowType', key: 'rowType', width: 90,
+      render: (type, record) => {
+        if (type === 'leave') {
+          return (
+            <Tag 
+              icon={<CalendarOutlined />} 
+              color={record.leaveType === 'FullDay' ? 'purple' : 'cyan'}
+              style={{ borderRadius: 6 }}
+            >
+              {record.leaveType === 'FullDay' ? 'Full Leave' : 'Half Leave'}
+            </Tag>
+          );
+        }
+        return <Tag color="blue" style={{ borderRadius: 6 }}>Work</Tag>;
+      }
+    },
+    { title: 'Ticket / Activity', dataIndex: 'ticketTitle', key: 'ticketTitle' },
+    { title: 'Details / Work Done', dataIndex: 'workDone', key: 'workDone' },
+    { title: 'Hours', dataIndex: 'hours', key: 'hours', width: 80, align: 'right',
+      render: (h, rec) => rec.rowType === 'leave' && rec.leaveType === 'FullDay' ? '—' : h?.toFixed(1)
+    },
   ];
 
   return (

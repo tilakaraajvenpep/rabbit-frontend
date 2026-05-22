@@ -14,6 +14,8 @@ import dayjs from 'dayjs';
 import { reportService } from '../../services/reportService';
 import { ticketService } from '../../services/ticketService';
 import { analyticsService } from '../../services/analyticsService';
+import { leaveService } from '../../services/leaveService';
+
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
@@ -38,6 +40,8 @@ const EODReportPage = () => {
   const [allProjects, setAllProjects] = useState([]);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [existingReport, setExistingReport] = useState(null);
+  const [currentLeave, setCurrentLeave] = useState(null);
+
 
   // Modal State for New Ticket
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
@@ -57,8 +61,13 @@ const EODReportPage = () => {
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const watchedItems = watch('items');
   const totalHours = watchedItems?.reduce((acc, curr) => acc + (curr.hours || 0), 0) || 0;
-  // Use the employee's allocated hours from their profile (set by TenantAdmin), default 8.5
-  const REQUIRED_HOURS = Number(currentUser?.allocatedHours) || 8.5;
+  
+  // Dynamic quota based on half-day/full-day leave
+  const baseRequiredHours = Number(currentUser?.allocatedHours) || 8.5;
+  const REQUIRED_HOURS = currentLeave 
+    ? (currentLeave.type === 'HalfDay' ? baseRequiredHours / 2 : 0)
+    : baseRequiredHours;
+
 
   const selectedTicketIds = watchedItems?.map(item => item.ticketId).filter(id => !!id) || [];
 
@@ -105,12 +114,23 @@ const EODReportPage = () => {
       const end = dates[6].format('YYYY-MM-DD');
       const res = await reportService.getReportsByRange(currentUser.id, start, end);
 
+      let userLeaves = [];
+      try {
+        const leavesRes = await leaveService.getMyLeaves();
+        userLeaves = leavesRes.data || [];
+      } catch (err) {
+        console.error('Failed to fetch leaves for status map');
+      }
+
       const statusMap = {};
       dates.forEach(d => {
         const dateStr = d.format('YYYY-MM-DD');
         const report = res.data.find(r => r.date === dateStr);
-        const endOfCurrentWeek = dayjs().endOf('week'); // End of the current week
+        const endOfCurrentWeek = dayjs().endOf('week');
+        const leave = userLeaves.find(l => dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr && l.status === 'Approved');
+
         if (d.day() === 0) statusMap[dateStr] = 'holiday';
+        else if (leave) statusMap[dateStr] = leave.type === 'FullDay' ? 'full_leave' : 'half_leave';
         else if (report) statusMap[dateStr] = 'submitted';
         else if (d.isAfter(endOfCurrentWeek, 'day')) statusMap[dateStr] = 'not_available';
         else if (d.day() === 6) statusMap[dateStr] = 'optional';
@@ -145,6 +165,18 @@ const EODReportPage = () => {
   const fetchReportForDate = async (date) => {
     setLoading(true);
     try {
+      // Fetch leave for this date
+      let leaveOnDate = null;
+      try {
+        const leavesRes = await leaveService.getMyLeaves();
+        leaveOnDate = (leavesRes.data || []).find(
+          l => dayjs(l.leaveDate).format('YYYY-MM-DD') === date && l.status === 'Approved'
+        );
+      } catch (err) {
+        console.error('Failed to fetch leave for report date');
+      }
+      setCurrentLeave(leaveOnDate || null);
+
       const res = await reportService.getReportByDate(currentUser.id, date);
       
       const isHoliday = dayjs(date).day() === 0;
@@ -160,8 +192,8 @@ const EODReportPage = () => {
         reset({ items: [{ ticketId: '', hours: 0, workDone: '' }], blockers: '', isAlertIssue: false, alertMessage: '' });
         setExistingReport(null);
         
-        // Allow editing if not a holiday and not in the future (unless unlocked)
-        if (isHoliday || (isFuture && !adminUnlocked)) {
+        const isFullDayLeave = leaveOnDate && leaveOnDate.type === 'FullDay';
+        if (isHoliday || (isFuture && !adminUnlocked) || isFullDayLeave) {
           setViewOnly(true);
         } else {
           setViewOnly(false);
@@ -285,6 +317,10 @@ const EODReportPage = () => {
         return <Space direction="vertical" size={0}><ClockCircleOutlined style={{ color: '#d9d9d9' }} /><Text disabled style={{ fontSize: 10 }}>Not Available</Text></Space>;
       case 'optional':
         return <Space direction="vertical" size={0}><ClockCircleOutlined style={{ color: '#bfbfbf' }} /><Text type="secondary" style={{ fontSize: 10 }}>Optional</Text></Space>;
+      case 'full_leave':
+        return <Space direction="vertical" size={0}><CheckCircleFilled style={{ color: '#818cf8' }} /><Text style={{ fontSize: 10, color: '#818cf8', fontWeight: 600 }}>Full Leave</Text></Space>;
+      case 'half_leave':
+        return <Space direction="vertical" size={0}><CheckCircleFilled style={{ color: '#22d3ee' }} /><Text style={{ fontSize: 10, color: '#22d3ee', fontWeight: 600 }}>Half Leave</Text></Space>;
       default:
         return <Space direction="vertical" size={0}><ClockCircleOutlined style={{ color: '#bfbfbf' }} /><Text type="secondary" style={{ fontSize: 10 }}>Pending</Text></Space>;
     }
@@ -378,6 +414,20 @@ const EODReportPage = () => {
         </div>
       </Card>
 
+      {currentLeave && (
+        <Alert
+          message={currentLeave.type === 'FullDay' ? 'Full Day Leave Approved' : 'Half Day Leave Approved'}
+          description={
+            currentLeave.type === 'FullDay'
+              ? 'You are on an approved Full Day Leave today. No daily report submission is required.'
+              : `You are on an approved Half Day Leave today. Your required daily work quota is reduced by 50% to ${REQUIRED_HOURS} hours.`
+          }
+          type="warning"
+          showIcon
+          style={{ marginBottom: 24, borderRadius: 12 }}
+        />
+      )}
+
       {!isLocked && (
         <Alert
           message="Multi-Task Reporting"
@@ -388,6 +438,8 @@ const EODReportPage = () => {
 
       {dayjs(selectedDate).day() === 0 ? (
         <Result icon={<CheckCircleOutlined style={{ color: '#faad14' }} />} title="Happy Sunday!" />
+      ) : currentLeave && currentLeave.type === 'FullDay' ? (
+        <Result icon={<CheckCircleOutlined style={{ color: '#818cf8' }} />} title="On Approved Full Day Leave!" subTitle="No EOD report submission is required for today." />
       ) : (
         <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
           <Card style={{ marginBottom: 24, background: isDarkMode ? 'rgba(255, 255, 255, 0.02)' : '#fafafa' }}>
