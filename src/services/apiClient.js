@@ -2,12 +2,20 @@ import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 import { logger } from '../utils/logger';
 
+// Vercel can override VITE_API_URL to "" via its dashboard env vars.
+// The fallback ensures we always point at the Render backend in production.
+const BACKEND_URL =
+  import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim() !== ''
+    ? import.meta.env.VITE_API_URL.trim()
+    : 'https://rabbit-backend-p765.onrender.com';
+
 const apiClient = axios.create({
-  baseURL: `${import.meta.env.VITE_API_URL}/api`,
+  baseURL: `${BACKEND_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
 
 /* -----------------------
    REQUEST INTERCEPTOR
