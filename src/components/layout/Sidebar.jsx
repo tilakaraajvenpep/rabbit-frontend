@@ -89,9 +89,11 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/teamlead/projects', icon: <ProjectOutlined />, label: 'My Projects' },
         { key: '/teamlead/board', icon: <DashboardOutlined />, label: 'Kanban Board' },
         { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
-        { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' }
+        { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
+        { key: '/teamlead/cross-share', icon: <SwapOutlined />, label: 'Cross-Team Share' }
       );
     }
+
 
     if (role === 'Employee') {
       items.push(

@@ -35,6 +35,7 @@ const CostAnalysisPage = React.lazy(() => import('./features/accounts/CostAnalys
 const TeamLeadDashboardPage = React.lazy(() => import('./features/teamlead/TeamLeadDashboardPage'));
 const ProjectDetailPage = React.lazy(() => import('./features/teamlead/ProjectDetailPage'));
 const KanbanBoard = React.lazy(() => import('./features/teamlead/KanbanBoard'));
+const CrossTeamSharePage = React.lazy(() => import('./features/teamlead/CrossTeamSharePage'));
 
 // Employee
 const MyTicketsPage = React.lazy(() => import('./features/employee/MyTicketsPage'));
@@ -176,9 +177,9 @@ const App = () => {
                 <Route path="/teamlead/projects/:id" element={<ProjectDetailPage />} />
                 <Route path="/teamlead/projects/:id/kanban" element={<KanbanBoard />} />
                 <Route path="/teamlead/board" element={<KanbanBoard />} />
-
                 <Route path="/teamlead/employee-reports" element={<EmployeeReportsPage />} />
                 <Route path="/teamlead/leaves" element={<LeaveApprovalsPage />} />
+                <Route path="/teamlead/cross-share" element={<CrossTeamSharePage />} />
               </Route>
 
               {/* Employee Routes */}
