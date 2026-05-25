@@ -123,7 +123,8 @@ const PendingReviewPage = () => {
   const tabItems = [
     { key: 'All', label: 'All Projects' },
     { key: 'PendingReview', label: 'Pending Review' },
-    { key: 'ReturnedForRevision', label: 'Returned' },
+    { key: 'ReturnedToAccounts', label: 'Returned by PM' },
+    { key: 'ReturnedForRevision', label: 'Returned to Sales' },
   ];
 
   return (

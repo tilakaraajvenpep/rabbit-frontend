@@ -46,11 +46,22 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       );
     }
 
-    if (role === 'TenantAdmin') {
+    if (role === 'TenantAdmin' || role === 'ProjectManager') {
+      if (role === 'TenantAdmin') {
+        items.push(
+          { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
+          { key: '/admin/hours', icon: <DollarOutlined />, label: 'Hour Allocation' },
+          { key: '/admin/subscription', icon: <SettingOutlined />, label: 'Subscription' }
+        );
+      }
       items.push(
-        { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
-        { key: '/admin/hours', icon: <DollarOutlined />, label: 'Hour Allocation' },
-        { key: '/admin/subscription', icon: <SettingOutlined />, label: 'Subscription' }
+        { key: '/pm/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
+        { key: '/pm/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
+        { key: '/pm/alerts', icon: <BellOutlined />, label: 'Alerts Feed' },
+        { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },
+        { key: '/pm/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
+        { key: '/pm/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
+        { key: '/pm/team', icon: <TeamOutlined />, label: 'TL & Employees' }
       );
     }
 
@@ -76,7 +87,6 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/teamlead/board', icon: <DashboardOutlined />, label: 'Kanban Board' },
         { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' }
-
       );
     }
 
@@ -86,19 +96,6 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/employee/report', icon: <FileTextOutlined />, label: 'Daily Report' },
         { key: '/employee/reports', icon: <BarChartOutlined />, label: 'Work Reports' },
         { key: '/employee/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' }
-
-      );
-    }
-
-    if (role === 'ProjectManager') {
-      items.push(
-        { key: '/pm/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
-        { key: '/pm/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
-        { key: '/pm/alerts', icon: <BellOutlined />, label: 'Alerts Feed' },
-        { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },
-        { key: '/pm/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
-        { key: '/pm/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' }
-
       );
     }
 

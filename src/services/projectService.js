@@ -189,7 +189,7 @@ export const projectService = {
         const payload = typeof dataOrTLId === 'object' ? dataOrTLId : { assignedTeamLeadId: Number(dataOrTLId) };
         mockProjects[idx] = {
           ...mockProjects[idx],
-          status: 'Approved',
+          status: payload.status || 'Approved',
           budgetTable: payload.budgetTable || mockProjects[idx].budgetTable,
           milestones: payload.milestones || mockProjects[idx].milestones,
           totalHours: payload.totalHours || mockProjects[idx].totalHours,
@@ -202,7 +202,7 @@ export const projectService = {
     }
     const payload = typeof dataOrTLId === 'object' ? dataOrTLId : { assignedTeamLeadId: Number(dataOrTLId) };
     const response = await apiClient.put(`/projects/${projectId}/status`, { 
-      status: 'Approved',
+      status: payload.status || 'Approved',
       ...payload
     });
     return { data: response.data.data };

@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, Drawer, Skeleton, Select, theme, Modal, message } from 'antd';
+import { 
+  Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, 
+  Drawer, Skeleton, Select, theme, Modal, message, Form, Input, Alert 
+} from 'antd';
 import { 
   DndContext, 
   PointerSensor, 
@@ -15,12 +18,13 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
 import { adminService } from '../../services/adminService';
 import { useTicketStore } from '../../store/ticketStore';
+import { useAuthStore } from '../../store/authStore';
 import { mockUsers } from '../../mocks/mockUsers';
 import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
@@ -59,7 +63,7 @@ const SortableTicket = ({ ticket, onClick, user, onDelete }) => {
         onClick={() => onClick(ticket)}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Text type="secondary" style={{ fontSize: '12px' }}><code>{ticket.code}</code></Text>
+          <Text type="secondary" style={{ fontSize: '12px' }}><code>{ticket.ticketCode || ticket.code}</code></Text>
           <Space size={4}>
             <PriorityBadge priority={ticket.priority} />
             <Button
@@ -105,8 +109,9 @@ const getPriorityColor = (priority) => {
 };
 
 // Droppable Column Component
-const DroppableColumn = ({ colId, tickets, openTicketDetail, onDeleteTicket, isDarkMode, token, users }) => {
+const DroppableColumn = ({ colId, tickets, openTicketDetail, onDeleteTicket, isDarkMode, token, users, customTitles }) => {
   const { setNodeRef } = useDroppable({ id: colId });
+  const displayTitle = customTitles?.[colId] || colId.replace(/([A-Z])/g, ' $1').trim();
 
   return (
     <div style={{ 
@@ -119,7 +124,7 @@ const DroppableColumn = ({ colId, tickets, openTicketDetail, onDeleteTicket, isD
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
         <Title level={5} style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-          {colId.replace(/([A-Z])/g, ' $1').trim()}
+          {displayTitle}
         </Title>
         <Badge count={tickets.length} style={{ backgroundColor: isDarkMode ? '#3f3f46' : '#bfbfbf', color: isDarkMode ? '#f4f4f5' : undefined }} />
       </div>
@@ -127,7 +132,7 @@ const DroppableColumn = ({ colId, tickets, openTicketDetail, onDeleteTicket, isD
       <SortableContext id={colId} items={tickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} style={{ minHeight: 400, height: '100%', paddingBottom: 20 }}>
           {tickets.map(ticket => {
-            const user = users.find(u => u.id === ticket.assignedTo) || mockUsers.find(u => u.id === ticket.assignedTo);
+            const user = users.find(u => u.id === ticket.assignedToUserId) || mockUsers.find(u => u.id === ticket.assignedToUserId);
             return <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} onDelete={onDeleteTicket} user={user} />;
           })}
         </div>
@@ -141,12 +146,25 @@ const KanbanBoard = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const { isDarkMode } = useThemeStore();
-  const { kanbanColumns, setTickets, moveTicket, loading } = useTicketStore();
+  const { user: authUser } = useAuthStore();
+  const { kanbanColumns, setTickets, moveTicket } = useTicketStore();
+
   const [allProjects, setAllProjects] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [users, setUsers] = useState([]);
+
+  // Submit to TL states
+  const [selectedTLForSubmit, setSelectedTLForSubmit] = useState(null);
+  const [submittingTL, setSubmittingTL] = useState(false);
+
+  // Edit Headings states
+  const [isHeadingsModalOpen, setIsHeadingsModalOpen] = useState(false);
+  const [headingsForm] = Form.useForm();
+
+  const isManager = authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
+  const project = allProjects.find(p => String(p.id) === String(projectId));
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -191,7 +209,8 @@ const KanbanBoard = () => {
   };
 
   const handleProjectChange = (id) => {
-    navigate(`/teamlead/projects/${id}/kanban`);
+    const routePrefix = isManager ? 'pm' : 'teamlead';
+    navigate(`/${routePrefix}/projects/${id}/kanban`);
   };
 
   const handleDragEnd = async (event) => {
@@ -238,7 +257,7 @@ const KanbanBoard = () => {
   const handleDeleteTicket = (ticket) => {
     Modal.confirm({
       title: 'Delete this ticket?',
-      content: `Permanently delete ticket "${ticket.code} - ${ticket.title}"? This cannot be undone.`,
+      content: `Permanently delete ticket "${ticket.ticketCode || ticket.code} - ${ticket.title}"? This cannot be undone.`,
       okText: 'Yes, Delete',
       okType: 'danger',
       cancelText: 'No',
@@ -255,9 +274,52 @@ const KanbanBoard = () => {
     });
   };
 
+  const handleSubmitToTeamLead = async () => {
+    if (!selectedTLForSubmit) return;
+    setSubmittingTL(true);
+    try {
+      await projectService.updateStatus(projectId, {
+        status: 'InProgress',
+        assignedTeamLeadId: Number(selectedTLForSubmit),
+        note: 'Project assigned and active.'
+      });
+      message.success('Project successfully submitted to the selected Team Lead!');
+      fetchProjects();
+    } catch (err) {
+      message.error('Failed to submit project to Team Lead.');
+    } finally {
+      setSubmittingTL(false);
+    }
+  };
+
+  const handleOpenHeadingsModal = () => {
+    const currentTitles = project?.kanbanColumns || {
+      ToDo: 'To Do',
+      InProgress: 'In Progress',
+      InReview: 'In Review',
+      Done: 'Done'
+    };
+    headingsForm.setFieldsValue(currentTitles);
+    setIsHeadingsModalOpen(true);
+  };
+
+  const handleSaveHeadings = async (values) => {
+    try {
+      await projectService.updateStatus(projectId, {
+        kanbanColumns: values,
+        status: project.status
+      });
+      message.success('Kanban headings updated successfully!');
+      setIsHeadingsModalOpen(false);
+      fetchProjects();
+    } catch (err) {
+      message.error('Failed to save Kanban column headings.');
+    }
+  };
+
   const currentAssignee = selectedTicket ? (
-    users.find(u => u.id === selectedTicket.assignedTo) || 
-    mockUsers.find(u => u.id === selectedTicket.assignedTo)
+    users.find(u => u.id === selectedTicket.assignedToUserId) || 
+    mockUsers.find(u => u.id === selectedTicket.assignedToUserId)
   ) : null;
 
   return (
@@ -273,30 +335,82 @@ const KanbanBoard = () => {
               onChange={handleProjectChange}
               options={allProjects.map(p => ({ label: p.name, value: String(p.id) }))}
             />
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>Create Ticket</Button>
+            {projectId && isManager && (
+              <Button icon={<EditOutlined />} onClick={handleOpenHeadingsModal}>
+                Edit Headings
+              </Button>
+            )}
+            {projectId && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>Create Ticket</Button>
+            )}
           </Space>
         }
       />
 
-      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-        <div style={{ display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16 }}>
-                  {Object.entries(kanbanColumns).map(([colId, tickets]) => (
-            <DroppableColumn
-              key={colId}
-              colId={colId}
-              tickets={tickets}
-              openTicketDetail={openTicketDetail}
-              onDeleteTicket={handleDeleteTicket}
-              isDarkMode={isDarkMode}
-              token={token}
-              users={users}
-            />
-          ))}
-        </div>
-      </DndContext>
+      {/* Submit to Team Lead banner */}
+      {projectId && project?.status === 'Approved' && isManager && (
+        <Alert
+          message={
+            <Text strong style={{ fontSize: '15px' }}>
+              📢 Project Approved & Tickets Auto-Generated
+            </Text>
+          }
+          description={
+            <div style={{ marginTop: 8 }}>
+              <p style={{ margin: '0 0 12px 0' }}>
+                Please review the auto-generated tickets in the board below. Once ready, select a Team Lead to assign and activate the project.
+              </p>
+              <Space>
+                <Select
+                  placeholder="Select Team Lead"
+                  style={{ width: 250 }}
+                  onChange={setSelectedTLForSubmit}
+                  options={users.filter(u => u.role === 'TeamLead').map(u => ({ label: u.name || u.fullName, value: u.id }))}
+                />
+                <Button 
+                  type="primary" 
+                  icon={<TeamOutlined />} 
+                  onClick={handleSubmitToTeamLead}
+                  disabled={!selectedTLForSubmit}
+                  loading={submittingTL}
+                >
+                  Submit to Team Lead
+                </Button>
+              </Space>
+            </div>
+          }
+          type="info"
+          showIcon
+          style={{ marginBottom: 20, borderRadius: 8 }}
+        />
+      )}
+
+      {projectId ? (
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
+          <div style={{ display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16 }}>
+            {Object.entries(kanbanColumns).map(([colId, tickets]) => (
+              <DroppableColumn
+                key={colId}
+                colId={colId}
+                tickets={tickets}
+                openTicketDetail={openTicketDetail}
+                onDeleteTicket={handleDeleteTicket}
+                isDarkMode={isDarkMode}
+                token={token}
+                users={users}
+                customTitles={project?.kanbanColumns}
+              />
+            ))}
+          </div>
+        </DndContext>
+      ) : (
+        <Card style={{ textAlign: 'center', padding: '40px 0' }}>
+          <Text type="secondary">Please select a project to load the Kanban board.</Text>
+        </Card>
+      )}
 
       <Drawer
-        title={selectedTicket?.code}
+        title={selectedTicket?.ticketCode || selectedTicket?.code}
         placement="right"
         width={480}
         onClose={() => setIsDrawerOpen(false)}
@@ -352,6 +466,34 @@ const KanbanBoard = () => {
         projectId={projectId} 
         onSuccess={loadTickets} 
       />
+
+      {/* Edit Headings Modal */}
+      <Modal
+        title="Modify Kanban Column Headings"
+        open={isHeadingsModalOpen}
+        onCancel={() => setIsHeadingsModalOpen(false)}
+        onOk={() => headingsForm.submit()}
+        okText="Save Headings"
+      >
+        <Form
+          form={headingsForm}
+          layout="vertical"
+          onFinish={handleSaveHeadings}
+        >
+          <Form.Item name="ToDo" label="To Do Column Title" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="InProgress" label="In Progress Column Title" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="InReview" label="In Review Column Title" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="Done" label="Done Column Title" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 };

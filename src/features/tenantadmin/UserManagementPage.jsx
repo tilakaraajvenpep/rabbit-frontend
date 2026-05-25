@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Switch, notification, Space, Typography, Tag, Skeleton, Popconfirm } from 'antd';
+import { Table, Button, Modal, Form, Input, Select, Switch, notification, Space, Typography, Tag, Skeleton, Popconfirm, InputNumber } from 'antd';
 import { UserAddOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { projectService } from '../../services/projectService';
@@ -134,6 +134,21 @@ const UserManagementPage = () => {
       }
     },
     {
+      title: 'Cost/Hr',
+      dataIndex: 'costPerHour',
+      key: 'costPerHour',
+      render: (rate) => rate ? `₹${Number(rate).toFixed(2)}/hr` : '₹0.00/hr'
+    },
+    {
+      title: 'Team Lead',
+      dataIndex: 'teamLeadId',
+      key: 'teamLeadId',
+      render: (tlId) => {
+        const tl = users.find(u => String(u.id) === String(tlId));
+        return tl ? tl.name : '-';
+      }
+    },
+    {
       title: 'Last Login',
       dataIndex: 'lastLogin',
       key: 'lastLogin',
@@ -213,6 +228,20 @@ const UserManagementPage = () => {
               <Select.Option value="TeamLead">Team Lead</Select.Option>
               <Select.Option value="Employee">Employee</Select.Option>
               <Select.Option value="ProjectManager">PM</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item name="costPerHour" label="Cost Per Hour (₹)">
+            <InputNumber style={{ width: '100%' }} min={0} placeholder="Enter hourly cost rate (e.g. 500)" />
+          </Form.Item>
+
+          <Form.Item name="teamLeadId" label="Reporting Team Lead">
+            <Select placeholder="Select Team Lead" allowClear>
+              {users.filter(u => u.role === 'TeamLead').map(tl => (
+                <Select.Option key={tl.id} value={tl.id}>
+                  {tl.name} ({tl.email})
+                </Select.Option>
+              ))}
             </Select>
           </Form.Item>
 

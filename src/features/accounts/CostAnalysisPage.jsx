@@ -225,7 +225,7 @@ const CostAnalysisPage = () => {
     setSubmitting(true);
     try {
       const payload = {
-        status: 'Approved',
+        status: 'PendingPMApproval',
         assignedProjectManagerId: Number(selectedPMId),
         totalHours: totalHours,
         bufferHours: bufferHours,
@@ -242,8 +242,8 @@ const CostAnalysisPage = () => {
       await projectService.approveDocument(id, payload);
 
       notification.success({
-        message: 'Project Approved & Submitted',
-        description: 'Successfully submitted the finalized cost, budget table, and milestones to the Project Manager.'
+        message: 'Project Cost Submitted to PM',
+        description: 'Successfully submitted the finalized cost, budget table, and milestones to the Project Manager for final approval.'
       });
       setIsSelectPMModalVisible(false);
       navigate('/accounts/pending');
@@ -335,6 +335,32 @@ const CostAnalysisPage = () => {
           </Button>
         }
       />
+
+      {project.status === 'ReturnedToAccounts' && (
+        <Alert
+          message="Returned by Project Manager"
+          description={
+            <div>
+              <p>The Project Manager has returned this project for revisions. <strong>Comments from PM:</strong></p>
+              <div style={{ 
+                background: 'rgba(239, 68, 68, 0.05)', 
+                padding: '12px 16px', 
+                borderRadius: 6, 
+                borderLeft: '4px solid #ef4444', 
+                margin: '8px 0', 
+                color: '#b91c1c',
+                fontWeight: 500,
+                whiteSpace: 'pre-wrap'
+              }}>
+                {project.comments || 'No comments provided.'}
+              </div>
+            </div>
+          }
+          type="error"
+          showIcon
+          style={{ marginBottom: 24, borderRadius: 8 }}
+        />
+      )}
 
       <Card style={{ marginBottom: 24, borderRadius: 12 }}>
         <Row gutter={24} align="middle">

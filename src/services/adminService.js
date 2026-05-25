@@ -35,9 +35,12 @@ export const adminService = {
       const { tenantCode } = useAuthStore.getState();
       const newUser = {
         id: `u${mockUsers.length + 1}`,
-        name: data.email.split('@')[0],
+        name: data.fullName || data.email.split('@')[0],
+        fullName: data.fullName,
         email: data.email,
         role: data.role,
+        costPerHour: data.costPerHour || 0,
+        teamLeadId: data.teamLeadId,
         tenantCode: tenantCode,
         status: 'Active',
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.email}`
@@ -50,7 +53,9 @@ export const adminService = {
       fullName: data.fullName || data.email.split('@')[0],
       email: data.email,
       password: data.password || 'Rabbit@123', // Default password for new invites
-      role: data.role
+      role: data.role,
+      costPerHour: data.costPerHour,
+      teamLeadId: data.teamLeadId
     };
     return apiClient.post('/users', payload);
   },

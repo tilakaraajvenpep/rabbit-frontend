@@ -47,6 +47,7 @@ const PMDashboardPage = React.lazy(() => import('./features/pm/PMDashboardPage')
 const AnalyticsPage = React.lazy(() => import('./features/pm/AnalyticsPage'));
 const AlertsFeedPage = React.lazy(() => import('./features/pm/AlertsFeedPage'));
 const LeaveApprovalsPage = React.lazy(() => import('./features/pm/LeaveApprovalsPage'));
+const TeamDetailsPage = React.lazy(() => import('./features/pm/TeamDetailsPage'));
 
 const ProjectOverviewPage = React.lazy(() => import('./features/shared/ProjectOverviewPage'));
 const OverallReportsPage = React.lazy(() => import('./features/shared/OverallReportsPage'));
@@ -173,7 +174,7 @@ const App = () => {
               </Route>
 
               {/* ProjectManager Routes */}
-              <Route element={<ProtectedRoute allowedRoles={['ProjectManager']} />}> 
+              <Route element={<ProtectedRoute allowedRoles={['ProjectManager', 'TenantAdmin']} />}> 
                 <Route path="/pm/dashboard" element={<PMDashboardPage />} />
                 <Route path="/pm/projects/:id" element={<ProjectOverviewPage />} />
                 <Route path="/pm/projects/:id/kanban" element={<KanbanBoard />} />
@@ -182,11 +183,12 @@ const App = () => {
                 <Route path="/pm/alerts" element={<AlertsFeedPage />} />
                 <Route path="/pm/employee-reports" element={<EmployeeReportsPage />} />
                 <Route path="/pm/leaves" element={<LeaveApprovalsPage />} />
+                <Route path="/pm/team" element={<TeamDetailsPage />} />
               </Route>
 
 
               {/* Shared Reports for Managers */}
-              <Route element={<ProtectedRoute allowedRoles={['Accounts', 'Sales', 'ProjectManager']} />}>
+              <Route element={<ProtectedRoute allowedRoles={['Accounts', 'Sales', 'ProjectManager', 'TenantAdmin']} />}>
                 <Route path="/shared/reports" element={<OverallReportsPage />} />
               </Route>
 
