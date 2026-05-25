@@ -146,7 +146,7 @@ const KanbanBoard = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const { isDarkMode } = useThemeStore();
-  const { user: authUser } = useAuthStore();
+  const { currentUser: authUser, role: authRole } = useAuthStore();
   const { kanbanColumns, setTickets, moveTicket } = useTicketStore();
 
   const [allProjects, setAllProjects] = useState([]);
@@ -163,7 +163,7 @@ const KanbanBoard = () => {
   const [isHeadingsModalOpen, setIsHeadingsModalOpen] = useState(false);
   const [headingsForm] = Form.useForm();
 
-  const isManager = authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
+  const isManager = authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
   const project = allProjects.find(p => String(p.id) === String(projectId));
 
   const sensors = useSensors(
