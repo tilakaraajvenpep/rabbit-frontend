@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Form, Input, InputNumber, DatePicker, Button, Space, Table, Modal, Alert, 
-  notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme, Tooltip 
+  notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme, Tooltip,
+  Tag, Empty
 } from 'antd';
 import {
   PlusOutlined,
@@ -286,20 +287,25 @@ const CostAnalysisPage = () => {
 
   // Get employees mapped to a specific Team Lead for cost breakdown
   const getEmployeesForTL = (tlId) => {
+    if (!tlId || !teamLeads || teamLeads.length === 0) return [];
     const emps = allUsers.filter(u => u.role === 'Employee' && u.isActive);
+    const tlIndex = teamLeads.findIndex(t => String(t.id) === String(tlId));
+    if (tlIndex === -1) return [];
     // Deterministic distribution of employees under TLs for a realistic layout
-    return emps.filter((emp, idx) => (idx % teamLeads.length) === teamLeads.findIndex(t => t.id === tlId));
+    return emps.filter((emp, idx) => (idx % teamLeads.length) === tlIndex);
   };
 
   // Deterministic rates per user
   const getUserRate = (user) => {
+    if (!user) return 0;
+    const userId = Number(user.id || user.userId || 0);
     if (user.role === 'TeamLead') {
-      return 1200 + (user.id * 100) % 500;
+      return 1200 + (userId * 100) % 500;
     }
-    return 600 + (user.id * 50) % 300;
+    return 600 + (userId * 50) % 300;
   };
 
-  const selectedTL = teamLeads.find(tl => tl.id === selectedTLId);
+  const selectedTL = teamLeads.find(tl => String(tl.id) === String(selectedTLId));
   const selectedTLTeam = selectedTLId ? getEmployeesForTL(selectedTLId) : [];
 
   if (loading) return <Card loading />;
@@ -634,53 +640,57 @@ const CostAnalysisPage = () => {
                 </Title>
                 <Divider style={{ margin: '8px 0 16px' }} />
 
-                <Table
-                  dataSource={[
-                    {
-                      id: selectedTL.id,
-                      name: `${selectedTL.name} (TL)`,
-                      role: 'Team Lead',
-                      rate: getUserRate(selectedTL),
-                      isTL: true
-                    },
-                    ...selectedTLTeam.map(emp => ({
-                      id: emp.id,
-                      name: emp.name,
-                      role: 'Employee',
-                      rate: getUserRate(emp),
-                      isTL: false
-                    }))
-                  ]}
-                  rowKey="id"
-                  pagination={false}
-                  columns={[
-                    {
-                      title: 'Resource Name',
-                      dataIndex: 'name',
-                      key: 'name',
-                      render: (name, record) => (
-                        <Text strong={record.isTL}>{name}</Text>
-                      )
-                    },
-                    {
-                      title: 'Role',
-                      dataIndex: 'role',
-                      key: 'role',
-                      render: (role, record) => (
-                        <Tag color={record.isTL ? 'purple' : 'blue'}>{role}</Tag>
-                      )
-                    },
-                    {
-                      title: 'Cost Per Hour',
-                      dataIndex: 'rate',
-                      key: 'rate',
-                      align: 'right',
-                      render: rate => (
-                        <Text strong style={{ color: '#10b981' }}>₹ {rate.toLocaleString('en-IN')} / hr</Text>
-                      )
-                    }
-                  ]}
-                />
+                {selectedTLTeam.length === 0 ? (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No Data" />
+                ) : (
+                  <Table
+                    dataSource={[
+                      {
+                        id: selectedTL.id,
+                        name: `${selectedTL.name} (TL)`,
+                        role: 'Team Lead',
+                        rate: getUserRate(selectedTL),
+                        isTL: true
+                      },
+                      ...selectedTLTeam.map(emp => ({
+                        id: emp.id,
+                        name: emp.name,
+                        role: 'Employee',
+                        rate: getUserRate(emp),
+                        isTL: false
+                      }))
+                    ]}
+                    rowKey="id"
+                    pagination={false}
+                    columns={[
+                      {
+                        title: 'Resource Name',
+                        dataIndex: 'name',
+                        key: 'name',
+                        render: (name, record) => (
+                          <Text strong={record.isTL}>{name}</Text>
+                        )
+                      },
+                      {
+                        title: 'Role',
+                        dataIndex: 'role',
+                        key: 'role',
+                        render: (role, record) => (
+                          <Tag color={record.isTL ? 'purple' : 'blue'}>{role}</Tag>
+                        )
+                      },
+                      {
+                        title: 'Cost Per Hour',
+                        dataIndex: 'rate',
+                        key: 'rate',
+                        align: 'right',
+                        render: rate => (
+                          <Text strong style={{ color: '#10b981' }}>₹ {rate.toLocaleString('en-IN')} / hr</Text>
+                        )
+                      }
+                    ]}
+                  />
+                )}
               </div>
             )}
           </Space>
