@@ -221,7 +221,7 @@ export const projectService = {
       }
       return { data: { success: true } };
     }
-    const response = await apiClient.put(`/projects/${projectId}/status`, { status: 'ReturnedForRevision', note: comments });
+    const response = await apiClient.put(`/projects/${projectId}/status`, { status: 'ReturnedForRevision', note: comments, comments: comments });
     return { data: response.data.data };
   },
 
