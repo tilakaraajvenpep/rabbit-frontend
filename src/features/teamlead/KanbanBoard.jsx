@@ -60,7 +60,7 @@ const getPriorityColor = (priority) => {
 };
 
 // Sortable Ticket Card
-const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit }) => {
+const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit }) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: ticket.id });
 
   const style = { transform: CSS.Transform.toString(transform), transition, marginBottom: 12, cursor: 'pointer' };
@@ -78,16 +78,20 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit }) => {
           <Text type="secondary" style={{ fontSize: '12px' }}><code>{ticket.ticketCode || ticket.code}</code></Text>
           <Space size={4}>
             <PriorityBadge priority={ticket.priority} />
-            <Button
-              size="small" type="text" icon={<EditOutlined />}
-              style={{ padding: '0 4px', height: 'auto', color: '#1890ff' }}
-              onClick={(e) => { e.stopPropagation(); onEdit(ticket); }}
-            />
-            <Button
-              size="small" type="text" danger icon={<DeleteOutlined />}
-              style={{ padding: '0 4px', height: 'auto' }}
-              onClick={(e) => { e.stopPropagation(); onDelete(ticket); }}
-            />
+            {canEdit && (
+              <>
+                <Button
+                  size="small" type="text" icon={<EditOutlined />}
+                  style={{ padding: '0 4px', height: 'auto', color: '#1890ff' }}
+                  onClick={(e) => { e.stopPropagation(); onEdit(ticket); }}
+                />
+                <Button
+                  size="small" type="text" danger icon={<DeleteOutlined />}
+                  style={{ padding: '0 4px', height: 'auto' }}
+                  onClick={(e) => { e.stopPropagation(); onDelete(ticket); }}
+                />
+              </>
+            )}
           </Space>
         </div>
         <Title level={5} style={{ margin: '0 0 12px 0' }} ellipsis={{ rows: 2 }}>{ticket.title}</Title>
@@ -113,7 +117,7 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit }) => {
 };
 
 // Droppable Column Component — receives displayTitle directly
-const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, onEditTicket, isDarkMode, token, users }) => {
+const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, onEditTicket, isDarkMode, token, users, canEdit }) => {
   const { setNodeRef } = useDroppable({ id: colId });
 
   return (
@@ -131,7 +135,7 @@ const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDel
         <div ref={setNodeRef} style={{ minHeight: 400, height: '100%', paddingBottom: 20 }}>
           {tickets.map(ticket => {
             const user = users.find(u => u.id === ticket.assignedToUserId) || mockUsers.find(u => u.id === ticket.assignedToUserId);
-            return <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} onDelete={onDeleteTicket} onEdit={onEditTicket} user={user} />;
+            return <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} onDelete={onDeleteTicket} onEdit={onEditTicket} user={user} canEdit={canEdit} />;
           })}
         </div>
       </SortableContext>
@@ -170,6 +174,8 @@ const KanbanBoard = () => {
 
   const isManager = authRole === 'ProjectManager' || authRole === 'TenantAdmin'
     || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
+  const canEdit = authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authRole === 'TeamLead'
+    || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin' || authUser?.role === 'TeamLead';
   const project = allProjects.find(p => String(p.id) === String(projectId));
 
   // Effective column config — from saved project data or defaults
@@ -201,6 +207,10 @@ const KanbanBoard = () => {
     try {
       const res = await projectService.getProjects();
       setAllProjects(res.data);
+      if ((!projectId || isNaN(Number(projectId))) && res.data && res.data.length > 0) {
+        const routePrefix = (authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin') ? 'pm' : 'teamlead';
+        navigate(`/${routePrefix}/projects/${res.data[0].id}/kanban`, { replace: true });
+      }
     } catch (error) {
       console.error('Failed to fetch projects');
     }
@@ -442,7 +452,7 @@ const KanbanBoard = () => {
                 </Button>
               </Space>
             )}
-            {projectId && (
+            {projectId && canEdit && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>Create Ticket</Button>
             )}
           </Space>
@@ -497,6 +507,8 @@ const KanbanBoard = () => {
                 isDarkMode={isDarkMode}
                 token={token}
                 users={users}
+                canEdit={canEdit}
+
               />
             ))}
           </div>

@@ -175,7 +175,8 @@ const App = () => {
                 <Route path="/teamlead/projects" element={<TeamLeadDashboardPage />} />
                 <Route path="/teamlead/projects/:id" element={<ProjectDetailPage />} />
                 <Route path="/teamlead/projects/:id/kanban" element={<KanbanBoard />} />
-                <Route path="/teamlead/board" element={<Navigate to="/teamlead/projects/p1/kanban" replace />} />
+                <Route path="/teamlead/board" element={<KanbanBoard />} />
+
                 <Route path="/teamlead/employee-reports" element={<EmployeeReportsPage />} />
                 <Route path="/teamlead/leaves" element={<LeaveApprovalsPage />} />
               </Route>
