@@ -49,10 +49,12 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
     }
 
     if (role === 'TenantAdmin' || role === 'ProjectManager') {
+      items.push(
+        { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
+        { key: '/admin/hours', icon: <DollarOutlined />, label: 'Hour Allocation' }
+      );
       if (role === 'TenantAdmin') {
         items.push(
-          { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
-          { key: '/admin/hours', icon: <DollarOutlined />, label: 'Hour Allocation' },
           { key: '/admin/subscription', icon: <SettingOutlined />, label: 'Subscription' }
         );
       }

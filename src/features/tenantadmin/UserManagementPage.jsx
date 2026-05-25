@@ -111,6 +111,7 @@ const UserManagementPage = () => {
           <Select.Option value="TeamLead">Team Lead</Select.Option>
           <Select.Option value="Employee">Employee</Select.Option>
           <Select.Option value="ProjectManager">PM</Select.Option>
+          <Select.Option value="HR">HR</Select.Option>
         </Select>
       )
     },
@@ -228,6 +229,7 @@ const UserManagementPage = () => {
               <Select.Option value="TeamLead">Team Lead</Select.Option>
               <Select.Option value="Employee">Employee</Select.Option>
               <Select.Option value="ProjectManager">PM</Select.Option>
+              <Select.Option value="HR">HR</Select.Option>
             </Select>
           </Form.Item>
 
