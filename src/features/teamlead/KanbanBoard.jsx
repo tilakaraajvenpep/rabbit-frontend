@@ -413,9 +413,34 @@ const KanbanBoard = () => {
               options={allProjects.map(p => ({ label: p.name, value: String(p.id) }))}
             />
             {projectId && isManager && (
-              <Button icon={<EditOutlined />} onClick={handleOpenHeadingsModal}>
-                Edit Headings
-              </Button>
+              <Space>
+                <Button 
+                  danger 
+                  icon={<DeleteOutlined />} 
+                  onClick={async () => {
+                    Modal.confirm({
+                      title: 'Clean Stale Phase Tickets?',
+                      content: 'This will permanently remove the old budget/phase tickets (Phase 1, Phase 2, etc.) from the database. Milestone tickets will remain untouched.',
+                      okText: 'Yes, Clean Up',
+                      cancelText: 'No',
+                      onOk: async () => {
+                        try {
+                          const res = await ticketService.cleanupTaskTickets();
+                          message.success(`Cleanup complete! Removed ${res.data?.deleted || 0} stale tickets.`);
+                          loadTickets(projectId);
+                        } catch (err) {
+                          message.error('Failed to clean up stale tickets.');
+                        }
+                      }
+                    });
+                  }}
+                >
+                  Clean Stale Tickets
+                </Button>
+                <Button icon={<EditOutlined />} onClick={handleOpenHeadingsModal}>
+                  Edit Headings
+                </Button>
+              </Space>
             )}
             {projectId && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>Create Ticket</Button>

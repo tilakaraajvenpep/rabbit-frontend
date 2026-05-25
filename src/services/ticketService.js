@@ -108,5 +108,11 @@ export const ticketService = {
     const response = await apiClient.put(`/tickets/${ticketId}`, data);
     const t = response.data.data;
     return { data: { ...t, id: t.ticketId, code: t.ticketCode } };
+  },
+
+  cleanupTaskTickets: async () => {
+    if (useMock) return { data: { deleted: 0, tickets: [] } };
+    const response = await apiClient.delete('/tickets/admin/cleanup-task-tickets');
+    return { data: response.data.data };
   }
 };
