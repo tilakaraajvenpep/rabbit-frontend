@@ -102,6 +102,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
     if (role === 'Employee') {
       items.push(
         { key: '/employee/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
+        { key: '/employee/tickets', icon: <DashboardOutlined />, label: 'Kanban Board' },
         { key: '/employee/report', icon: <FileTextOutlined />, label: 'Daily Report' },
         { key: '/employee/reports', icon: <BarChartOutlined />, label: 'Work Reports' },
         { key: '/employee/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' }

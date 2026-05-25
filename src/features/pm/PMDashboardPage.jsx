@@ -31,6 +31,7 @@ import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import { useThemeStore } from '../../store/themeStore';
 import { timerRequestService } from '../../services/timerRequestService';
+import { ticketService } from '../../services/ticketService';
 
 dayjs.extend(isBetween);
 const { Title, Text } = Typography;
@@ -65,6 +66,7 @@ const PMDashboardPage = () => {
   // Timer Requests State
   const [pendingTimerRequests, setPendingTimerRequests] = useState([]);
   const [isTimerPopupVisible, setIsTimerPopupVisible] = useState(false);
+  const [assignedTickets, setAssignedTickets] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -90,6 +92,14 @@ const PMDashboardPage = () => {
         }
       } catch (err) {
         console.error('Failed to fetch pending timer requests', err);
+      }
+
+      // Fetch all assigned tickets
+      try {
+        const ticketRes = await ticketService.getTickets();
+        setAssignedTickets(ticketRes.data || []);
+      } catch (err) {
+        console.error('Failed to fetch assigned tickets', err);
       }
     } catch (error) {
       console.error('Failed to fetch PM dashboard data', error);
@@ -474,6 +484,58 @@ const PMDashboardPage = () => {
     }
   ];
 
+  // Assigned Tickets Columns for PM dashboard
+  const ticketColumns = [
+    {
+      title: 'Ticket Code',
+      dataIndex: 'code',
+      key: 'code',
+      render: (code) => <Text code>{code}</Text>
+    },
+    {
+      title: 'Title',
+      dataIndex: 'title',
+      key: 'title',
+      render: (t) => <Text strong>{t}</Text>
+    },
+    {
+      title: 'Project Name',
+      dataIndex: 'projectName',
+      key: 'projectName',
+      render: (pName) => <Text type="secondary">{pName || 'General Project'}</Text>
+    },
+    {
+      title: 'Priority',
+      dataIndex: 'priority',
+      key: 'priority',
+      render: (prio) => {
+        const color = prio === 'High' ? 'red' : prio === 'Medium' ? 'orange' : 'green';
+        return <Tag color={color}>{prio}</Tag>;
+      }
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status) => {
+        const color = status === 'Done' ? 'success' : status === 'InProgress' ? 'processing' : 'default';
+        return <Tag color={color}>{status}</Tag>;
+      }
+    },
+    {
+      title: 'Allocated Hours',
+      dataIndex: 'estimatedHours',
+      key: 'estimatedHours',
+      render: (h) => <Text strong>{h} hrs</Text>
+    },
+    {
+      title: 'Consumed Hours',
+      dataIndex: 'consumedHours',
+      key: 'consumedHours',
+      render: (h) => <Text strong style={{ color: '#16a34a' }}>{h || 0} hrs</Text>
+    }
+  ];
+
   if (loading) return <Skeleton active paragraph={{ rows: 10 }} />;
 
   // Card Background Style Mappings (Light/Dark Mode)
@@ -725,6 +787,29 @@ const PMDashboardPage = () => {
           className="pm-table"
         />
       </Card>
+
+      {/* Master Assigned Tickets List Card */}
+      <Card 
+        title={
+          <Space>
+            <ClockCircleOutlined style={{ color: '#52c41a' }} /> 
+            <span style={{ fontWeight: 600 }}>Master Assigned Tickets List</span>
+          </Space>
+        } 
+        style={{ marginTop: 24, borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}
+        bodyStyle={{ padding: 24 }}
+      >
+        <Table 
+          columns={ticketColumns} 
+          dataSource={assignedTickets} 
+          rowKey="id" 
+          pagination={{ pageSize: 5, showSizeChanger: true }}
+          locale={{ emptyText: 'No assigned tickets found.' }}
+          scroll={{ x: 'max-content' }}
+          className="pm-table"
+        />
+      </Card>
+
 
       {/* Return to Accounts Comments Modal */}
       <Modal

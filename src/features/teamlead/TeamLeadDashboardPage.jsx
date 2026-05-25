@@ -4,6 +4,7 @@ import { EyeOutlined, SearchOutlined, DashboardOutlined, AlertOutlined, Download
 import { useNavigate } from 'react-router-dom';
 import { projectService } from '../../services/projectService';
 import { analyticsService } from '../../services/analyticsService';
+import { ticketService } from '../../services/ticketService';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 
@@ -15,6 +16,7 @@ const TeamLeadDashboardPage = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
+  const [assignedTickets, setAssignedTickets] = useState([]);
 
   // Alert Modal State
   const [isAlertModalVisible, setIsAlertModalVisible] = useState(false);
@@ -31,6 +33,13 @@ const TeamLeadDashboardPage = () => {
       const res = await projectService.getProjects();
       // In a real app, this would be filtered by the current user's lead role
       setProjects(res.data);
+
+      try {
+        const ticketRes = await ticketService.getTickets();
+        setAssignedTickets(ticketRes.data || []);
+      } catch (err) {
+        console.error('Failed to load tickets', err);
+      }
     } catch (error) {
       console.error('Failed to load projects', error);
     } finally {
@@ -167,6 +176,57 @@ const TeamLeadDashboardPage = () => {
     }
   ];
 
+  const ticketColumns = [
+    {
+      title: 'Ticket Code',
+      dataIndex: 'code',
+      key: 'code',
+      render: (code) => <Text code>{code}</Text>
+    },
+    {
+      title: 'Title',
+      dataIndex: 'title',
+      key: 'title',
+      render: (t) => <Text strong>{t}</Text>
+    },
+    {
+      title: 'Project Name',
+      dataIndex: 'projectName',
+      key: 'projectName',
+      render: (pName) => <Text type="secondary">{pName || 'General Project'}</Text>
+    },
+    {
+      title: 'Priority',
+      dataIndex: 'priority',
+      key: 'priority',
+      render: (prio) => {
+        const color = prio === 'High' ? 'red' : prio === 'Medium' ? 'orange' : 'green';
+        return <Tag color={color}>{prio}</Tag>;
+      }
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status) => {
+        const color = status === 'Done' ? 'success' : status === 'InProgress' ? 'processing' : 'default';
+        return <Tag color={color}>{status}</Tag>;
+      }
+    },
+    {
+      title: 'Allocated Hours',
+      dataIndex: 'estimatedHours',
+      key: 'estimatedHours',
+      render: (h) => <Text strong>{h} hrs</Text>
+    },
+    {
+      title: 'Consumed Hours',
+      dataIndex: 'consumedHours',
+      key: 'consumedHours',
+      render: (h) => <Text strong style={{ color: '#16a34a' }}>{h || 0} hrs</Text>
+    }
+  ];
+
   if (loading) return <Skeleton active paragraph={{ rows: 10 }} />;
 
   return (
@@ -204,6 +264,21 @@ const TeamLeadDashboardPage = () => {
         rowKey="id" 
         pagination={{ pageSize: 10 }}
       />
+
+      {/* Assigned Tickets List Card */}
+      <div style={{ marginTop: 32 }}>
+        <div style={{ marginBottom: 16 }}>
+          <Text strong style={{ fontSize: '18px' }}>Team Assigned Tickets List</Text>
+        </div>
+        <Table 
+          columns={ticketColumns} 
+          dataSource={assignedTickets} 
+          rowKey="id" 
+          pagination={{ pageSize: 5 }}
+          locale={{ emptyText: 'No assigned tickets found.' }}
+        />
+      </div>
+
 
       <Modal
         title="Raise Alert Issue"
