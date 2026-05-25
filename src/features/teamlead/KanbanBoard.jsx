@@ -198,14 +198,18 @@ const KanbanBoard = () => {
   };
 
   useEffect(() => {
-    if (projectId) {
-      loadTickets();
+    if (projectId && !isNaN(Number(projectId))) {
+      loadTickets(projectId);
     }
   }, [projectId]);
 
-  const loadTickets = async () => {
-    const res = await ticketService.getTickets(projectId);
-    setTickets(res.data);
+  const loadTickets = async (pid) => {
+    try {
+      const res = await ticketService.getTickets(pid || projectId);
+      setTickets(res.data);
+    } catch (err) {
+      console.error('Failed to load tickets', err);
+    }
   };
 
   const handleProjectChange = (id) => {
@@ -305,7 +309,7 @@ const KanbanBoard = () => {
 
   const handleSaveHeadings = async (values) => {
     try {
-      await projectService.updateStatus(projectId, {
+      await projectService.updateProjectStatus(projectId, {
         kanbanColumns: values,
         status: project.status
       });
@@ -313,6 +317,7 @@ const KanbanBoard = () => {
       setIsHeadingsModalOpen(false);
       fetchProjects();
     } catch (err) {
+      console.error('Save headings error:', err);
       message.error('Failed to save Kanban column headings.');
     }
   };
@@ -464,7 +469,7 @@ const KanbanBoard = () => {
         open={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         projectId={projectId} 
-        onSuccess={loadTickets} 
+        onSuccess={() => loadTickets(projectId)} 
       />
 
       {/* Edit Headings Modal */}
