@@ -176,6 +176,7 @@ const App = () => {
               {/* ProjectManager Routes */}
               <Route element={<ProtectedRoute allowedRoles={['ProjectManager', 'TenantAdmin']} />}> 
                 <Route path="/pm/dashboard" element={<PMDashboardPage />} />
+                <Route path="/pm/board" element={<KanbanBoard />} />
                 <Route path="/pm/projects/:id" element={<ProjectOverviewPage />} />
                 <Route path="/pm/projects/:id/kanban" element={<KanbanBoard />} />
                 <Route path="/pm/analytics" element={<AnalyticsPage />} />
