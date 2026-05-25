@@ -99,8 +99,10 @@ const CostAnalysisPage = () => {
         if (usersRes.data) {
           setAllUsers(usersRes.data);
           
-          // Filter Project Managers
-          const pms = usersRes.data.filter(u => u.role === 'ProjectManager' && u.isActive);
+          // Filter Project Managers (include TenantAdmin who also acts as PM)
+          const pms = usersRes.data.filter(u => 
+            (u.role === 'ProjectManager' || u.role === 'TenantAdmin') && u.isActive !== false
+          );
           setProjectManagers(pms);
 
           // Filter Team Leads
@@ -784,11 +786,15 @@ const CostAnalysisPage = () => {
             onChange={value => setSelectedPMId(value)}
             value={selectedPMId}
           >
-            {projectManagers.map(pm => (
-              <Select.Option key={pm.id} value={pm.id}>
-                {pm.name} ({pm.email})
-              </Select.Option>
-            ))}
+            {projectManagers.map(pm => {
+              const pmId = pm.id || pm.userId;
+              const pmName = pm.name || pm.fullName || pm.email;
+              return (
+                <Select.Option key={pmId} value={pmId}>
+                  {pmName} ({pm.email})
+                </Select.Option>
+              );
+            })}
           </Select>
         </Space>
       </Modal>
