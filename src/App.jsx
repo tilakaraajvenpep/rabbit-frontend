@@ -133,11 +133,24 @@ const App = () => {
                 <Route path="/superadmin/settings" element={<Placeholder title="Platform Settings" />} />
               </Route>
 
-              {/* TenantAdmin Routes */}
-              <Route element={<ProtectedRoute allowedRoles={['TenantAdmin']} />}>
+              {/* TenantAdmin + ProjectManager Routes (merged into one guard to prevent React Router ambiguity) */}
+              <Route element={<ProtectedRoute allowedRoles={['ProjectManager', 'TenantAdmin']} />}>
+                {/* TenantAdmin admin pages */}
                 <Route path="/admin/users" element={<UserManagementPage />} />
                 <Route path="/admin/subscription" element={<SubscriptionPage />} />
                 <Route path="/admin/hours" element={<HourAllocationPage />} />
+
+                {/* PM + TenantAdmin shared pages */}
+                <Route path="/pm/dashboard" element={<PMDashboardPage />} />
+                <Route path="/pm/board" element={<KanbanBoard />} />
+                <Route path="/pm/projects/:id" element={<ProjectOverviewPage />} />
+                <Route path="/pm/projects/:id/kanban" element={<KanbanBoard />} />
+                <Route path="/pm/analytics" element={<AnalyticsPage />} />
+                <Route path="/pm/analytics/:id" element={<AnalyticsPage />} />
+                <Route path="/pm/alerts" element={<AlertsFeedPage />} />
+                <Route path="/pm/employee-reports" element={<EmployeeReportsPage />} />
+                <Route path="/pm/leaves" element={<LeaveApprovalsPage />} />
+                <Route path="/pm/team" element={<TeamDetailsPage />} />
               </Route>
 
               {/* Sales Routes */}
@@ -172,21 +185,6 @@ const App = () => {
                 <Route path="/employee/reports" element={<EmployeeReportsPage />} />
                 <Route path="/employee/leaves" element={<LeaveRequestsPage />} />
               </Route>
-
-              {/* ProjectManager Routes */}
-              <Route element={<ProtectedRoute allowedRoles={['ProjectManager', 'TenantAdmin']} />}> 
-                <Route path="/pm/dashboard" element={<PMDashboardPage />} />
-                <Route path="/pm/board" element={<KanbanBoard />} />
-                <Route path="/pm/projects/:id" element={<ProjectOverviewPage />} />
-                <Route path="/pm/projects/:id/kanban" element={<KanbanBoard />} />
-                <Route path="/pm/analytics" element={<AnalyticsPage />} />
-                <Route path="/pm/analytics/:id" element={<AnalyticsPage />} />
-                <Route path="/pm/alerts" element={<AlertsFeedPage />} />
-                <Route path="/pm/employee-reports" element={<EmployeeReportsPage />} />
-                <Route path="/pm/leaves" element={<LeaveApprovalsPage />} />
-                <Route path="/pm/team" element={<TeamDetailsPage />} />
-              </Route>
-
 
               {/* Shared Reports for Managers */}
               <Route element={<ProtectedRoute allowedRoles={['Accounts', 'Sales', 'ProjectManager', 'TenantAdmin']} />}>
