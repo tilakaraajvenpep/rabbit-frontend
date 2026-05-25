@@ -1,47 +1,28 @@
-import axios from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+import apiClient from './apiClient';
 
 export const timerRequestService = {
   createRequest: async (data) => {
-    const token = localStorage.getItem('token');
-    return await axios.post(`${API_URL}/timer-requests`, data, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    return await apiClient.post('/timer-requests', data);
   },
 
   getEmployeeRequests: async () => {
-    const token = localStorage.getItem('token');
-    return await axios.get(`${API_URL}/timer-requests/employee`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    return await apiClient.get('/timer-requests/employee');
   },
 
   getTLPendingRequests: async () => {
-    const token = localStorage.getItem('token');
-    return await axios.get(`${API_URL}/timer-requests/tl`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    return await apiClient.get('/timer-requests/tl');
   },
 
   getPMPendingRequests: async () => {
-    const token = localStorage.getItem('token');
-    return await axios.get(`${API_URL}/timer-requests/pm`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    return await apiClient.get('/timer-requests/pm');
   },
 
   forwardToPM: async (id, data) => {
-    const token = localStorage.getItem('token');
-    return await axios.put(`${API_URL}/timer-requests/${id}/forward`, data, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    return await apiClient.put(`/timer-requests/${id}/forward`, data);
   },
 
   respondToRequest: async (id, data) => {
-    const token = localStorage.getItem('token');
-    return await axios.put(`${API_URL}/timer-requests/${id}/respond`, data, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    return await apiClient.put(`/timer-requests/${id}/respond`, data);
   }
 };
+export default timerRequestService;
