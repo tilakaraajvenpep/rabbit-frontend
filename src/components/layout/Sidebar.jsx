@@ -64,9 +64,11 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/pm/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/pm/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
         { key: '/pm/team', icon: <TeamOutlined />, label: 'TL & Employees' },
-        { key: '/pm/cross-team', icon: <SwapOutlined />, label: 'Cross-Team Status' }
+        { key: '/pm/cross-team', icon: <SwapOutlined />, label: 'Cross-Team Status' },
+        { key: '/pm/timer-requests', icon: <ClockCircleOutlined />, label: 'Timer Approvals' }
       );
     }
+
 
     if (role === 'Sales') {
       items.push(
@@ -90,9 +92,11 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/teamlead/board', icon: <DashboardOutlined />, label: 'Kanban Board' },
         { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
-        { key: '/teamlead/cross-share', icon: <SwapOutlined />, label: 'Cross-Team Share' }
+        { key: '/teamlead/cross-share', icon: <SwapOutlined />, label: 'Cross-Team Share' },
+        { key: '/teamlead/timer-requests', icon: <ClockCircleOutlined />, label: 'Timer Requests' }
       );
     }
+
 
 
     if (role === 'Employee') {

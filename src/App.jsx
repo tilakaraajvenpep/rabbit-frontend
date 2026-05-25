@@ -36,6 +36,8 @@ const TeamLeadDashboardPage = React.lazy(() => import('./features/teamlead/TeamL
 const ProjectDetailPage = React.lazy(() => import('./features/teamlead/ProjectDetailPage'));
 const KanbanBoard = React.lazy(() => import('./features/teamlead/KanbanBoard'));
 const CrossTeamSharePage = React.lazy(() => import('./features/teamlead/CrossTeamSharePage'));
+const TimerRequestsReviewPage = React.lazy(() => import('./features/teamlead/TimerRequestsReviewPage'));
+
 
 // Employee
 const MyTicketsPage = React.lazy(() => import('./features/employee/MyTicketsPage'));
@@ -50,6 +52,8 @@ const AlertsFeedPage = React.lazy(() => import('./features/pm/AlertsFeedPage'));
 const LeaveApprovalsPage = React.lazy(() => import('./features/pm/LeaveApprovalsPage'));
 const TeamDetailsPage = React.lazy(() => import('./features/pm/TeamDetailsPage'));
 const CrossTeamPage = React.lazy(() => import('./features/pm/CrossTeamPage'));
+const TimerRequestsApprovalPage = React.lazy(() => import('./features/pm/TimerRequestsApprovalPage'));
+
 
 const ProjectOverviewPage = React.lazy(() => import('./features/shared/ProjectOverviewPage'));
 const OverallReportsPage = React.lazy(() => import('./features/shared/OverallReportsPage'));
@@ -154,7 +158,9 @@ const App = () => {
                 <Route path="/pm/leaves" element={<LeaveApprovalsPage />} />
                 <Route path="/pm/team" element={<TeamDetailsPage />} />
                 <Route path="/pm/cross-team" element={<CrossTeamPage />} />
+                <Route path="/pm/timer-requests" element={<TimerRequestsApprovalPage />} />
               </Route>
+
 
               {/* Sales Routes */}
               <Route element={<ProtectedRoute allowedRoles={['Sales']} />}>
@@ -180,7 +186,9 @@ const App = () => {
                 <Route path="/teamlead/employee-reports" element={<EmployeeReportsPage />} />
                 <Route path="/teamlead/leaves" element={<LeaveApprovalsPage />} />
                 <Route path="/teamlead/cross-share" element={<CrossTeamSharePage />} />
+                <Route path="/teamlead/timer-requests" element={<TimerRequestsReviewPage />} />
               </Route>
+
 
               {/* Employee Routes */}
               <Route element={<ProtectedRoute allowedRoles={['Employee']} />}> 

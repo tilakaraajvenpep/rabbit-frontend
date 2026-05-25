@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Form, Input, InputNumber, Select, Button, Space, Typography,
-  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme
+  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, SendOutlined, CheckCircleOutlined,
   CheckCircleFilled, ExclamationCircleFilled, ClockCircleOutlined,
-  LeftOutlined, RightOutlined, ProjectOutlined, AlertOutlined
+  LeftOutlined, RightOutlined, ProjectOutlined, AlertOutlined,
+  WarningOutlined, SendOutlined as RaiseIcon, ApartmentOutlined
 } from '@ant-design/icons';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +17,7 @@ import { ticketService } from '../../services/ticketService';
 import { analyticsService } from '../../services/analyticsService';
 import { leaveService } from '../../services/leaveService';
 import { adminService } from '../../services/adminService';
+import { timerRequestService } from '../../services/timerRequestService';
 
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -45,6 +47,12 @@ const EODReportPage = () => {
   const [weeklyReports, setWeeklyReports] = useState([]);
   const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(Number(currentUser?.allocatedHours) || 8.5);
 
+  // Timer Requests State
+  const [myTimerRequests, setMyTimerRequests] = useState([]);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [requestForm] = Form.useForm();
+  const [requesting, setRequesting] = useState(false);
+  const [activeRequestDetails, setActiveRequestDetails] = useState(null);
 
   // Modal State for New Ticket
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
@@ -71,7 +79,6 @@ const EODReportPage = () => {
     ? (currentLeave.type === 'HalfDay' ? baseRequiredHours / 2 : 0)
     : baseRequiredHours;
 
-
   const selectedTicketIds = watchedItems?.map(item => item.ticketId).filter(id => !!id) || [];
 
   const hoursReportedOtherDays = weeklyReports
@@ -89,6 +96,7 @@ const EODReportPage = () => {
     updateWeekDates(baseDate);
     fetchTickets();
     fetchProjects();
+    fetchTimerRequests();
     // Fetch fresh allocatedHours from server
     adminService.getMyProfile().then(res => {
       const fresh = Number(res?.data?.allocatedHours);
@@ -103,6 +111,15 @@ const EODReportPage = () => {
   useEffect(() => {
     fetchReportForDate(selectedDate);
   }, [selectedDate, currentUser.id, adminUnlocked]);
+
+  const fetchTimerRequests = async () => {
+    try {
+      const res = await timerRequestService.getEmployeeRequests();
+      setMyTimerRequests(res.data.data || []);
+    } catch (err) {
+      console.error('Failed to load timer requests', err);
+    }
+  };
 
   const updateWeekDates = (monday) => {
     const dates = [];
@@ -175,7 +192,7 @@ const EODReportPage = () => {
   const fetchTickets = async () => {
     try {
       const res = await ticketService.getTickets();
-      // Filter out completed tickets. The backend already filters by current user.
+      // Filter out completed tickets.
       setMyTickets(res.data.filter(t => t.status !== 'Done'));
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to load tickets.' });
@@ -226,7 +243,6 @@ const EODReportPage = () => {
     }
   };
 
-  // Logic to handle New Ticket Creation
   const handleCreateTicket = async (values) => {
     setNewTicketLoading(true);
     try {
@@ -236,7 +252,7 @@ const EODReportPage = () => {
         priority: 'Medium',
         estimatedHours: values.estimatedHours || 8,
         assignedToUserId: currentUser.id,
-        dueDate: dayjs().add(7, 'day').toISOString() // Default due date
+        dueDate: dayjs().add(7, 'day').toISOString()
       };
       const res = await ticketService.createTicket(values.projectId, payload);
       const newTicketId = res.data.id;
@@ -244,26 +260,19 @@ const EODReportPage = () => {
       const newTicket = {
         ...res.data,
         estimatedHours: Number(res.data.estimatedHours) || values.estimatedHours,
-        consumedHours: 0
+        consumedHours: 0,
+        timerAccumulatedSeconds: 0
       };
 
-      // Manually add the new ticket to state to avoid React batching delays
       setMyTickets(prev => [newTicket, ...prev]);
 
       notification.success({ message: 'Ticket Created', description: 'New ticket added to your list.' });
       setIsTicketModalOpen(false);
       ticketForm.resetFields();
       
-      // Auto-assign to the active row
       if (activeTicketRowIndex !== null) {
         setValue(`items.${activeTicketRowIndex}.ticketId`, newTicketId);
-      } else {
-        const emptyIndex = watchedItems.findIndex(item => !item.ticketId);
-        if (emptyIndex !== -1) {
-          setValue(`items.${emptyIndex}.ticketId`, newTicketId);
-        } else {
-          append({ ticketId: newTicketId, hours: 0, workDone: '' });
-        }
+        setValue(`items.${activeTicketRowIndex}.hours`, 0);
       }
       setActiveTicketRowIndex(null);
     } catch (error) {
@@ -274,7 +283,37 @@ const EODReportPage = () => {
   };
 
   const onSubmit = async (data) => {
-    // Enforce allocated hours cap
+    // Double check all validations
+    for (const item of data.items) {
+      const ticket = myTickets.find(t => t.id === item.ticketId);
+      if (!ticket) continue;
+
+      const hasApprovedTimerRequest = myTimerRequests.some(r => 
+        r.request.ticketId === ticket.id && r.request.status === 'Approved'
+      );
+
+      // Missed Timer Validation
+      if ((ticket.timerAccumulatedSeconds || 0) === 0 && !hasApprovedTimerRequest) {
+        notification.error({
+          message: 'Submission Blocked',
+          description: `You did not run the Kanban timer on ticket "${ticket.ticketCode}". You must raise a Timer Missed request and receive PM approval before reporting.`,
+          duration: 6
+        });
+        return;
+      }
+
+      // Limit Exceeded Validation
+      const estHours = Number(ticket.estimatedHours) || 4;
+      if (item.hours > estHours && !hasApprovedTimerRequest) {
+        notification.error({
+          message: 'Submission Blocked',
+          description: `You are trying to report ${item.hours}h on ticket "${ticket.ticketCode}" which has a limit of ${estHours}h. Please submit an Exceeded Limit request to report additional hours.`,
+          duration: 6
+        });
+        return;
+      }
+    }
+
     const submittedTotal = data.items.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0);
     if (submittedTotal > REQUIRED_HOURS) {
       notification.error({
@@ -284,6 +323,7 @@ const EODReportPage = () => {
       });
       return;
     }
+
     setSubmitting(true);
     try {
       const reportData = {
@@ -307,7 +347,7 @@ const EODReportPage = () => {
           type: 'Employee Report Alert',
           severity: 'Critical',
           message: data.alertMessage,
-          employeeName: currentUser.name,
+          employeeName: currentUser.fullName,
           projectId: resolvedProjectId,
           projectName: 'EOD Report'
         });
@@ -320,6 +360,39 @@ const EODReportPage = () => {
       notification.error({ message: 'Error', description: 'Failed to submit report.' });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleOpenRequestModal = (type, ticket) => {
+    setActiveRequestDetails({ type, ticket });
+    requestForm.resetFields();
+    requestForm.setFieldsValue({
+      ticketId: ticket.id,
+      requestType: type,
+      requestedHours: type === 'ExceededLimit' ? 4 : 0
+    });
+    setIsRequestModalOpen(true);
+  };
+
+  const handleRequestSubmit = async (values) => {
+    setRequesting(true);
+    try {
+      await timerRequestService.createRequest({
+        ticketId: values.ticketId,
+        requestType: values.requestType,
+        requestedHours: values.requestedHours,
+        reason: values.reason
+      });
+      notification.success({ 
+        message: 'Request Submitted', 
+        description: 'Your request has been forwarded to your Team Lead. You will be notified once approved by the PM.' 
+      });
+      setIsRequestModalOpen(false);
+      fetchTimerRequests();
+    } catch (err) {
+      notification.error({ message: 'Failed to submit request' });
+    } finally {
+      setRequesting(false);
     }
   };
 
@@ -346,16 +419,61 @@ const EODReportPage = () => {
     }
   };
 
+  const requestColumns = [
+    {
+      title: 'Ticket Code',
+      dataIndex: ['ticketCode'],
+      key: 'ticketCode',
+      render: (code) => <Text code>{code}</Text>
+    },
+    {
+      title: 'Ticket Title',
+      dataIndex: ['ticketTitle'],
+      key: 'ticketTitle',
+    },
+    {
+      title: 'Issue Type',
+      dataIndex: ['request', 'requestType'],
+      key: 'requestType',
+      render: (t) => <Tag color={t === 'TimerMissed' ? 'volcano' : 'purple'}>{t === 'TimerMissed' ? 'Timer Missed' : 'Hours Exceeded'}</Tag>
+    },
+    {
+      title: 'Requested Hours',
+      dataIndex: ['request', 'requestedHours'],
+      key: 'requestedHours',
+      render: (h) => `${h} hrs`
+    },
+    {
+      title: 'Status',
+      dataIndex: ['request', 'status'],
+      key: 'status',
+      render: (status) => {
+        const conf = {
+          PendingTL: { color: 'orange', label: 'Pending TL Approval' },
+          PendingPM: { color: 'blue', label: 'Forwarded to PM' },
+          Approved: { color: 'green', label: 'Approved & Unlocked' },
+          Rejected: { color: 'red', label: 'Rejected' },
+        }[status] || { color: 'default', label: status };
+        return <Badge status={conf.color === 'green' ? 'success' : conf.color === 'red' ? 'error' : 'processing'} text={conf.label} />;
+      }
+    },
+    {
+      title: 'Comments',
+      dataIndex: ['request', 'comments'],
+      key: 'comments',
+      render: (c) => c ? <Text type="secondary">{c}</Text> : <Text italic type="secondary">No comment</Text>
+    }
+  ];
+
   const isLocked = viewOnly && !adminUnlocked;
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', paddingBottom: 40 }}>
+    <div style={{ maxWidth: 900, margin: '0 auto', paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader title="Weekly Work Report" />
 
       {/* Allocated Hours Banner */}
       <Card
         style={{
-          marginBottom: 20,
           borderRadius: 12,
           background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(139,92,246,0.08) 100%)',
           border: '1px solid rgba(99,102,241,0.25)',
@@ -406,7 +524,7 @@ const EODReportPage = () => {
 
 
       {/* Weekly Navigator */}
-      <Card style={{ marginBottom: 24, borderRadius: 12 }}>
+      <Card style={{ borderRadius: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <Button icon={<LeftOutlined />} onClick={handlePrevWeek} shape="circle" />
           <div style={{ display: 'flex', flex: 1, justifyContent: 'space-between', alignItems: 'center', overflowX: 'auto', padding: '10px 0' }}>
@@ -453,15 +571,7 @@ const EODReportPage = () => {
           }
           type="warning"
           showIcon
-          style={{ marginBottom: 24, borderRadius: 12 }}
-        />
-      )}
-
-      {!isLocked && (
-        <Alert
-          message="Multi-Task Reporting"
-          description="You can report work on multiple tickets. If a ticket is missing, use the 'New Ticket' button inside a task card."
-          type="info" showIcon style={{ marginBottom: 24 }}
+          style={{ borderRadius: 12 }}
         />
       )}
 
@@ -471,7 +581,7 @@ const EODReportPage = () => {
         <Result icon={<CheckCircleOutlined style={{ color: '#818cf8' }} />} title="On Approved Full Day Leave!" subTitle="No EOD report submission is required for today." />
       ) : (
         <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
-          <Card style={{ marginBottom: 24, background: isDarkMode ? 'rgba(255, 255, 255, 0.02)' : '#fafafa' }}>
+          <Card style={{ background: isDarkMode ? 'rgba(255, 255, 255, 0.02)' : '#fafafa' }}>
             <Row align="middle" gutter={24}>
               <Col span={12}>
                 <Title level={5} style={{ margin: 0 }}>{dayjs(selectedDate).format('DD MMMM YYYY')}</Title>
@@ -500,25 +610,52 @@ const EODReportPage = () => {
             const ticketData = myTickets.find(t => t.id === currentItemTicketId);
 
             let maxAllowed = 0;
+            let timerHours = 0;
+            let showTimerMissedWarning = false;
+            let showLimitExceededWarning = false;
+            let hasApprovedTimerRequest = false;
+
             if (ticketData) {
-              maxAllowed = ticketData.estimatedHours - ticketData.consumedHours;
-              const previouslySavedItem = existingReport?.items?.find(item => item.ticketId === currentItemTicketId);
-              if (previouslySavedItem) {
-                maxAllowed += previouslySavedItem.hours;
+              timerHours = parseFloat(((ticketData.timerAccumulatedSeconds || 0) / 3600).toFixed(2));
+              maxAllowed = Number(ticketData.estimatedHours) || 4;
+              
+              hasApprovedTimerRequest = myTimerRequests.some(r => 
+                r.request.ticketId === ticketData.id && r.request.status === 'Approved'
+              );
+
+              // 1. Enforce Timer ran check (Requirement 5)
+              if ((ticketData.timerAccumulatedSeconds || 0) === 0 && !hasApprovedTimerRequest) {
+                showTimerMissedWarning = true;
+              }
+
+              // 2. Enforce estimated hours cap (Requirement 3)
+              const currentInputVal = watchedItems?.[index]?.hours || 0;
+              if (currentInputVal > maxAllowed && !hasApprovedTimerRequest) {
+                showLimitExceededWarning = true;
               }
             }
 
             return (
               <Card
                 key={field.id}
-                style={{ marginBottom: 16 }}
+                style={{ marginTop: 16 }}
                 size="small"
                 title={
                   <Space>
                     <Text strong>Task {index + 1}</Text>
-                    {currentItemTicketId && (
-                      <Tag color={maxAllowed > 0 ? 'blue' : 'red'}>
-                        Max Available: {maxAllowed.toFixed(1)} hrs
+                    {ticketData && (
+                      <Tag color="cyan">
+                        Live Timer: {timerHours} hrs
+                      </Tag>
+                    )}
+                    {ticketData && (
+                      <Tag color="blue">
+                        Est. Limit: {maxAllowed} hrs
+                      </Tag>
+                    )}
+                    {hasApprovedTimerRequest && (
+                      <Tag color="success">
+                        Approved Extension
                       </Tag>
                     )}
                   </Space>
@@ -559,23 +696,28 @@ const EODReportPage = () => {
                             optionFilterProp="children"
                             onChange={(val) => {
                               field.onChange(val);
-                              setValue(`items.${index}.hours`, 0);
+                              // Auto-calculate EOD hours from active timer (Requirement 3)
+                              const ticket = myTickets.find(t => t.id === val);
+                              if (ticket) {
+                                const hoursCalculated = parseFloat(((ticket.timerAccumulatedSeconds || 0) / 3600).toFixed(2));
+                                setValue(`items.${index}.hours`, hoursCalculated);
+                              } else {
+                                setValue(`items.${index}.hours`, 0);
+                              }
                             }}
                           >
                             {myTickets.map(t => {
-                              const isConsumed = t.estimatedHours <= t.consumedHours && !existingReport?.items?.some(i => i.ticketId === t.id);
                               const isAlreadySelectedElsewhere = selectedTicketIds.includes(t.id) && currentItemTicketId !== t.id;
-
                               return (
                                 <Select.Option
                                   key={t.id}
                                   value={t.id}
-                                  disabled={isConsumed || isAlreadySelectedElsewhere}
+                                  disabled={isAlreadySelectedElsewhere}
                                 >
                                   <Space>
                                     {t.code} — {t.title}
                                     <Text type="secondary" style={{ fontSize: '11px' }}>
-                                      ({(t.estimatedHours - t.consumedHours).toFixed(1)}h left)
+                                      ({((t.timerAccumulatedSeconds || 0) / 3600).toFixed(1)}h logged)
                                     </Text>
                                     {isAlreadySelectedElsewhere && <Tag color="warning" style={{ fontSize: '10px' }}>Selected</Tag>}
                                   </Space>
@@ -587,6 +729,7 @@ const EODReportPage = () => {
                       />
                     </Form.Item>
                   </Col>
+                  
                   <Col span={8}>
                     <Form.Item label="Hours" required help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''}>
                       <Controller
@@ -594,8 +737,7 @@ const EODReportPage = () => {
                         control={control}
                         rules={{
                           required: !isLocked ? 'Required' : false,
-                          min: { value: 0.1, message: 'Min 0.1' },
-                          max: { value: maxAllowed || 24, message: `Only ${maxAllowed}h left` }
+                          min: { value: 0.1, message: 'Min 0.1' }
                         }}
                         render={({ field }) => (
                           <InputNumber
@@ -609,6 +751,73 @@ const EODReportPage = () => {
                       />
                     </Form.Item>
                   </Col>
+
+                  {/* VALIDATION WARNING CARDS & EXCEPTION WORKFLOWS */}
+                  {showTimerMissedWarning && (
+                    <Col span={24} style={{ marginBottom: 16 }}>
+                      <Alert
+                        message={
+                          <Space>
+                            <WarningOutlined style={{ color: '#fa541c' }} />
+                            <Text strong style={{ color: '#fa541c' }}>Timer Missed Restriction</Text>
+                          </Space>
+                        }
+                        description={
+                          <Space direction="vertical" style={{ width: '100%', marginTop: 4 }}>
+                            <Text style={{ fontSize: 12 }}>
+                              You cannot report hours on this ticket because you missed running the Kanban timer. Please raise a "Timer Missed" issue to your Team Lead.
+                            </Text>
+                            <Button 
+                              type="primary" 
+                              danger 
+                              size="small"
+                              icon={<RaiseIcon />}
+                              onClick={() => handleOpenRequestModal('TimerMissed', ticketData)}
+                              style={{ background: '#fa541c', borderColor: '#fa541c', borderRadius: 4 }}
+                            >
+                              Raise Timer Missed Issue
+                            </Button>
+                          </Space>
+                        }
+                        type="warning"
+                        showIcon={false}
+                        style={{ border: '1px solid #ffbb96', background: '#fff2e8' }}
+                      />
+                    </Col>
+                  )}
+
+                  {showLimitExceededWarning && (
+                    <Col span={24} style={{ marginBottom: 16 }}>
+                      <Alert
+                        message={
+                          <Space>
+                            <WarningOutlined style={{ color: '#722ed1' }} />
+                            <Text strong style={{ color: '#722ed1' }}>Estimation Limit Exceeded ({maxAllowed}h Max)</Text>
+                          </Space>
+                        }
+                        description={
+                          <Space direction="vertical" style={{ width: '100%', marginTop: 4 }}>
+                            <Text style={{ fontSize: 12 }}>
+                              You are reporting work beyond the ticket's estimated limit. Please raise a request to obtain authorization to exceed the limit.
+                            </Text>
+                            <Button 
+                              type="primary" 
+                              size="small"
+                              icon={<RaiseIcon />}
+                              onClick={() => handleOpenRequestModal('ExceededLimit', ticketData)}
+                              style={{ background: '#722ed1', borderColor: '#722ed1', borderRadius: 4 }}
+                            >
+                              Raise Hours Exceeded Issue
+                            </Button>
+                          </Space>
+                        }
+                        type="warning"
+                        showIcon={false}
+                        style={{ border: '1px solid #d3adf7', background: '#f9f0ff' }}
+                      />
+                    </Col>
+                  )}
+
                   <Col span={24}>
                     <Form.Item label="Work Done" required help={errors.items?.[index]?.workDone?.message} validateStatus={errors.items?.[index]?.workDone ? 'error' : ''}>
                       <Controller
@@ -625,7 +834,7 @@ const EODReportPage = () => {
           })}
 
           {!isLocked && (
-            <Button type="dashed" onClick={() => append({ ticketId: '', hours: 0, workDone: '' })} block icon={<PlusOutlined />} style={{ marginBottom: 24 }}>
+            <Button type="dashed" onClick={() => append({ ticketId: '', hours: 0, workDone: '' })} block icon={<PlusOutlined />} style={{ marginTop: 16, marginBottom: 24 }}>
               Add Task Row
             </Button>
           )}
@@ -687,6 +896,27 @@ const EODReportPage = () => {
         </Form>
       )}
 
+      {/* TRACKING DASHBOARD FOR TIMER/HOURS REQUESTS */}
+      {myTimerRequests.length > 0 && (
+        <Card 
+          title={
+            <Space>
+              <ApartmentOutlined style={{ color: token.colorPrimary }} />
+              <span>My Hours & Timer Extension Requests</span>
+            </Space>
+          }
+          style={{ marginTop: 24, borderRadius: 16, overflow: 'hidden' }}
+        >
+          <Table 
+            columns={requestColumns}
+            dataSource={myTimerRequests}
+            rowKey={(r) => r.request.requestId}
+            pagination={{ pageSize: 5 }}
+            size="small"
+          />
+        </Card>
+      )}
+
       {/* Modal for Creating New Ticket */}
       <Modal
         title={<span><ProjectOutlined /> Create New Ticket</span>}
@@ -708,6 +938,50 @@ const EODReportPage = () => {
           </Form.Item>
           <Form.Item name="estimatedHours" label="Estimated Hours" initialValue={8}>
             <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal for Submitting Timer/Hours Request */}
+      <Modal
+        title={
+          <Space>
+            <WarningOutlined style={{ color: activeRequestDetails?.type === 'TimerMissed' ? '#fa541c' : '#722ed1' }} />
+            <span>Raise {activeRequestDetails?.type === 'TimerMissed' ? 'Timer Missed' : 'Hours Exceeded'} Request</span>
+          </Space>
+        }
+        open={isRequestModalOpen}
+        onCancel={() => setIsRequestModalOpen(false)}
+        onOk={() => requestForm.submit()}
+        confirmLoading={requesting}
+        destroyOnClose
+      >
+        <Form form={requestForm} layout="vertical" onFinish={handleRequestSubmit}>
+          <Form.Item name="ticketId" label="Ticket" hidden><Input /></Form.Item>
+          <Form.Item name="requestType" label="Request Type" hidden><Input /></Form.Item>
+          
+          <div style={{ marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+            <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>Ticket Name</Text>
+            <Text strong>{activeRequestDetails?.ticket?.ticketCode} - {activeRequestDetails?.ticket?.title}</Text>
+          </div>
+
+          {activeRequestDetails?.type === 'ExceededLimit' && (
+            <Form.Item 
+              name="requestedHours" 
+              label="Additional Hours Required" 
+              rules={[{ required: true, message: 'Please enter additional hours requested' }]}
+              initialValue={4}
+            >
+              <InputNumber min={1} style={{ width: '100%' }} placeholder="E.g. 4" />
+            </Form.Item>
+          )}
+
+          <Form.Item 
+            name="reason" 
+            label="Explain Reason (detailed note for TL/PM)" 
+            rules={[{ required: true, message: 'Please explain the reason' }, { min: 8, message: 'Explain in a bit more detail' }]}
+          >
+            <TextArea rows={4} placeholder="E.g., I was unable to activate the timer because of a production hotspot checkout, OR the client design requested an extra sub-module integration..." />
           </Form.Item>
         </Form>
       </Modal>
