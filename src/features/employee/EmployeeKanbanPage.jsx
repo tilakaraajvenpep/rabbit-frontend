@@ -131,7 +131,7 @@ const EmployeeKanbanPage = () => {
       <Alert 
         message={
           <Text strong style={{ color: '#1d4ed8' }}>
-            💡 Drag and drop any card between columns, or use the Start/Pause/Review action buttons to control your live timesheet!
+            💡 Drag and drop the tickets from ToDo To Inprogress to start the timer and track the hours.
           </Text>
         }
         type="info"
