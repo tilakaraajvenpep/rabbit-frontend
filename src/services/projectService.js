@@ -39,7 +39,7 @@ export const projectService = {
         ...projectData,
         id: 'p' + (mockProjects.length + 1),
         code: 'PRJ-' + (mockProjects.length + 1).toString().padStart(3, '0'),
-        status: 'PendingReview',
+        status: projectData.status || 'PendingReview',
         createdAt: new Date().toISOString(),
         consumedHours: 0
       };
@@ -50,9 +50,39 @@ export const projectService = {
       projectName: projectData.name,
       client: projectData.client,
       description: projectData.description,
-      startDate: projectData.expectedStart
+      startDate: projectData.expectedStart,
+      budgetTable: projectData.budgetTable,
+      milestones: projectData.milestones,
+      status: projectData.status
     };
     const response = await apiClient.post('/projects', mappedPayload);
+    return { data: mapProject(response.data.data) };
+  },
+
+  updateProject: async (projectId, projectData) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const idx = mockProjects.findIndex(p => p.id === projectId);
+      if (idx !== -1) {
+        mockProjects[idx] = {
+          ...mockProjects[idx],
+          ...projectData,
+          updatedAt: new Date().toISOString()
+        };
+        return { data: mockProjects[idx] };
+      }
+      throw new Error('Project not found');
+    }
+    const mappedPayload = {
+      projectName: projectData.name,
+      client: projectData.client,
+      description: projectData.description,
+      startDate: projectData.expectedStart,
+      budgetTable: projectData.budgetTable,
+      milestones: projectData.milestones,
+      status: projectData.status
+    };
+    const response = await apiClient.put(`/projects/${projectId}`, mappedPayload);
     return { data: mapProject(response.data.data) };
   },
 
@@ -84,6 +114,10 @@ export const projectService = {
   submitForReview: async (projectId) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 800));
+      const idx = mockProjects.findIndex(p => String(p.id) === String(projectId));
+      if (idx !== -1) {
+        mockProjects[idx].status = 'PendingReview';
+      }
       return { data: { success: true } };
     }
     const response = await apiClient.put(`/projects/${projectId}/status`, { status: 'PendingReview' });
@@ -147,14 +181,29 @@ export const projectService = {
     return { data: response.data.data };
   },
 
-  approveDocument: async (projectId, assignedTeamLeadId) => {
+  approveDocument: async (projectId, dataOrTLId) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 800));
+      const idx = mockProjects.findIndex(p => String(p.id) === String(projectId));
+      if (idx !== -1) {
+        const payload = typeof dataOrTLId === 'object' ? dataOrTLId : { assignedTeamLeadId: Number(dataOrTLId) };
+        mockProjects[idx] = {
+          ...mockProjects[idx],
+          status: 'Approved',
+          budgetTable: payload.budgetTable || mockProjects[idx].budgetTable,
+          milestones: payload.milestones || mockProjects[idx].milestones,
+          totalHours: payload.totalHours || mockProjects[idx].totalHours,
+          bufferHours: payload.bufferHours || mockProjects[idx].bufferHours,
+          assignedProjectManagerId: payload.assignedProjectManagerId || mockProjects[idx].assignedProjectManagerId,
+          assignedTeamLeadId: payload.assignedTeamLeadId || mockProjects[idx].assignedTeamLeadId
+        };
+      }
       return { data: { success: true } };
     }
+    const payload = typeof dataOrTLId === 'object' ? dataOrTLId : { assignedTeamLeadId: Number(dataOrTLId) };
     const response = await apiClient.put(`/projects/${projectId}/status`, { 
       status: 'Approved',
-      assignedTeamLeadId: assignedTeamLeadId ? Number(assignedTeamLeadId) : undefined
+      ...payload
     });
     return { data: response.data.data };
   },
@@ -162,6 +211,14 @@ export const projectService = {
   returnDocument: async (projectId, comments) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 800));
+      const idx = mockProjects.findIndex(p => String(p.id) === String(projectId));
+      if (idx !== -1) {
+        mockProjects[idx] = {
+          ...mockProjects[idx],
+          status: 'ReturnedForRevision',
+          comments: comments
+        };
+      }
       return { data: { success: true } };
     }
     const response = await apiClient.put(`/projects/${projectId}/status`, { status: 'ReturnedForRevision', note: comments });
@@ -181,6 +238,15 @@ export const projectService = {
   updateProjectStatus: async (id, data) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 800));
+      const idx = mockProjects.findIndex(p => String(p.id) === String(id));
+      if (idx !== -1) {
+        mockProjects[idx] = {
+          ...mockProjects[idx],
+          ...data,
+          status: data.status || mockProjects[idx].status,
+          comments: data.note || data.comments || mockProjects[idx].comments
+        };
+      }
       return { data: { success: true } };
     }
     const response = await apiClient.put(`/projects/${id}/status`, data);

@@ -128,8 +128,21 @@ const ScopeUploadPage = () => {
       />
 
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <Card>
-          <Descriptions title="Project Details" bordered column={{ xxl: 4, xl: 3, lg: 3, md: 3, sm: 2, xs: 1 }}>
+        <Card 
+          title="Project Details"
+          extra={
+            (project.status === 'ReturnedForRevision' || project.status === 'Draft') && (
+              <Button 
+                type="primary" 
+                ghost 
+                onClick={() => navigate(`/sales/projects/${project.id}/edit`)}
+              >
+                Edit Details, Budget & Milestones
+              </Button>
+            )
+          }
+        >
+          <Descriptions bordered column={{ xxl: 4, xl: 3, lg: 3, md: 3, sm: 2, xs: 1 }}>
             <Descriptions.Item label="Project Code"><Text code>{project.code}</Text></Descriptions.Item>
             <Descriptions.Item label="Client">{project.client}</Descriptions.Item>
             <Descriptions.Item label="Status"><StatusBadge status={project.status} /></Descriptions.Item>
@@ -140,13 +153,76 @@ const ScopeUploadPage = () => {
         {project.status === 'ReturnedForRevision' && (
           <Alert
             message="Revision Required"
-            description="The accounts team has requested a revision. Please check the comments and upload an updated scope document."
+            description={
+              <div>
+                <p>The accounts team has requested a revision. <strong>Comments from Accounts:</strong></p>
+                <div style={{ 
+                  background: 'rgba(239, 68, 68, 0.05)', 
+                  padding: '12px 16px', 
+                  borderRadius: 6, 
+                  borderLeft: '4px solid #ef4444', 
+                  margin: '8px 0', 
+                  color: '#b91c1c',
+                  fontWeight: 500,
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {project.comments || 'No comments provided.'}
+                </div>
+                <p>Please click the button above to edit project details, or upload a revised scope document below and click "Submit for Review".</p>
+              </div>
+            }
             type="error"
             showIcon
           />
         )}
 
-        <Card title="Upload New Scope Document">
+        {project.budgetTable && project.budgetTable.length > 0 && (
+          <Card title="Project Budget Table">
+            <Table
+              dataSource={project.budgetTable}
+              pagination={false}
+              rowKey={(record, idx) => idx}
+              columns={[
+                { title: 'Item/Phase Description', dataIndex: 'description', key: 'description' },
+                { 
+                  title: 'Estimated Cost', 
+                  dataIndex: 'cost', 
+                  key: 'cost', 
+                  render: (cost) => `₹${Number(cost).toLocaleString('en-IN')}` 
+                },
+                { title: 'Estimated Hours', dataIndex: 'hours', key: 'hours' },
+              ]}
+            />
+          </Card>
+        )}
+
+        {project.milestones && project.milestones.length > 0 && (
+          <Card title="Project Milestones">
+            <Table
+              dataSource={project.milestones}
+              pagination={false}
+              rowKey={(record, idx) => idx}
+              columns={[
+                { title: 'Milestone Title', dataIndex: 'title', key: 'title' },
+                { 
+                  title: 'Target Date', 
+                  dataIndex: 'targetDate', 
+                  key: 'targetDate',
+                  render: (date) => date ? dayjs(date).format('DD MMM YYYY') : '-'
+                },
+                { 
+                  title: 'Payment/Budget Allocation', 
+                  dataIndex: 'amount', 
+                  key: 'amount', 
+                  render: (amt) => amt ? `₹${Number(amt).toLocaleString('en-IN')}` : '-'
+                },
+                { title: 'Description', dataIndex: 'description', key: 'description' },
+              ]}
+            />
+          </Card>
+        )}
+
+        <Card title="Upload Scope Document">
           <Dragger
             accept=".pdf,.docx"
             maxCount={1}

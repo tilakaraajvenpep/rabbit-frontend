@@ -65,6 +65,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
     if (role === 'Accounts') {
       items.push(
         { key: '/accounts/pending', icon: <CheckSquareOutlined />, label: 'Pending Review' },
+        { key: '/accounts/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' }
       );
     }

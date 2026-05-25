@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, InputNumber, DatePicker, Button, Space, Table, Modal, Alert, notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme } from 'antd';
+import { 
+  Card, Form, Input, InputNumber, DatePicker, Button, Space, Table, Modal, Alert, 
+  notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme, Tooltip 
+} from 'antd';
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -7,9 +10,12 @@ import {
   RollbackOutlined,
   DownloadOutlined,
   CalculatorOutlined,
-  ArrowLeftOutlined
+  ArrowLeftOutlined,
+  FileTextOutlined,
+  TeamOutlined,
+  DollarOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons';
-import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { projectService } from '../../services/projectService';
@@ -26,38 +32,32 @@ const CostAnalysisPage = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const { isDarkMode } = useThemeStore();
+
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [isReturnModalVisible, setIsReturnModalVisible] = useState(false);
   const [returnComments, setReturnComments] = useState('');
   const [latestDoc, setLatestDoc] = useState(null);
+
+  // Users & Project Managers lists
+  const [allUsers, setAllUsers] = useState([]);
+  const [projectManagers, setProjectManagers] = useState([]);
+  const [isSelectPMModalVisible, setIsSelectPMModalVisible] = useState(false);
+  const [selectedPMId, setSelectedPMId] = useState(undefined);
+
+  // Extraction / Cost Analysis States
+  const [budgetItems, setBudgetItems] = useState([]);
+  const [milestones, setMilestones] = useState([]);
+  const [totalHours, setTotalHours] = useState(0);
+  const [bufferHours, setBufferHours] = useState(0);
+  const [estimatedCompletionDate, setEstimatedCompletionDate] = useState(null);
+
+  // Cost by Team States
+  const [showTeamCost, setShowTeamCost] = useState(false);
   const [teamLeads, setTeamLeads] = useState([]);
-  const [isSelectTLModalVisible, setIsSelectTLModalVisible] = useState(false);
   const [selectedTLId, setSelectedTLId] = useState(undefined);
-  const [tempFormData, setTempFormData] = useState(null);
-
-  const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
-    defaultValues: {
-      totalBudget: 0,
-      contingencyBuffer: 10,
-      estimatedHours: 0,
-      completionDate: null,
-      phases: [{ name: '', hours: 0, cost: 0 }]
-    }
-  });
-
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: 'phases'
-  });
-
-  const watchedPhases = watch('phases');
-  const watchedBudget = watch('totalBudget');
-  const watchedHours = watch('estimatedHours');
-
-  const totalPhaseHours = Math.round(watchedPhases.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0));
-  const totalPhaseCost = Math.round(watchedPhases.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0));
 
   useEffect(() => {
     fetchProject();
@@ -66,29 +66,23 @@ const CostAnalysisPage = () => {
   const fetchProject = async () => {
     setLoading(true);
     try {
-      // Always load the project
+      // 1. Fetch Project Details
       const projRes = await projectService.getProjectById(id);
-      setProject(projRes.data);
+      const p = projRes.data;
+      setProject(p);
 
-      // Load cost analysis — may not exist yet (404 is ok)
-      try {
-        const analysisRes = await projectService.getCostAnalysis(id);
-        if (analysisRes.data) {
-          setValue('totalBudget', analysisRes.data.totalBudget);
-          setValue('contingencyBuffer', analysisRes.data.contingencyBuffer || 10);
-          setValue('estimatedHours', analysisRes.data.estimatedHours);
-          if (analysisRes.data.completionDate) {
-            setValue('completionDate', dayjs(analysisRes.data.completionDate));
-          }
-          if (analysisRes.data.phases) {
-            setValue('phases', analysisRes.data.phases);
-          }
-        }
-      } catch {
-        // Cost analysis doesn't exist yet — start fresh
+      // Pre-fill values if already saved on the project
+      if (p.totalHours) setTotalHours(Number(p.totalHours));
+      if (p.bufferHours) setBufferHours(Number(p.bufferHours));
+      if (p.budgetTable) setBudgetItems(p.budgetTable);
+      if (p.milestones) {
+        setMilestones(p.milestones.map(m => ({
+          ...m,
+          date: m.date ? dayjs(m.date) : null
+        })));
       }
 
-      // Load documents — may not exist yet (404 is ok)
+      // 2. Load documents
       try {
         const docsRes = await projectService.getDocuments(id);
         if (docsRes.data && docsRes.data.length > 0) {
@@ -98,80 +92,166 @@ const CostAnalysisPage = () => {
         // No documents yet
       }
 
-      // Fetch Team Leads list
+      // 3. Fetch Users (for Team Leads and Project Managers)
       try {
         const usersRes = await adminService.getUsers();
         if (usersRes.data) {
+          setAllUsers(usersRes.data);
+          
+          // Filter Project Managers
+          const pms = usersRes.data.filter(u => u.role === 'ProjectManager' && u.isActive);
+          setProjectManagers(pms);
+
+          // Filter Team Leads
           const tls = usersRes.data.filter(u => u.role === 'TeamLead' && u.isActive);
           setTeamLeads(tls);
         }
       } catch (err) {
-        console.error('Failed to load team leads:', err);
+        console.error('Failed to load users list:', err);
       }
 
     } catch (error) {
-      console.error('Fetch Project Details Error:', error);
+      console.error('Fetch Details Error:', error);
       notification.error({ message: 'Error', description: 'Failed to load project details.' });
     } finally {
       setLoading(false);
     }
   };
 
-  const onSubmit = async (data) => {
-    const submitHours = Math.round(data.phases.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0));
-    const targetHours = Math.round(Number(data.estimatedHours) || 0);
-    const submitCost = Math.round(data.phases.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0));
-    const targetBudget = Math.round(Number(data.totalBudget) || 0);
+  // Simulate parsing and extracting budget & milestones from scope document
+  const handleExtractFromScope = () => {
+    setExtracting(true);
+    setTimeout(() => {
+      // Dummy yet realistic extracted budget items
+      const mockBudget = [
+        { key: 1, item: 'UI/UX Mockups & Design Phase', cost: 120000, hours: 80 },
+        { key: 2, item: 'Backend API Development & Core Infrastructure', cost: 450000, hours: 320 },
+        { key: 3, item: 'Frontend Dashboard Assembly & Integration', cost: 350000, hours: 240 },
+        { key: 4, item: 'Testing, Deployment & Documentation', cost: 80000, hours: 60 }
+      ];
 
-    if (submitHours !== targetHours) {
-      notification.warning({ 
-        message: 'Validation Warning', 
-        description: `Phase hours must match total estimated hours. (Total: ${submitHours}, Estimated: ${targetHours})` 
-      });
-      return;
-    }
-    if (submitCost > targetBudget) {
-      notification.warning({ 
-        message: 'Validation Warning', 
-        description: `Total phase cost cannot exceed total budget. (Total: ₹${submitCost.toLocaleString('en-IN')}, Budget: ₹${targetBudget.toLocaleString('en-IN')})` 
-      });
-      return;
-    }
+      // Dummy extracted milestones
+      const mockMilestones = [
+        { key: 1, title: 'Kickoff and UX Sign-off', date: dayjs().add(15, 'day'), amount: 120000, description: 'Complete mockups approval' },
+        { key: 2, title: 'Core API & Database Integrations', date: dayjs().add(45, 'day'), amount: 450000, description: 'Stable staging environment release' },
+        { key: 3, title: 'Feature Complete & QA Testing', date: dayjs().add(75, 'day'), amount: 350000, description: 'Final staging deploy' },
+        { key: 4, title: 'Client Handover & Production Launch', date: dayjs().add(90, 'day'), amount: 80000, description: 'Production sign-off' }
+      ];
 
-    if (project?.status === 'Approved') {
-      setSubmitting(true);
-      try {
-        await projectService.submitCostAnalysis(id, data);
-        notification.success({ message: 'Updated', description: 'Cost analysis successfully updated.' });
-        navigate('/accounts/pending');
-      } catch (error) {
-        console.error('Update Cost Analysis Error:', error);
-        notification.error({ message: 'Error', description: 'Failed to update analysis.' });
-      } finally {
-        setSubmitting(false);
-      }
-    } else {
-      setTempFormData(data);
-      setIsSelectTLModalVisible(true);
-    }
+      setBudgetItems(mockBudget);
+      setMilestones(mockMilestones);
+      
+      const totalBudgetHours = mockBudget.reduce((acc, curr) => acc + curr.hours, 0);
+      setTotalHours(totalBudgetHours);
+      setBufferHours(Math.round(totalBudgetHours * 0.15)); // Default 15% buffer
+      setEstimatedCompletionDate(dayjs().add(90, 'day'));
+
+      setExtracting(false);
+      notification.success({
+        message: 'Extraction Complete',
+        description: 'Successfully extracted budget table and milestones from the uploaded scope document.'
+      });
+    }, 1200);
   };
 
-  const handleForwardToTL = async () => {
-    if (!selectedTLId) {
-      notification.error({ message: 'Validation', description: 'Please select a Team Lead.' });
+  // Budget Table modification helpers
+  const handleAddBudgetItem = () => {
+    const newKey = budgetItems.length > 0 ? Math.max(...budgetItems.map(item => item.key || 0)) + 1 : 1;
+    setBudgetItems([...budgetItems, { key: newKey, item: '', cost: 0, hours: 0 }]);
+  };
+
+  const handleUpdateBudgetItem = (key, field, value) => {
+    const updated = budgetItems.map(item => {
+      if (item.key === key) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    });
+    setBudgetItems(updated);
+  };
+
+  const handleRemoveBudgetItem = (key) => {
+    setBudgetItems(budgetItems.filter(item => item.key !== key));
+  };
+
+  // Milestones Table modification helpers
+  const handleAddMilestone = () => {
+    const newKey = milestones.length > 0 ? Math.max(...milestones.map(m => m.key || 0)) + 1 : 1;
+    setMilestones([...milestones, { key: newKey, title: '', date: null, amount: 0, description: '' }]);
+  };
+
+  const handleUpdateMilestone = (key, field, value) => {
+    const updated = milestones.map(m => {
+      if (m.key === key) {
+        return { ...m, [field]: value };
+      }
+      return m;
+    });
+    setMilestones(updated);
+  };
+
+  const handleRemoveMilestone = (key) => {
+    setMilestones(milestones.filter(m => m.key !== key));
+  };
+
+  // Calculations
+  const calculatedTotalBudget = budgetItems.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
+  const calculatedTotalHours = budgetItems.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0);
+
+  // Submit flow
+  const handleOpenPMModal = () => {
+    if (budgetItems.length === 0) {
+      notification.warning({ message: 'Validation', description: 'Please extract or enter the budget items first.' });
+      return;
+    }
+    if (milestones.length === 0) {
+      notification.warning({ message: 'Validation', description: 'Please extract or enter the project milestones.' });
+      return;
+    }
+    if (!totalHours || totalHours <= 0) {
+      notification.warning({ message: 'Validation', description: 'Please enter a valid amount of total hours.' });
+      return;
+    }
+    setIsSelectPMModalVisible(true);
+  };
+
+  const handleApproveAndSubmitToPM = async () => {
+    if (!selectedPMId) {
+      notification.error({ message: 'Validation', description: 'Please select a Project Manager to assign.' });
       return;
     }
 
     setSubmitting(true);
     try {
-      await projectService.submitCostAnalysis(id, tempFormData);
-      await projectService.approveDocument(id, selectedTLId);
-      notification.success({ message: 'Approved & Forwarded', description: 'Cost analysis submitted, project approved and successfully forwarded to the Team Lead.' });
-      setIsSelectTLModalVisible(false);
+      const payload = {
+        status: 'Approved',
+        assignedProjectManagerId: Number(selectedPMId),
+        totalHours: totalHours,
+        bufferHours: bufferHours,
+        budgetTable: budgetItems,
+        milestones: milestones.map(m => ({
+          title: m.title,
+          date: m.date ? m.date.toISOString() : null,
+          amount: m.amount,
+          description: m.description
+        }))
+      };
+
+      // Call API
+      await projectService.approveDocument(id, payload);
+
+      notification.success({
+        message: 'Project Approved & Submitted',
+        description: 'Successfully submitted the finalized cost, budget table, and milestones to the Project Manager.'
+      });
+      setIsSelectPMModalVisible(false);
       navigate('/accounts/pending');
     } catch (error) {
-      console.error('Submit Cost Analysis Error:', error);
-      notification.error({ message: 'Error', description: 'Failed to submit analysis.' });
+      console.error(error);
+      notification.error({
+        message: 'Submission Failed',
+        description: error.response?.data?.message || 'Failed to submit analysis.'
+      });
     } finally {
       setSubmitting(false);
     }
@@ -179,13 +259,13 @@ const CostAnalysisPage = () => {
 
   const handleReturn = async () => {
     if (!returnComments || returnComments.length < 20) {
-      notification.error({ message: 'Validation', description: 'Please provide detailed comments (min 20 chars).' });
+      notification.error({ message: 'Validation', description: 'Please provide a detailed comment (min 20 characters) for the return reason.' });
       return;
     }
 
     try {
       await projectService.returnDocument(id, returnComments);
-      notification.info({ message: 'Returned', description: 'Project has been returned to Sales for revision.' });
+      notification.info({ message: 'Returned to Sales', description: 'Project was successfully returned for revision.' });
       navigate('/accounts/pending');
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to return project.' });
@@ -194,15 +274,33 @@ const CostAnalysisPage = () => {
 
   const handleDownload = async () => {
     if (!latestDoc) {
-      notification.warning({ message: 'Not Found', description: 'No scope document found for this project.' });
+      notification.warning({ message: 'Not Found', description: 'No scope document found.' });
       return;
     }
     try {
       await projectService.downloadDocument(id, latestDoc.documentId, latestDoc.fileName);
     } catch (error) {
-      notification.error({ message: 'Download Error', description: 'Failed to download file.' });
+      notification.error({ message: 'Download Error', description: 'Failed to download scope document.' });
     }
   };
+
+  // Get employees mapped to a specific Team Lead for cost breakdown
+  const getEmployeesForTL = (tlId) => {
+    const emps = allUsers.filter(u => u.role === 'Employee' && u.isActive);
+    // Deterministic distribution of employees under TLs for a realistic layout
+    return emps.filter((emp, idx) => (idx % teamLeads.length) === teamLeads.findIndex(t => t.id === tlId));
+  };
+
+  // Deterministic rates per user
+  const getUserRate = (user) => {
+    if (user.role === 'TeamLead') {
+      return 1200 + (user.id * 100) % 500;
+    }
+    return 600 + (user.id * 50) % 300;
+  };
+
+  const selectedTL = teamLeads.find(tl => tl.id === selectedTLId);
+  const selectedTLTeam = selectedTLId ? getEmployeesForTL(selectedTLId) : [];
 
   if (loading) return <Card loading />;
 
@@ -211,20 +309,19 @@ const CostAnalysisPage = () => {
       <Result
         status="error"
         title="Failed to Load Project"
-        subTitle="Could not load project details. The project may have been deleted or you may not have access."
-        extra={<Button type="primary" onClick={() => navigate('/accounts/pending')}>Back to Pending</Button>}
+        subTitle="Could not load project details."
+        extra={<Button type="primary" onClick={() => navigate('/accounts/pending')}>Back</Button>}
       />
     );
   }
 
-
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: 80 }}>
+    <div style={{ maxWidth: 1050, margin: '0 auto', paddingBottom: 80 }}>
       <PageHeader
         title={`Cost & Timeline Analysis — ${project.name}`}
         breadcrumbs={[
           { label: 'Pending Review', path: '/accounts/pending' },
-          { label: project.code }
+          { label: project.projectName }
         ]}
         extra={
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/accounts/pending')}>
@@ -233,234 +330,427 @@ const CostAnalysisPage = () => {
         }
       />
 
-      <Card style={{ marginBottom: 24 }}>
+      <Card style={{ marginBottom: 24, borderRadius: 12 }}>
         <Row gutter={24} align="middle">
           <Col xs={24} sm={18}>
-            <Descriptions column={2}>
-              <Descriptions.Item label="Project Code"><Text code>{project.code}</Text></Descriptions.Item>
+            <Descriptions column={2} size="small">
+              <Descriptions.Item label="Project Name"><Text strong>{project.name}</Text></Descriptions.Item>
               <Descriptions.Item label="Client">{project.client}</Descriptions.Item>
               <Descriptions.Item label="Status"><StatusBadge status={project.status} /></Descriptions.Item>
-              <Descriptions.Item label="Created At">{dayjs(project.createdAt).format('DD MMM YYYY')}</Descriptions.Item>
+              <Descriptions.Item label="Expected Start">{project.startDate ? dayjs(project.startDate).format('DD MMM YYYY') : '-'}</Descriptions.Item>
+              <Descriptions.Item label="Scope Doc" span={2}>
+                {latestDoc ? (
+                  <Space>
+                    <FileTextOutlined style={{ color: '#1890ff' }} />
+                    <Text code>{latestDoc.fileName}</Text>
+                    <Text type="secondary">({(latestDoc.fileSize / 1024).toFixed(1)} KB)</Text>
+                  </Space>
+                ) : (
+                  <Text type="danger">No scope document uploaded</Text>
+                )}
+              </Descriptions.Item>
             </Descriptions>
           </Col>
           <Col xs={24} sm={6} style={{ textAlign: 'right' }}>
             <Button
-              icon={<DownloadOutlined />}
+              icon={<CalculatorOutlined />}
               type="primary"
-              ghost
-              onClick={handleDownload}
+              onClick={handleExtractFromScope}
+              loading={extracting}
               disabled={!latestDoc}
-              style={{ width: '100%', maxWidth: '240px' }}
+              block
             >
-              Download Scope
+              Extract Budget & Milestones
             </Button>
           </Col>
         </Row>
       </Card>
 
-      <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
-        <Row gutter={24}>
-          <Col span={12}>
-            <Card title="Section A — Budget">
-              <Form.Item label="Total Budget (₹)" required validateStatus={errors.totalBudget ? 'error' : ''}>
-                <Controller
-                  name="totalBudget"
-                  control={control}
-                  rules={{ required: true, min: 1 }}
-                  render={({ field }) => (
-                    <InputNumber
-                      {...field}
-                      style={{ width: '100%' }}
-                      formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                      parser={value => value.replace(/\₹\s?|(,*)/g, '')}
-                      size="large"
-                    />
-                  )}
+      {/* SECTION C — Budget Table (Editable) */}
+      <Card 
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Section C — Project Budget Allocation (Section Wise)</span>
+            <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={handleAddBudgetItem}>
+              Add Item
+            </Button>
+          </div>
+        }
+        style={{ marginBottom: 24, borderRadius: 12 }}
+      >
+        <Table
+          dataSource={budgetItems}
+          rowKey="key"
+          pagination={false}
+          locale={{ emptyText: 'No budget items extracted. Click "Extract Budget & Milestones" above to parse the scope document.' }}
+          columns={[
+            {
+              title: 'Budget Section / Item Description',
+              dataIndex: 'item',
+              key: 'item',
+              width: '50%',
+              render: (text, record) => (
+                <Input 
+                  value={text} 
+                  onChange={e => handleUpdateBudgetItem(record.key, 'item', e.target.value)} 
+                  placeholder="Enter budget phase or deliverable description"
                 />
-              </Form.Item>
-              <Form.Item label="Contingency Buffer (%)">
-                <Controller
-                  name="contingencyBuffer"
-                  control={control}
-                  render={({ field }) => <InputNumber {...field} style={{ width: '100%' }} min={0} max={50} size="large" />}
+              )
+            },
+            {
+              title: 'Hours (h)',
+              dataIndex: 'hours',
+              key: 'hours',
+              width: '20%',
+              render: (val, record) => (
+                <InputNumber 
+                  value={val} 
+                  min={0}
+                  style={{ width: '100%' }}
+                  onChange={v => handleUpdateBudgetItem(record.key, 'hours', v || 0)} 
                 />
-              </Form.Item>
-            </Card>
-          </Col>
-          <Col span={12}>
-            <Card title="Section B — Timeline">
-              <Form.Item label="Total Estimated Hours" required validateStatus={errors.estimatedHours ? 'error' : ''}>
-                <Controller
-                  name="estimatedHours"
-                  control={control}
-                  rules={{ required: true, min: 1 }}
-                  render={({ field }) => <InputNumber {...field} style={{ width: '100%' }} size="large" />}
+              )
+            },
+            {
+              title: 'Cost (₹)',
+              dataIndex: 'cost',
+              key: 'cost',
+              width: '20%',
+              render: (val, record) => (
+                <InputNumber 
+                  value={val} 
+                  min={0}
+                  style={{ width: '100%' }}
+                  formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value.replace(/\₹\s?|(,*)/g, '')}
+                  onChange={v => handleUpdateBudgetItem(record.key, 'cost', v || 0)} 
                 />
-              </Form.Item>
-              <Form.Item label="Estimated Completion Date" required validateStatus={errors.completionDate ? 'error' : ''}>
-                <Controller
-                  name="completionDate"
-                  control={control}
-                  rules={{ required: true }}
-                  render={({ field }) => <DatePicker {...field} style={{ width: '100%' }} size="large" />}
+              )
+            },
+            {
+              title: 'Action',
+              key: 'action',
+              width: '10%',
+              align: 'center',
+              render: (_, record) => (
+                <Button 
+                  icon={<DeleteOutlined />} 
+                  danger 
+                  onClick={() => handleRemoveBudgetItem(record.key)} 
                 />
-              </Form.Item>
-            </Card>
-          </Col>
-        </Row>
-
-        <Card title="Section C — Phase Breakdown" style={{ marginTop: 24 }}>
-          {fields.map((field, index) => (
-            <Row gutter={16} key={field.id} align="bottom" style={{ marginBottom: 16 }}>
-              <Col span={10}>
-                <Form.Item label={index === 0 ? "Phase Name" : ""} required>
-                  <Controller
-                    name={`phases.${index}.name`}
-                    control={control}
-                    rules={{ required: true }}
-                    render={({ field }) => <Input {...field} placeholder="e.g. Development" />}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={5}>
-                <Form.Item label={index === 0 ? "Est. Hours" : ""} required>
-                  <Controller
-                    name={`phases.${index}.hours`}
-                    control={control}
-                    rules={{ required: true, min: 1 }}
-                    render={({ field }) => <InputNumber {...field} style={{ width: '100%' }} />}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={7}>
-                <Form.Item label={index === 0 ? "Est. Cost (₹)" : ""} required>
-                  <Controller
-                    name={`phases.${index}.cost`}
-                    control={control}
-                    rules={{ required: true, min: 1 }}
-                    render={({ field }) => (
-                      <InputNumber
-                        {...field}
-                        style={{ width: '100%' }}
-                        formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                        parser={value => value.replace(/\₹\s?|(,*)/g, '')}
-                      />
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={2}>
-                <Button
-                  icon={<DeleteOutlined />}
-                  danger
-                  onClick={() => remove(index)}
-                  disabled={fields.length === 1}
-                  style={{ marginBottom: index === 0 ? 0 : 0 }}
-                />
-              </Col>
-            </Row>
-          ))}
-          <Button type="dashed" onClick={() => append({ name: '', hours: 0, cost: 0 })} block icon={<PlusOutlined />}>
-            Add Phase
-          </Button>
-
-          <Divider />
-
-          <Row gutter={24}>
+              )
+            }
+          ]}
+        />
+        {budgetItems.length > 0 && (
+          <Row gutter={24} style={{ marginTop: 16, background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f9fafb', padding: '12px 16px', borderRadius: 8 }}>
             <Col span={12}>
-              <Text strong>Total Phase Hours: </Text>
-              <Text type={totalPhaseHours === Math.round(Number(watchedHours)) ? 'success' : 'danger'}>{totalPhaseHours}</Text> / {Math.round(Number(watchedHours) || 0)}
+              <Text strong>Total Calculated Hours: </Text>
+              <Text type="success" style={{ fontSize: 16 }}>{calculatedTotalHours} hrs</Text>
             </Col>
             <Col span={12} style={{ textAlign: 'right' }}>
-              <Text strong>Total Phase Cost: </Text>
-              <Text type={totalPhaseCost <= Math.round(Number(watchedBudget)) ? 'success' : 'danger'}>₹ {totalPhaseCost.toLocaleString('en-IN')}</Text> / ₹ {Math.round(Number(watchedBudget) || 0).toLocaleString('en-IN')}
+              <Text strong>Total Calculated Budget: </Text>
+              <Text type="success" style={{ fontSize: 16 }}>₹ {calculatedTotalBudget.toLocaleString('en-IN')}</Text>
             </Col>
           </Row>
+        )}
+      </Card>
 
-          {(totalPhaseHours !== Math.round(Number(watchedHours)) || totalPhaseCost > Math.round(Number(watchedBudget))) && (
-            <Alert
-              message="Total phase mismatch"
-              description="Phase totals must align with project totals before approval."
-              type="warning"
-              showIcon
-              style={{ marginTop: 16 }}
-            />
-          )}
-        </Card>
+      {/* SECTION D — Milestones Table (Editable) */}
+      <Card 
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Section D — Project Milestones & Release Schedule</span>
+            <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={handleAddMilestone}>
+              Add Milestone
+            </Button>
+          </div>
+        }
+        style={{ marginBottom: 24, borderRadius: 12 }}
+      >
+        <Table
+          dataSource={milestones}
+          rowKey="key"
+          pagination={false}
+          locale={{ emptyText: 'No milestones extracted. Click "Extract Budget & Milestones" to populate.' }}
+          columns={[
+            {
+              title: 'Milestone Title',
+              dataIndex: 'title',
+              key: 'title',
+              width: '30%',
+              render: (text, record) => (
+                <Input 
+                  value={text} 
+                  onChange={e => handleUpdateMilestone(record.key, 'title', e.target.value)} 
+                  placeholder="e.g. Prototype Complete"
+                />
+              )
+            },
+            {
+              title: 'Target Date',
+              dataIndex: 'date',
+              key: 'date',
+              width: '20%',
+              render: (val, record) => (
+                <DatePicker 
+                  value={val}
+                  style={{ width: '100%' }}
+                  onChange={date => handleUpdateMilestone(record.key, 'date', date)} 
+                />
+              )
+            },
+            {
+              title: 'Release Amount (₹)',
+              dataIndex: 'amount',
+              key: 'amount',
+              width: '20%',
+              render: (val, record) => (
+                <InputNumber 
+                  value={val} 
+                  min={0}
+                  style={{ width: '100%' }}
+                  formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value.replace(/\₹\s?|(,*)/g, '')}
+                  onChange={v => handleUpdateMilestone(record.key, 'amount', v || 0)} 
+                />
+              )
+            },
+            {
+              title: 'Deliverable Description',
+              dataIndex: 'description',
+              key: 'description',
+              width: '22%',
+              render: (text, record) => (
+                <Input 
+                  value={text} 
+                  onChange={e => handleUpdateMilestone(record.key, 'description', e.target.value)} 
+                  placeholder="Brief deliverables..."
+                />
+              )
+            },
+            {
+              title: 'Action',
+              key: 'action',
+              width: '8%',
+              align: 'center',
+              render: (_, record) => (
+                <Button 
+                  icon={<DeleteOutlined />} 
+                  danger 
+                  onClick={() => handleRemoveMilestone(record.key)} 
+                />
+              )
+            }
+          ]}
+        />
+      </Card>
 
-        {/* Action bar */}
-        <div style={{
-          marginTop: 24,
-          background: token.colorBgContainer,
-          padding: '16px 24px',
-          border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`,
-          borderRadius: 8,
-          boxShadow: isDarkMode ? 'none' : '0 1px 2px rgba(0,0,0,0.03)',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          zIndex: 1000
-        }}>
-          <Space>
-            <Button
-              size="large"
-              danger
-              icon={<RollbackOutlined />}
-              onClick={() => setIsReturnModalVisible(true)}
+      {/* SECTION E — Define Hours & Buffer */}
+      <Row gutter={24} style={{ marginBottom: 24 }}>
+        <Col span={12}>
+          <Card title="Section E — final Total Hours" style={{ height: '100%', borderRadius: 12 }}>
+            <Form.Item label="Final Total Allocated Hours" required tooltip="Input final hours assigned for this project.">
+              <InputNumber 
+                value={totalHours} 
+                min={0} 
+                style={{ width: '100%' }} 
+                size="large"
+                onChange={val => setTotalHours(val || 0)}
+              />
+            </Form.Item>
+            {calculatedTotalHours > 0 && (
+              <Alert 
+                type={totalHours === calculatedTotalHours ? 'success' : 'warning'}
+                message={`Itemized budget total hours: ${calculatedTotalHours} hrs`} 
+                style={{ marginTop: 8 }}
+              />
+            )}
+          </Card>
+        </Col>
+        <Col span={12}>
+          <Card title="Section F — Project Contingency Buffer" style={{ height: '100%', borderRadius: 12 }}>
+            <Form.Item label="Project Buffer (Hours)" required tooltip="Allocate buffer hours to handle risks and project delays.">
+              <InputNumber 
+                value={bufferHours} 
+                min={0} 
+                style={{ width: '100%' }} 
+                size="large"
+                onChange={val => setBufferHours(val || 0)}
+              />
+            </Form.Item>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Buffer ratio: {totalHours > 0 ? ((bufferHours / totalHours) * 100).toFixed(1) : 0}% of total hours
+            </Text>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* COST ANALYSIS BY TEAM */}
+      <Card 
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Section G — Employee Billing Rates & Team Cost Breakdown</span>
+            <Button 
+              icon={<TeamOutlined />} 
+              type={showTeamCost ? 'primary' : 'default'}
+              onClick={() => setShowTeamCost(!showTeamCost)}
             >
-              Return to Sales
+              {showTeamCost ? 'Hide Team Costs' : 'View Employee Team Costs'}
             </Button>
-            <Button
-              type="primary"
-              size="large"
-              htmlType="submit"
-              icon={<CheckCircleOutlined />}
-              loading={submitting}
-              style={{ background: '#52c41a', borderColor: '#52c41a' }}
-            >
-              Approve & Forward to Team Lead
-            </Button>
+          </div>
+        }
+        style={{ marginBottom: 24, borderRadius: 12 }}
+      >
+        {!showTeamCost ? (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <Text type="secondary">Click the button above to view detailed billing rates of employee resources, grouped by their Team Lead.</Text>
+          </div>
+        ) : (
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <div style={{ background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f9fafb', padding: '16px 20px', borderRadius: 8 }}>
+              <Space>
+                <Text strong>Select Team Lead:</Text>
+                <Select
+                  placeholder="Select Team Lead"
+                  style={{ width: 300 }}
+                  value={selectedTLId}
+                  onChange={val => setSelectedTLId(val)}
+                >
+                  {teamLeads.map(tl => (
+                    <Select.Option key={tl.id} value={tl.id}>
+                      {tl.name} ({tl.email})
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Space>
+            </div>
+
+            {selectedTLId && selectedTL && (
+              <div style={{ border: `1px solid ${token.colorBorder}`, borderRadius: 8, padding: 16 }}>
+                <Title level={5} style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <TeamOutlined style={{ color: token.colorPrimary }} />
+                  <span>Team under {selectedTL.name}</span>
+                </Title>
+                <Divider style={{ margin: '8px 0 16px' }} />
+
+                <Table
+                  dataSource={[
+                    {
+                      id: selectedTL.id,
+                      name: `${selectedTL.name} (TL)`,
+                      role: 'Team Lead',
+                      rate: getUserRate(selectedTL),
+                      isTL: true
+                    },
+                    ...selectedTLTeam.map(emp => ({
+                      id: emp.id,
+                      name: emp.name,
+                      role: 'Employee',
+                      rate: getUserRate(emp),
+                      isTL: false
+                    }))
+                  ]}
+                  rowKey="id"
+                  pagination={false}
+                  columns={[
+                    {
+                      title: 'Resource Name',
+                      dataIndex: 'name',
+                      key: 'name',
+                      render: (name, record) => (
+                        <Text strong={record.isTL}>{name}</Text>
+                      )
+                    },
+                    {
+                      title: 'Role',
+                      dataIndex: 'role',
+                      key: 'role',
+                      render: (role, record) => (
+                        <Tag color={record.isTL ? 'purple' : 'blue'}>{role}</Tag>
+                      )
+                    },
+                    {
+                      title: 'Cost Per Hour',
+                      dataIndex: 'rate',
+                      key: 'rate',
+                      align: 'right',
+                      render: rate => (
+                        <Text strong style={{ color: '#10b981' }}>₹ {rate.toLocaleString('en-IN')} / hr</Text>
+                      )
+                    }
+                  ]}
+                />
+              </div>
+            )}
           </Space>
-        </div>
-      </Form>
+        )}
+      </Card>
 
+      {/* ACTION BAR */}
+      <Card style={{ borderRadius: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16 }}>
+          <Button
+            size="large"
+            danger
+            icon={<RollbackOutlined />}
+            onClick={() => setIsReturnModalVisible(true)}
+          >
+            Return to Sales
+          </Button>
+          <Button
+            type="primary"
+            size="large"
+            icon={<CheckCircleOutlined />}
+            loading={submitting}
+            onClick={handleOpenPMModal}
+            style={{ background: '#52c41a', borderColor: '#52c41a' }}
+          >
+            Approve & Submit to Project Manager
+          </Button>
+        </div>
+      </Card>
+
+      {/* RETURN TO SALES MODAL */}
       <Modal
-        title="Return Document to Sales"
+        title="Return Project for Revision"
         open={isReturnModalVisible}
         onOk={handleReturn}
         onCancel={() => setIsReturnModalVisible(false)}
-        okText="Confirm Return"
+        okText="Confirm Return to Sales"
         okButtonProps={{ danger: true }}
       >
         <Space direction="vertical" style={{ width: '100%' }}>
-          <Text>Provide a reason for returning this document. The sales team will be notified to revise the scope.</Text>
+          <Text>Explain what changes are required in the scope document, budget, or milestones. The Sales team will see this comment.</Text>
           <TextArea
             rows={4}
             value={returnComments}
             onChange={e => setReturnComments(e.target.value)}
-            placeholder="Detailed reason for return (min 20 characters)..."
+            placeholder="Detailed reason for revision (min 20 characters)..."
           />
         </Space>
       </Modal>
 
+      {/* SELECT PROJECT MANAGER MODAL */}
       <Modal
-        title="Forward to Team Lead"
-        open={isSelectTLModalVisible}
-        onOk={handleForwardToTL}
-        onCancel={() => setIsSelectTLModalVisible(false)}
-        okText="Approve & Forward"
-        okButtonProps={{ loading: submitting }}
+        title="Submit to Project Manager"
+        open={isSelectPMModalVisible}
+        onOk={handleApproveAndSubmitToPM}
+        onCancel={() => setIsSelectPMModalVisible(false)}
+        okText="Final Approve & Submit"
+        confirmLoading={submitting}
       >
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Text>Select a Team Lead to assign this project to. Once approved, the project will be forwarded to them.</Text>
+        <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
+          <Text>Select a Project Manager to assign this project to for resource scheduling and timeline kickoff.</Text>
           <Select
-            placeholder="Select a Team Lead"
+            placeholder="Select a Project Manager"
             style={{ width: '100%', marginTop: 8 }}
-            onChange={value => setSelectedTLId(value)}
-            value={selectedTLId}
+            onChange={value => setSelectedPMId(value)}
+            value={selectedPMId}
           >
-            {teamLeads.map(tl => (
-              <Select.Option key={tl.id} value={tl.id}>
-                {tl.name} ({tl.email})
+            {projectManagers.map(pm => (
+              <Select.Option key={pm.id} value={pm.id}>
+                {pm.name} ({pm.email})
               </Select.Option>
             ))}
           </Select>

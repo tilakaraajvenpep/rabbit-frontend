@@ -143,6 +143,7 @@ const App = () => {
               <Route element={<ProtectedRoute allowedRoles={['Sales']} />}>
                 <Route path="/sales/projects" element={<ProjectListPage />} />
                 <Route path="/sales/projects/create" element={<CreateProjectPage />} />
+                <Route path="/sales/projects/:id/edit" element={<CreateProjectPage />} />
                 <Route path="/sales/projects/:id/scope" element={<ScopeUploadPage />} />
               </Route>
 
@@ -150,6 +151,7 @@ const App = () => {
               <Route element={<ProtectedRoute allowedRoles={['Accounts']} />}>
                 <Route path="/accounts/pending" element={<PendingReviewPage />} />
                 <Route path="/accounts/projects/:id/cost" element={<CostAnalysisPage />} />
+                <Route path="/accounts/leaves" element={<LeaveApprovalsPage />} />
               </Route>
 
               {/* TeamLead Routes */}
