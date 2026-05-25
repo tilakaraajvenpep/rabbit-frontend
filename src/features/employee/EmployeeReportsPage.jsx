@@ -17,7 +17,7 @@ const { Title, Text } = Typography;
 
 const EmployeeReportsPage = () => {
   const { currentUser, role } = useAuthStore();
-  const isManager = ['TeamLead', 'ProjectManager'].includes(role);
+  const isManager = ['TeamLead', 'ProjectManager', 'TenantAdmin'].includes(role);
   const [loading, setLoading] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
@@ -40,7 +40,9 @@ const EmployeeReportsPage = () => {
       ]);
 
       const loadedTickets = ticketRes.data;
-      const loadedEmployees = isManager ? userRes.data.filter(u => u.role === 'Employee') : [];
+      const loadedEmployees = isManager 
+        ? userRes.data.filter(u => u.role === 'Employee' || u.role === 'TeamLead') 
+        : [];
 
       setTickets(loadedTickets);
       if (isManager) {
