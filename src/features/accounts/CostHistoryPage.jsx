@@ -41,10 +41,17 @@ const CostHistoryPage = () => {
     // Filter audit logs for this project
     const projectAudits = auditLogs.filter(log => String(log.entityId) === projIdStr && log.entityType === 'project');
 
-    // 1. Analyzed Count (How many times budget has been created/updated)
-    const analyzedLogs = projectAudits.filter(log => 
-      log.action === 'CREATE_COST_ANALYSIS' || log.action === 'UPDATE_COST_ANALYSIS'
-    );
+    // 1. Analyzed Count (How many times budget has been created/updated/submitted)
+    const analyzedLogs = projectAudits.filter(log => {
+      if (log.action === 'CREATE_COST_ANALYSIS' || log.action === 'UPDATE_COST_ANALYSIS') {
+        return true;
+      }
+      if (log.action === 'UPDATE_PROJECT_STATUS') {
+        const status = log.newData?.status || log.status;
+        return status === 'PendingPMApproval';
+      }
+      return false;
+    });
     const analyzedCount = analyzedLogs.length;
 
     // 2. Returned Count (How many times project was returned for revision)
@@ -57,14 +64,17 @@ const CostHistoryPage = () => {
     });
     const returnedCount = returnedLogs.length;
 
-    // 3. Final approved budget
-    const finalBudget = project.approvedBudget || '0.00';
+    // 3. Final approved budget: fallback to budgetTable sum if approvedBudget is 0 or null
+    let finalBudget = Number(project.approvedBudget || 0);
+    if (finalBudget === 0 && Array.isArray(project.budgetTable)) {
+      finalBudget = project.budgetTable.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
+    }
 
     return {
       ...project,
       analyzedCount,
       returnedCount,
-      finalBudget,
+      finalBudget: String(finalBudget),
       audits: projectAudits
     };
   });
@@ -143,6 +153,7 @@ const CostHistoryPage = () => {
     if (action === 'UPDATE_COST_ANALYSIS') return 'cyan';
     if (action === 'UPDATE_PROJECT_STATUS') {
       if (status === 'Approved') return 'green';
+      if (status === 'PendingPMApproval') return 'blue';
       if (status === 'ReturnedForRevision' || status === 'ReturnedToAccounts') return 'red';
       return 'orange';
     }
@@ -154,6 +165,7 @@ const CostHistoryPage = () => {
     if (action === 'UPDATE_COST_ANALYSIS') return 'Budget Re-analyzed';
     if (action === 'UPDATE_PROJECT_STATUS') {
       if (status === 'Approved') return 'Project Approved';
+      if (status === 'PendingPMApproval') return 'Budget Submitted for Approval';
       if (status === 'ReturnedForRevision') return 'Returned for Revision (PM)';
       if (status === 'ReturnedToAccounts') return 'Returned to Accounts';
       return `Status Updated: ${status}`;
@@ -194,7 +206,7 @@ const CostHistoryPage = () => {
               <Card style={{ borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
                 <Statistic 
                   title="Total Budget Actions" 
-                  value={auditLogs.filter(l => l.action?.includes('COST')).length} 
+                  value={auditLogs.filter(l => l.action?.includes('COST') || (l.action === 'UPDATE_PROJECT_STATUS' && (l.newData?.status === 'PendingPMApproval' || l.newData?.status === 'Approved'))).length} 
                   prefix={<DollarOutlined style={{ color: '#2563eb' }} />} 
                 />
               </Card>
@@ -254,9 +266,20 @@ const CostHistoryPage = () => {
               .sort((a, b) => dayjs(b.createdAt || b.timestamp).unix() - dayjs(a.createdAt || a.timestamp).unix())
               .map((audit, idx) => {
                 const statusVal = audit.newData?.status || audit.status;
-                const costData = audit.newData?.totalBudget || audit.newData?.approvedBudget;
-                const hoursData = audit.newData?.totalEstimatedHours || audit.newData?.approvedHours;
                 
+                // Smart extraction of budget & hours
+                let budgetValue = null;
+                if (audit.newData?.approvedBudget) budgetValue = Number(audit.newData.approvedBudget);
+                else if (audit.newData?.totalBudget) budgetValue = Number(audit.newData.totalBudget);
+                else if (Array.isArray(audit.newData?.budgetTable)) {
+                  budgetValue = audit.newData.budgetTable.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
+                }
+
+                let hoursValue = null;
+                if (audit.newData?.approvedHours) hoursValue = audit.newData.approvedHours;
+                else if (audit.newData?.totalEstimatedHours) hoursValue = audit.newData.totalEstimatedHours;
+                else if (audit.newData?.totalHours) hoursValue = audit.newData.totalHours;
+
                 return (
                   <Timeline.Item 
                     key={audit.id || idx} 
@@ -276,19 +299,19 @@ const CostHistoryPage = () => {
                         <ClockCircleOutlined /> {dayjs(audit.createdAt || audit.timestamp).format('DD MMM YYYY, hh:mm A')}
                       </Text>
                       
-                      {costData && (
+                      {budgetValue !== null && (
                         <div style={{ background: '#f8fafc', padding: '8px 12px', borderRadius: 8, marginTop: 4, border: '1px solid #f1f5f9' }}>
                           <Row gutter={8}>
                             <Col span={12}>
                               <Text type="secondary" style={{ fontSize: 11 }}>Budget Amount:</Text><br/>
                               <Text strong style={{ color: '#059669' }}>
-                                ₹{Number(costData).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ₹{budgetValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </Text>
                             </Col>
-                            {hoursData && (
+                            {hoursValue !== null && (
                               <Col span={12}>
-                                <Text type="secondary" style={{ fontSize: 11 }}>Estimated Hours:</Text><br/>
-                                <Text strong>{hoursData} hrs</Text>
+                                <Text type="secondary" style={{ fontSize: 11 }}>Allocated Hours:</Text><br/>
+                                <Text strong>{hoursValue} hrs</Text>
                               </Col>
                             )}
                           </Row>
