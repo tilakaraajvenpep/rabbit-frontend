@@ -91,7 +91,7 @@ const PMDashboardPage = () => {
       cancelText: 'No',
       onOk: async () => {
         try {
-          await projectService.updateStatus(project.id, { 
+          await projectService.updateProjectStatus(project.id, { 
             status: 'Approved',
             note: 'Approved by Project Manager.' 
           });
@@ -120,7 +120,7 @@ const PMDashboardPage = () => {
     }
     setSubmittingReturn(true);
     try {
-      await projectService.updateStatus(selectedProjectForReturn.id, {
+      await projectService.updateProjectStatus(selectedProjectForReturn.id, {
         status: 'ReturnedToAccounts',
         comments: returnComments,
         note: returnComments
