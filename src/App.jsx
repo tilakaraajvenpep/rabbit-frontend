@@ -30,6 +30,7 @@ const ScopeUploadPage = React.lazy(() => import('./features/sales/ScopeUploadPag
 // Accounts
 const PendingReviewPage = React.lazy(() => import('./features/accounts/PendingReviewPage'));
 const CostAnalysisPage = React.lazy(() => import('./features/accounts/CostAnalysisPage'));
+const CostHistoryPage = React.lazy(() => import('./features/accounts/CostHistoryPage'));
 
 // Team Lead
 const TeamLeadDashboardPage = React.lazy(() => import('./features/teamlead/TeamLeadDashboardPage'));
@@ -176,6 +177,7 @@ const App = () => {
                 <Route path="/accounts/pending" element={<PendingReviewPage />} />
                 <Route path="/accounts/projects/:id/cost" element={<CostAnalysisPage />} />
                 <Route path="/accounts/leaves" element={<LeaveApprovalsPage />} />
+                <Route path="/accounts/cost-history" element={<CostHistoryPage />} />
               </Route>
 
               {/* TeamLead Routes */}

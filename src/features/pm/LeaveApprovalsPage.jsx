@@ -3,6 +3,7 @@ import { Card, Table, Tag, Button, Space, Typography, notification, Modal } from
 import { CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { leaveService } from '../../services/leaveService';
+import { useAuthStore } from '../../store/authStore';
 import PageHeader from '../../components/common/PageHeader';
 
 const { Text } = Typography;
@@ -11,6 +12,8 @@ const LeaveApprovalsPage = () => {
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const { currentUser } = useAuthStore();
+  const isAccounts = currentUser?.role === 'Accounts';
 
   useEffect(() => {
     fetchLeaves();
@@ -149,7 +152,7 @@ const LeaveApprovalsPage = () => {
   ];
 
   const pendingLeaves = leaves.filter(l => l.status === 'Pending');
-  const pastLeaves = leaves.filter(l => l.status !== 'Pending');
+  const pastLeaves = leaves.filter(l => isAccounts ? l.status === 'Approved' : l.status !== 'Pending');
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 40 }}>
@@ -157,27 +160,29 @@ const LeaveApprovalsPage = () => {
 
       <Space direction="vertical" size={24} style={{ width: '100%' }}>
         {/* Pending Requests */}
-        <Card
-          title={
-            <Space>
-              <CalendarOutlined style={{ color: '#f59e0b' }} />
-              <span>Pending Leave Requests ({pendingLeaves.length})</span>
-            </Space>
-          }
-          style={{ borderRadius: 12, boxShadow: '0 4px 20px rgba(245, 158, 11, 0.03)' }}
-        >
-          <Table
-            columns={columns}
-            dataSource={pendingLeaves}
-            rowKey="leaveId"
-            loading={loading}
-            locale={{ emptyText: 'No pending leave requests found.' }}
-          />
-        </Card>
+        {!isAccounts && (
+          <Card
+            title={
+              <Space>
+                <CalendarOutlined style={{ color: '#f59e0b' }} />
+                <span>Pending Leave Requests ({pendingLeaves.length})</span>
+              </Space>
+            }
+            style={{ borderRadius: 12, boxShadow: '0 4px 20px rgba(245, 158, 11, 0.03)' }}
+          >
+            <Table
+              columns={columns}
+              dataSource={pendingLeaves}
+              rowKey="leaveId"
+              loading={loading}
+              locale={{ emptyText: 'No pending leave requests found.' }}
+            />
+          </Card>
+        )}
 
         {/* Leave History Log */}
         <Card
-          title="Past Leaves Log"
+          title={isAccounts ? "Approved Leaves Log" : "Past Leaves Log"}
           style={{ borderRadius: 12, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.02)' }}
         >
           <Table
