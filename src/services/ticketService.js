@@ -96,5 +96,17 @@ export const ticketService = {
       return { data: { success: true } };
     }
     return apiClient.delete(`/tickets/${ticketId}`);
+  },
+
+  updateTicket: async (ticketId, data) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      const ticket = mockTickets.find(t => t.id === ticketId);
+      if (ticket) Object.assign(ticket, data);
+      return { data: ticket };
+    }
+    const response = await apiClient.put(`/tickets/${ticketId}`, data);
+    const t = response.data.data;
+    return { data: { ...t, id: t.ticketId, code: t.ticketCode } };
   }
 };

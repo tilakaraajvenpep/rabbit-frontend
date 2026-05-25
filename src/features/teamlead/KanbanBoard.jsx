@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, 
-  Drawer, Select, theme, Modal, message, Input, Alert 
+  Drawer, Select, theme, Modal, message, Input, Alert, Form, DatePicker, InputNumber 
 } from 'antd';
 import { 
   DndContext, 
@@ -60,7 +60,7 @@ const getPriorityColor = (priority) => {
 };
 
 // Sortable Ticket Card
-const SortableTicket = ({ ticket, onClick, user, onDelete }) => {
+const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit }) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: ticket.id });
 
   const style = { transform: CSS.Transform.toString(transform), transition, marginBottom: 12, cursor: 'pointer' };
@@ -78,6 +78,11 @@ const SortableTicket = ({ ticket, onClick, user, onDelete }) => {
           <Text type="secondary" style={{ fontSize: '12px' }}><code>{ticket.ticketCode || ticket.code}</code></Text>
           <Space size={4}>
             <PriorityBadge priority={ticket.priority} />
+            <Button
+              size="small" type="text" icon={<EditOutlined />}
+              style={{ padding: '0 4px', height: 'auto', color: '#1890ff' }}
+              onClick={(e) => { e.stopPropagation(); onEdit(ticket); }}
+            />
             <Button
               size="small" type="text" danger icon={<DeleteOutlined />}
               style={{ padding: '0 4px', height: 'auto' }}
@@ -108,7 +113,7 @@ const SortableTicket = ({ ticket, onClick, user, onDelete }) => {
 };
 
 // Droppable Column Component — receives displayTitle directly
-const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, isDarkMode, token, users }) => {
+const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, onEditTicket, isDarkMode, token, users }) => {
   const { setNodeRef } = useDroppable({ id: colId });
 
   return (
@@ -126,7 +131,7 @@ const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDel
         <div ref={setNodeRef} style={{ minHeight: 400, height: '100%', paddingBottom: 20 }}>
           {tickets.map(ticket => {
             const user = users.find(u => u.id === ticket.assignedToUserId) || mockUsers.find(u => u.id === ticket.assignedToUserId);
-            return <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} onDelete={onDeleteTicket} user={user} />;
+            return <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} onDelete={onDeleteTicket} onEdit={onEditTicket} user={user} />;
           })}
         </div>
       </SortableContext>
@@ -156,6 +161,12 @@ const KanbanBoard = () => {
   const [isHeadingsModalOpen, setIsHeadingsModalOpen] = useState(false);
   const [columnList, setColumnList] = useState(DEFAULT_COLUMNS); // [{key, title}]
   const [savingHeadings, setSavingHeadings] = useState(false);
+
+  // Edit Ticket states
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingTicket, setEditingTicket] = useState(null);
+  const [editForm] = Form.useForm();
+  const [savingTicket, setSavingTicket] = useState(false);
 
   const isManager = authRole === 'ProjectManager' || authRole === 'TenantAdmin'
     || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
@@ -347,6 +358,43 @@ const KanbanBoard = () => {
     }
   };
 
+  // --- Edit Ticket ---
+  const handleEditTicket = (ticket) => {
+    setEditingTicket(ticket);
+    editForm.setFieldsValue({
+      title: ticket.title,
+      description: ticket.description,
+      priority: ticket.priority,
+      estimatedHours: Number(ticket.estimatedHours) || 0,
+      dueDate: ticket.dueDate ? dayjs(ticket.dueDate) : null,
+      assignedToUserId: ticket.assignedToUserId || null,
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      setSavingTicket(true);
+      await ticketService.updateTicket(editingTicket.id || editingTicket.ticketId, {
+        title: values.title,
+        description: values.description,
+        priority: values.priority,
+        estimatedHours: values.estimatedHours,
+        dueDate: values.dueDate ? values.dueDate.toISOString() : null,
+        assignedToUserId: values.assignedToUserId || null,
+      });
+      message.success('Ticket updated successfully!');
+      setIsEditModalOpen(false);
+      loadTickets(projectId);
+    } catch (err) {
+      if (err?.errorFields) return; // form validation error
+      message.error('Failed to update ticket.');
+    } finally {
+      setSavingTicket(false);
+    }
+  };
+
   const currentAssignee = selectedTicket
     ? (users.find(u => u.id === selectedTicket.assignedToUserId) || mockUsers.find(u => u.id === selectedTicket.assignedToUserId))
     : null;
@@ -420,6 +468,7 @@ const KanbanBoard = () => {
                 tickets={localColumns[colId] || []}
                 openTicketDetail={openTicketDetail}
                 onDeleteTicket={handleDeleteTicket}
+                onEditTicket={handleEditTicket}
                 isDarkMode={isDarkMode}
                 token={token}
                 users={users}
@@ -535,6 +584,57 @@ const KanbanBoard = () => {
             Note: Tickets in removed columns will retain their status but won't be visible on the board.
           </Text>
         </div>
+      </Modal>
+
+      {/* Edit Ticket Modal */}
+      <Modal
+        title={`Edit Ticket — ${editingTicket?.ticketCode || editingTicket?.code || ''}`}
+        open={isEditModalOpen}
+        onCancel={() => { setIsEditModalOpen(false); editForm.resetFields(); }}
+        onOk={handleSaveEdit}
+        okText="Save Changes"
+        confirmLoading={savingTicket}
+        width={560}
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical" style={{ marginTop: 12 }}>
+          <Form.Item name="title" label="Title" rules={[{ required: true, message: 'Title is required' }]}>
+            <Input placeholder="Ticket title" />
+          </Form.Item>
+
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={3} placeholder="Description (optional)" />
+          </Form.Item>
+
+          <div style={{ display: 'flex', gap: 16 }}>
+            <Form.Item name="priority" label="Priority" style={{ flex: 1 }} rules={[{ required: true }]}>
+              <Select options={[
+                { value: 'Critical', label: '🔴 Critical' },
+                { value: 'High', label: '🟠 High' },
+                { value: 'Medium', label: '🔵 Medium' },
+                { value: 'Low', label: '🟢 Low' },
+              ]} />
+            </Form.Item>
+
+            <Form.Item name="estimatedHours" label="Estimated Hours" style={{ flex: 1 }} rules={[{ required: true }]}>
+              <InputNumber min={0} step={0.5} style={{ width: '100%' }} addonAfter="hrs" />
+            </Form.Item>
+          </div>
+
+          <div style={{ display: 'flex', gap: 16 }}>
+            <Form.Item name="dueDate" label="Due Date" style={{ flex: 1 }}>
+              <DatePicker style={{ width: '100%' }} format="DD MMM YYYY" />
+            </Form.Item>
+
+            <Form.Item name="assignedToUserId" label="Assign To" style={{ flex: 1 }}>
+              <Select
+                allowClear
+                placeholder="Unassigned"
+                options={users.map(u => ({ value: u.id || u.userId, label: u.name || u.fullName }))}
+              />
+            </Form.Item>
+          </div>
+        </Form>
       </Modal>
     </div>
   );
