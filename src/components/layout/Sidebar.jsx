@@ -12,7 +12,8 @@ import {
   SettingOutlined,
   GlobalOutlined,
   DollarOutlined,
-  CalendarOutlined
+  CalendarOutlined,
+  SwapOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -62,7 +63,8 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },
         { key: '/pm/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/pm/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
-        { key: '/pm/team', icon: <TeamOutlined />, label: 'TL & Employees' }
+        { key: '/pm/team', icon: <TeamOutlined />, label: 'TL & Employees' },
+        { key: '/pm/cross-team', icon: <SwapOutlined />, label: 'Cross-Team Status' }
       );
     }
 

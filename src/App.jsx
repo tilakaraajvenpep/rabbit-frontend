@@ -48,6 +48,7 @@ const AnalyticsPage = React.lazy(() => import('./features/pm/AnalyticsPage'));
 const AlertsFeedPage = React.lazy(() => import('./features/pm/AlertsFeedPage'));
 const LeaveApprovalsPage = React.lazy(() => import('./features/pm/LeaveApprovalsPage'));
 const TeamDetailsPage = React.lazy(() => import('./features/pm/TeamDetailsPage'));
+const CrossTeamPage = React.lazy(() => import('./features/pm/CrossTeamPage'));
 
 const ProjectOverviewPage = React.lazy(() => import('./features/shared/ProjectOverviewPage'));
 const OverallReportsPage = React.lazy(() => import('./features/shared/OverallReportsPage'));
@@ -151,6 +152,7 @@ const App = () => {
                 <Route path="/pm/employee-reports" element={<EmployeeReportsPage />} />
                 <Route path="/pm/leaves" element={<LeaveApprovalsPage />} />
                 <Route path="/pm/team" element={<TeamDetailsPage />} />
+                <Route path="/pm/cross-team" element={<CrossTeamPage />} />
               </Route>
 
               {/* Sales Routes */}
