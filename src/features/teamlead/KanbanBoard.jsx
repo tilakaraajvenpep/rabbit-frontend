@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, 
-  Drawer, Skeleton, Select, theme, Modal, message, Form, Input, Alert 
+  Drawer, Select, theme, Modal, message, Input, Alert 
 } from 'antd';
 import { 
   DndContext, 
@@ -18,12 +18,11 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
 import { adminService } from '../../services/adminService';
-import { useTicketStore } from '../../store/ticketStore';
 import { useAuthStore } from '../../store/authStore';
 import { mockUsers } from '../../mocks/mockUsers';
 import { useThemeStore } from '../../store/themeStore';
@@ -35,23 +34,36 @@ import CreateTicketModal from './CreateTicketModal';
 const { Content } = Layout;
 const { Title, Text } = Typography;
 
+const DEFAULT_COLUMNS = [
+  { key: 'ToDo', title: 'To Do' },
+  { key: 'InProgress', title: 'In Progress' },
+  { key: 'InReview', title: 'In Review' },
+  { key: 'Done', title: 'Done' },
+];
+
+// Derive column config from stored project.kanbanColumns (array or legacy object)
+const deriveColumnConfig = (kanbanColumns) => {
+  if (!kanbanColumns) return DEFAULT_COLUMNS;
+  if (Array.isArray(kanbanColumns)) return kanbanColumns;
+  // Legacy object format: { ToDo: 'title', ... }
+  return Object.entries(kanbanColumns).map(([key, title]) => ({ key, title }));
+};
+
+const getPriorityColor = (priority) => {
+  switch (priority) {
+    case 'Critical': return '#ff4d4f';
+    case 'High': return '#fa8c16';
+    case 'Medium': return '#1890ff';
+    case 'Low': return '#52c41a';
+    default: return '#d9d9d9';
+  }
+};
+
 // Sortable Ticket Card
 const SortableTicket = ({ ticket, onClick, user, onDelete }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: ticket.id });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: ticket.id });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    marginBottom: 12,
-    cursor: 'pointer'
-  };
-
+  const style = { transform: CSS.Transform.toString(transform), transition, marginBottom: 12, cursor: 'pointer' };
   const isOverdue = ticket.dueDate && new Date(ticket.dueDate) < new Date() && ticket.status !== 'Done';
 
   return (
@@ -67,10 +79,7 @@ const SortableTicket = ({ ticket, onClick, user, onDelete }) => {
           <Space size={4}>
             <PriorityBadge priority={ticket.priority} />
             <Button
-              size="small"
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
+              size="small" type="text" danger icon={<DeleteOutlined />}
               style={{ padding: '0 4px', height: 'auto' }}
               onClick={(e) => { e.stopPropagation(); onDelete(ticket); }}
             />
@@ -98,37 +107,21 @@ const SortableTicket = ({ ticket, onClick, user, onDelete }) => {
   );
 };
 
-const getPriorityColor = (priority) => {
-  switch (priority) {
-    case 'Critical': return '#ff4d4f';
-    case 'High': return '#fa8c16';
-    case 'Medium': return '#1890ff';
-    case 'Low': return '#52c41a';
-    default: return '#d9d9d9';
-  }
-};
-
-// Droppable Column Component
-const DroppableColumn = ({ colId, tickets, openTicketDetail, onDeleteTicket, isDarkMode, token, users, customTitles }) => {
+// Droppable Column Component — receives displayTitle directly
+const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, isDarkMode, token, users }) => {
   const { setNodeRef } = useDroppable({ id: colId });
-  const displayTitle = customTitles?.[colId] || colId.replace(/([A-Z])/g, ' $1').trim();
 
   return (
     <div style={{ 
-      width: 300, 
-      minWidth: 300, 
+      width: 300, minWidth: 300, 
       background: isDarkMode ? '#18181b' : '#f5f5f5', 
-      borderRadius: 8, 
-      padding: 12,
+      borderRadius: 8, padding: 12,
       border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
-        <Title level={5} style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-          {displayTitle}
-        </Title>
+        <Title level={5} style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>{displayTitle}</Title>
         <Badge count={tickets.length} style={{ backgroundColor: isDarkMode ? '#3f3f46' : '#bfbfbf', color: isDarkMode ? '#f4f4f5' : undefined }} />
       </div>
-
       <SortableContext id={colId} items={tickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} style={{ minHeight: 400, height: '100%', paddingBottom: 20 }}>
           {tickets.map(ticket => {
@@ -147,9 +140,9 @@ const KanbanBoard = () => {
   const { token } = theme.useToken();
   const { isDarkMode } = useThemeStore();
   const { currentUser: authUser, role: authRole } = useAuthStore();
-  const { kanbanColumns, setTickets, moveTicket } = useTicketStore();
 
   const [allProjects, setAllProjects] = useState([]);
+  const [allTickets, setAllTickets] = useState([]);  // local ticket state — drives board rendering
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -161,23 +154,37 @@ const KanbanBoard = () => {
 
   // Edit Headings states
   const [isHeadingsModalOpen, setIsHeadingsModalOpen] = useState(false);
-  const [headingsForm] = Form.useForm();
+  const [columnList, setColumnList] = useState(DEFAULT_COLUMNS); // [{key, title}]
+  const [savingHeadings, setSavingHeadings] = useState(false);
 
-  const isManager = authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
+  const isManager = authRole === 'ProjectManager' || authRole === 'TenantAdmin'
+    || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
   const project = allProjects.find(p => String(p.id) === String(projectId));
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
-  );
+  // Effective column config — from saved project data or defaults
+  const effectiveColumnList = useMemo(() => deriveColumnConfig(project?.kanbanColumns), [project]);
+
+  // Local kanban columns derived from allTickets + effectiveColumnList
+  const localColumns = useMemo(() => {
+    const result = {};
+    effectiveColumnList.forEach(({ key }) => {
+      result[key] = allTickets.filter(t => t.status === key);
+    });
+    return result;
+  }, [allTickets, effectiveColumnList]);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   useEffect(() => {
     fetchProjects();
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (projectId && !isNaN(Number(projectId))) {
+      loadTickets(projectId);
+    }
+  }, [projectId]);
 
   const fetchProjects = async () => {
     try {
@@ -197,16 +204,10 @@ const KanbanBoard = () => {
     }
   };
 
-  useEffect(() => {
-    if (projectId && !isNaN(Number(projectId))) {
-      loadTickets(projectId);
-    }
-  }, [projectId]);
-
   const loadTickets = async (pid) => {
     try {
       const res = await ticketService.getTickets(pid || projectId);
-      setTickets(res.data);
+      setAllTickets(res.data);
     } catch (err) {
       console.error('Failed to load tickets', err);
     }
@@ -223,33 +224,38 @@ const KanbanBoard = () => {
 
     const ticketId = active.id;
     const overId = over.id;
+    const allColKeys = effectiveColumnList.map(c => c.key);
 
-    // Find which column the overId belongs to
     let toCol = '';
-    if (['ToDo', 'InProgress', 'InReview', 'Done'].includes(overId)) {
+    if (allColKeys.includes(overId)) {
       toCol = overId;
     } else {
-      // Find column containing the target ticket
-      for (const col in kanbanColumns) {
-        if (kanbanColumns[col].find(t => t.id === overId)) {
+      for (const col of allColKeys) {
+        if (localColumns[col]?.find(t => t.id === overId)) {
           toCol = col;
           break;
         }
       }
     }
 
-    // Find original column
     let fromCol = '';
-    for (const col in kanbanColumns) {
-      if (kanbanColumns[col].find(t => t.id === ticketId)) {
+    for (const col of allColKeys) {
+      if (localColumns[col]?.find(t => t.id === ticketId)) {
         fromCol = col;
         break;
       }
     }
 
     if (fromCol && toCol && fromCol !== toCol) {
-      moveTicket(ticketId, fromCol, toCol);
-      await ticketService.updateTicketStatus(ticketId, toCol);
+      // Optimistic update
+      setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: toCol } : t));
+      try {
+        await ticketService.updateTicketStatus(ticketId, toCol);
+      } catch (err) {
+        // Revert on failure
+        setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: fromCol } : t));
+        message.error('Failed to move ticket.');
+      }
     }
   };
 
@@ -269,9 +275,8 @@ const KanbanBoard = () => {
         try {
           await ticketService.deleteTicket(ticket.id);
           message.success('Ticket deleted successfully.');
-          loadTickets();
+          loadTickets(projectId);
         } catch (error) {
-          console.error('Failed to delete ticket', error);
           message.error('Failed to delete ticket. Please try again.');
         }
       }
@@ -282,7 +287,7 @@ const KanbanBoard = () => {
     if (!selectedTLForSubmit) return;
     setSubmittingTL(true);
     try {
-      await projectService.updateStatus(projectId, {
+      await projectService.updateProjectStatus(projectId, {
         status: 'InProgress',
         assignedTeamLeadId: Number(selectedTLForSubmit),
         note: 'Project assigned and active.'
@@ -296,36 +301,55 @@ const KanbanBoard = () => {
     }
   };
 
+  // --- Dynamic Headings Modal ---
   const handleOpenHeadingsModal = () => {
-    const currentTitles = project?.kanbanColumns || {
-      ToDo: 'To Do',
-      InProgress: 'In Progress',
-      InReview: 'In Review',
-      Done: 'Done'
-    };
-    headingsForm.setFieldsValue(currentTitles);
+    setColumnList(effectiveColumnList.length > 0 ? [...effectiveColumnList] : [...DEFAULT_COLUMNS]);
     setIsHeadingsModalOpen(true);
   };
 
-  const handleSaveHeadings = async (values) => {
+  const handleAddColumn = () => {
+    const newKey = `col_${Date.now()}`;
+    setColumnList(prev => [...prev, { key: newKey, title: `Column ${prev.length + 1}` }]);
+  };
+
+  const handleRemoveColumn = (idx) => {
+    if (columnList.length <= 1) {
+      message.warning('You must have at least one column.');
+      return;
+    }
+    setColumnList(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleColumnTitleChange = (idx, value) => {
+    setColumnList(prev => prev.map((col, i) => i === idx ? { ...col, title: value } : col));
+  };
+
+  const handleSaveHeadings = async () => {
+    const hasEmpty = columnList.some(c => !c.title.trim());
+    if (hasEmpty) {
+      message.error('All column titles must be non-empty.');
+      return;
+    }
+    setSavingHeadings(true);
     try {
       await projectService.updateProjectStatus(projectId, {
-        kanbanColumns: values,
+        kanbanColumns: columnList,   // stored as array
         status: project.status
       });
-      message.success('Kanban headings updated successfully!');
+      message.success('Kanban column headings updated!');
       setIsHeadingsModalOpen(false);
       fetchProjects();
     } catch (err) {
       console.error('Save headings error:', err);
       message.error('Failed to save Kanban column headings.');
+    } finally {
+      setSavingHeadings(false);
     }
   };
 
-  const currentAssignee = selectedTicket ? (
-    users.find(u => u.id === selectedTicket.assignedToUserId) || 
-    mockUsers.find(u => u.id === selectedTicket.assignedToUserId)
-  ) : null;
+  const currentAssignee = selectedTicket
+    ? (users.find(u => u.id === selectedTicket.assignedToUserId) || mockUsers.find(u => u.id === selectedTicket.assignedToUserId))
+    : null;
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -355,11 +379,7 @@ const KanbanBoard = () => {
       {/* Submit to Team Lead banner */}
       {projectId && project?.status === 'Approved' && isManager && (
         <Alert
-          message={
-            <Text strong style={{ fontSize: '15px' }}>
-              📢 Project Approved & Tickets Auto-Generated
-            </Text>
-          }
+          message={<Text strong style={{ fontSize: '15px' }}>📢 Project Approved & Tickets Auto-Generated</Text>}
           description={
             <div style={{ marginTop: 8 }}>
               <p style={{ margin: '0 0 12px 0' }}>
@@ -373,8 +393,7 @@ const KanbanBoard = () => {
                   options={users.filter(u => u.role === 'TeamLead').map(u => ({ label: u.name || u.fullName, value: u.id }))}
                 />
                 <Button 
-                  type="primary" 
-                  icon={<TeamOutlined />} 
+                  type="primary" icon={<TeamOutlined />} 
                   onClick={handleSubmitToTeamLead}
                   disabled={!selectedTLForSubmit}
                   loading={submittingTL}
@@ -393,17 +412,17 @@ const KanbanBoard = () => {
       {projectId ? (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
           <div style={{ display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16 }}>
-            {Object.entries(kanbanColumns).map(([colId, tickets]) => (
+            {effectiveColumnList.map(({ key: colId, title }) => (
               <DroppableColumn
                 key={colId}
                 colId={colId}
-                tickets={tickets}
+                displayTitle={title}
+                tickets={localColumns[colId] || []}
                 openTicketDetail={openTicketDetail}
                 onDeleteTicket={handleDeleteTicket}
                 isDarkMode={isDarkMode}
                 token={token}
                 users={users}
-                customTitles={project?.kanbanColumns}
               />
             ))}
           </div>
@@ -414,6 +433,7 @@ const KanbanBoard = () => {
         </Card>
       )}
 
+      {/* Ticket Detail Drawer */}
       <Drawer
         title={selectedTicket?.ticketCode || selectedTicket?.code}
         placement="right"
@@ -427,7 +447,6 @@ const KanbanBoard = () => {
               <Title level={4}>{selectedTicket.title}</Title>
               <Text type="secondary">{selectedTicket.description}</Text>
             </div>
-            
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <Space direction="vertical">
                 <Text strong>Priority</Text>
@@ -438,7 +457,6 @@ const KanbanBoard = () => {
                 <StatusBadge status={selectedTicket.status} />
               </Space>
             </div>
-
             <Space direction="vertical">
               <Text strong>Assignee</Text>
               <Space>
@@ -446,12 +464,10 @@ const KanbanBoard = () => {
                 <Text>{currentAssignee?.name || 'Unassigned'}</Text>
               </Space>
             </Space>
-
             <Space direction="vertical">
               <Text strong>Estimated Hours</Text>
               <Text>{selectedTicket.estimatedHours} hrs</Text>
             </Space>
-
             <Space direction="vertical">
               <Text strong>Due Date</Text>
               <Text>
@@ -472,32 +488,53 @@ const KanbanBoard = () => {
         onSuccess={() => loadTickets(projectId)} 
       />
 
-      {/* Edit Headings Modal */}
+      {/* Dynamic Edit Headings Modal */}
       <Modal
         title="Modify Kanban Column Headings"
         open={isHeadingsModalOpen}
         onCancel={() => setIsHeadingsModalOpen(false)}
-        onOk={() => headingsForm.submit()}
+        onOk={handleSaveHeadings}
         okText="Save Headings"
+        confirmLoading={savingHeadings}
+        width={480}
       >
-        <Form
-          form={headingsForm}
-          layout="vertical"
-          onFinish={handleSaveHeadings}
-        >
-          <Form.Item name="ToDo" label="To Do Column Title" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="InProgress" label="In Progress Column Title" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="InReview" label="In Review Column Title" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="Done" label="Done Column Title" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-        </Form>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+          {columnList.map((col, idx) => (
+            <div key={col.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Text style={{ minWidth: 90, flexShrink: 0, fontWeight: 500 }}>
+                Column {idx + 1} Title
+              </Text>
+              <Input
+                value={col.title}
+                onChange={(e) => handleColumnTitleChange(idx, e.target.value)}
+                placeholder={`Column ${idx + 1}`}
+                style={{ flex: 1 }}
+              />
+              <Button
+                type="text"
+                danger
+                icon={<MinusCircleOutlined />}
+                onClick={() => handleRemoveColumn(idx)}
+                disabled={columnList.length <= 1}
+                title="Remove column"
+              />
+            </div>
+          ))}
+
+          <Button
+            type="dashed"
+            icon={<PlusOutlined />}
+            onClick={handleAddColumn}
+            style={{ marginTop: 4 }}
+            block
+          >
+            Add Column
+          </Button>
+
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Note: Tickets in removed columns will retain their status but won't be visible on the board.
+          </Text>
+        </div>
       </Modal>
     </div>
   );
