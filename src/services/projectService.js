@@ -301,5 +301,32 @@ export const projectService = {
     document.body.appendChild(link);
     link.click();
     link.remove();
+  },
+
+  extractScopeDetails: async (projectId, docId) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return {
+        data: {
+          budgetTable: [
+            { key: 1, item: 'UI/UX Mockups & Design Phase', cost: 120000, hours: 80 },
+            { key: 2, item: 'Backend API Development & Core Infrastructure', cost: 450000, hours: 320 },
+            { key: 3, item: 'Frontend Dashboard Assembly & Integration', cost: 350000, hours: 240 },
+            { key: 4, item: 'Testing, Deployment & Documentation', cost: 80000, hours: 60 }
+          ],
+          milestones: [
+            { key: 1, title: 'Kickoff and UX Sign-off', date: new Date().toISOString(), amount: 120000, description: 'Complete mockups approval' },
+            { key: 2, title: 'Core API & Database Integrations', date: new Date().toISOString(), amount: 450000, description: 'Stable staging environment release' },
+            { key: 3, title: 'Feature Complete & QA Testing', date: new Date().toISOString(), amount: 350000, description: 'Final staging deploy' },
+            { key: 4, title: 'Client Handover & Production Launch', date: new Date().toISOString(), amount: 80000, description: 'Production sign-off' }
+          ],
+          totalHours: 700,
+          bufferHours: 105,
+          estimatedCompletionDate: new Date().toISOString()
+        }
+      };
+    }
+    const response = await apiClient.get(`/projects/${projectId}/documents/${docId}/extract`);
+    return { data: response.data.data };
   }
 };

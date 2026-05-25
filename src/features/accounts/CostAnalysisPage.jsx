@@ -121,40 +121,41 @@ const CostAnalysisPage = () => {
     }
   };
 
-  // Simulate parsing and extracting budget & milestones from scope document
-  const handleExtractFromScope = () => {
+  // Parse and extract budget & milestones from scope document
+  const handleExtractFromScope = async () => {
+    if (!latestDoc) {
+      notification.warning({ message: 'Warning', description: 'No scope document uploaded for this project yet.' });
+      return;
+    }
     setExtracting(true);
-    setTimeout(() => {
-      // Dummy yet realistic extracted budget items
-      const mockBudget = [
-        { key: 1, item: 'UI/UX Mockups & Design Phase', cost: 120000, hours: 80 },
-        { key: 2, item: 'Backend API Development & Core Infrastructure', cost: 450000, hours: 320 },
-        { key: 3, item: 'Frontend Dashboard Assembly & Integration', cost: 350000, hours: 240 },
-        { key: 4, item: 'Testing, Deployment & Documentation', cost: 80000, hours: 60 }
-      ];
+    try {
+      const res = await projectService.extractScopeDetails(id, latestDoc.documentId);
+      const { budgetTable, milestones: extMilestones, totalHours: extHours, bufferHours: extBuffer, estimatedCompletionDate: extDate } = res.data;
 
-      // Dummy extracted milestones
-      const mockMilestones = [
-        { key: 1, title: 'Kickoff and UX Sign-off', date: dayjs().add(15, 'day'), amount: 120000, description: 'Complete mockups approval' },
-        { key: 2, title: 'Core API & Database Integrations', date: dayjs().add(45, 'day'), amount: 450000, description: 'Stable staging environment release' },
-        { key: 3, title: 'Feature Complete & QA Testing', date: dayjs().add(75, 'day'), amount: 350000, description: 'Final staging deploy' },
-        { key: 4, title: 'Client Handover & Production Launch', date: dayjs().add(90, 'day'), amount: 80000, description: 'Production sign-off' }
-      ];
-
-      setBudgetItems(mockBudget);
-      setMilestones(mockMilestones);
+      setBudgetItems(budgetTable || []);
+      setMilestones((extMilestones || []).map((m, idx) => ({
+        ...m,
+        key: m.key || idx + 1,
+        date: m.date ? dayjs(m.date) : null
+      })));
       
-      const totalBudgetHours = mockBudget.reduce((acc, curr) => acc + curr.hours, 0);
-      setTotalHours(totalBudgetHours);
-      setBufferHours(Math.round(totalBudgetHours * 0.15)); // Default 15% buffer
-      setEstimatedCompletionDate(dayjs().add(90, 'day'));
+      if (extHours) setTotalHours(Number(extHours));
+      if (extBuffer) setBufferHours(Number(extBuffer));
+      if (extDate) setEstimatedCompletionDate(dayjs(extDate));
 
-      setExtracting(false);
       notification.success({
         message: 'Extraction Complete',
-        description: 'Successfully extracted budget table and milestones from the uploaded scope document.'
+        description: `Successfully extracted ${budgetTable?.length || 0} budget items and ${extMilestones?.length || 0} milestones from the uploaded scope document.`
       });
-    }, 1200);
+    } catch (error) {
+      console.error('Extraction error:', error);
+      notification.error({
+        message: 'Extraction Failed',
+        description: error.response?.data?.message || error.message || 'Failed to extract scope document details.'
+      });
+    } finally {
+      setExtracting(false);
+    }
   };
 
   // Budget Table modification helpers
