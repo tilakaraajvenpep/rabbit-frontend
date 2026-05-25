@@ -13,7 +13,8 @@ import {
   GlobalOutlined,
   DollarOutlined,
   CalendarOutlined,
-  SwapOutlined
+  SwapOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
