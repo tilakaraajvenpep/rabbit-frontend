@@ -91,19 +91,6 @@ const PendingReviewPage = () => {
     },
     { title: 'Client Name', dataIndex: 'client', key: 'client' },
     { title: 'Submitted Date', dataIndex: 'createdAt', key: 'createdAt', render: (date) => dayjs(date).format('DD MMM YYYY') },
-    { 
-      title: 'Document', 
-      key: 'document', 
-      render: (_, record) => (
-        <Button 
-          icon={<DownloadOutlined />} 
-          type="link" 
-          onClick={() => handleDownload(record.id)}
-        >
-          Scope.pdf
-        </Button> 
-      )
-    },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status) => <StatusBadge status={status} /> },
     {
       title: 'Actions',
