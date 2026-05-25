@@ -50,6 +50,7 @@ const LoginPage = () => {
             case 'TeamLead': navigate('/teamlead/projects'); break;
             case 'Employee': navigate('/employee/tickets'); break;
             case 'ProjectManager': navigate('/pm/dashboard'); break;
+            case 'HR': navigate('/hr/team'); break;
             default: navigate('/');
           }
         } else {

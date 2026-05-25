@@ -66,6 +66,10 @@ const ChatbotPage = React.lazy(() => import('./features/chatbot/ChatbotPage'));
 // Profile
 const ProfilePage = React.lazy(() => import('./features/profile/ProfilePage'));
 
+// HR
+const HRTeamPage = React.lazy(() => import('./features/hr/HRTeamPage'));
+const HRApprovedLeavesPage = React.lazy(() => import('./features/hr/HRApprovedLeavesPage'));
+
 // Placeholder components for routes (to be implemented in later stages)
 const Placeholder = ({ title }) => <div><h1>{title}</h1><p>Stage 1 complete. This feature will be built in the next stage.</p></div>;
 
@@ -200,6 +204,12 @@ const App = () => {
                 <Route path="/employee/report" element={<EODReportPage />} />
                 <Route path="/employee/reports" element={<EmployeeReportsPage />} />
                 <Route path="/employee/leaves" element={<LeaveRequestsPage />} />
+              </Route>
+
+              {/* HR Routes */}
+              <Route element={<ProtectedRoute allowedRoles={['HR']} />}>
+                <Route path="/hr/team" element={<HRTeamPage />} />
+                <Route path="/hr/leaves" element={<HRApprovedLeavesPage />} />
               </Route>
 
               {/* Shared Reports for Managers */}

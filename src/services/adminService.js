@@ -137,6 +137,17 @@ export const adminService = {
     return { data: response.data.data };
   },
 
+  updateDateOfJoining: async (userId, dateOfJoining) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const user = mockUsers.find(u => u.id === userId || u.userId === userId);
+      if (user) user.dateOfJoining = dateOfJoining;
+      return { data: { success: true } };
+    }
+    const response = await apiClient.put(`/users/${userId}/date-of-joining`, { dateOfJoining });
+    return { data: response.data.data };
+  },
+
   getMyProfile: async () => {
     const response = await apiClient.get('/users/me');
     return { data: response.data.data };

@@ -113,6 +113,13 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       );
     }
 
+    if (role === 'HR') {
+      items.push(
+        { key: '/hr/team', icon: <TeamOutlined />, label: 'Team Details' },
+        { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Approved Leaves' }
+      );
+    }
+
     // Common items
     items.push({ key: '/chatbot', icon: <MessageOutlined />, label: 'Rabbit Assistant' });
 
