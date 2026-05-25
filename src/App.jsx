@@ -41,6 +41,7 @@ const TimerRequestsReviewPage = React.lazy(() => import('./features/teamlead/Tim
 
 // Employee
 const MyTicketsPage = React.lazy(() => import('./features/employee/MyTicketsPage'));
+const EmployeeKanbanPage = React.lazy(() => import('./features/employee/EmployeeKanbanPage'));
 const EODReportPage = React.lazy(() => import('./features/employee/EODReportPage'));
 const LeaveRequestsPage = React.lazy(() => import('./features/employee/LeaveRequestsPage'));
 
@@ -193,6 +194,7 @@ const App = () => {
               {/* Employee Routes */}
               <Route element={<ProtectedRoute allowedRoles={['Employee']} />}> 
                 <Route path="/employee/tickets" element={<MyTicketsPage />} />
+                <Route path="/employee/kanban" element={<EmployeeKanbanPage />} />
                 <Route path="/employee/report" element={<EODReportPage />} />
                 <Route path="/employee/reports" element={<EmployeeReportsPage />} />
                 <Route path="/employee/leaves" element={<LeaveRequestsPage />} />
