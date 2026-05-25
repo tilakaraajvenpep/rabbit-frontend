@@ -16,7 +16,9 @@ import {
   CalendarOutlined,
   FileTextOutlined,
   SearchOutlined,
-  DashboardOutlined
+  DashboardOutlined,
+  ArrowRightOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -211,62 +213,93 @@ const PMDashboardPage = () => {
     {
       title: '#',
       key: 'index',
-      width: 50,
-      render: (_, __, index) => index + 1
+      width: 60,
+      fixed: 'left',
+      align: 'center',
+      render: (_, __, index) => <Text type="secondary" style={{ fontWeight: 600 }}>{index + 1}</Text>
     },
     {
       title: 'Customer Name',
       dataIndex: 'client',
       key: 'client',
-      sorter: (a, b) => (a.client || '').localeCompare(b.client || '')
+      width: 160,
+      fixed: 'left',
+      sorter: (a, b) => (a.client || '').localeCompare(b.client || ''),
+      render: (client) => <Text strong style={{ color: isDarkMode ? '#e2e8f0' : '#334155' }}>{client || '-'}</Text>
     },
     {
       title: 'Project Type',
       dataIndex: 'description',
       key: 'projectType',
+      width: 130,
       render: (desc) => {
         const isCustom = desc?.toLowerCase().includes('custom') || desc?.toLowerCase().includes('special');
-        return <Tag color={isCustom ? 'cyan' : 'blue'}>{isCustom ? 'Customised' : 'General'}</Tag>;
+        return (
+          <Tag color={isCustom ? 'cyan' : 'blue'} style={{ borderRadius: 6, fontWeight: 500, padding: '2px 8px' }}>
+            {isCustom ? 'Customised' : 'General'}
+          </Tag>
+        );
       }
     },
     {
       title: 'Sales Owner',
       dataIndex: 'createdByUserId',
       key: 'salesOwner',
-      render: () => 'Sales Manager'
+      width: 140,
+      render: () => <Text style={{ color: '#64748b' }}>Sales Manager</Text>
     },
     {
       title: 'Project Name',
       dataIndex: 'name',
       key: 'name',
-      render: (name, record) => <Text strong style={{ color: '#1890ff', cursor: 'pointer' }} onClick={() => navigate(`/pm/projects/${record.id}`)}>{name}</Text>
+      width: 220,
+      render: (name, record) => (
+        <span 
+          className="project-link" 
+          style={{ color: '#1890ff', cursor: 'pointer', fontWeight: 600, fontSize: '14px', display: 'inline-block' }} 
+          onClick={() => navigate(`/pm/projects/${record.id}`)}
+        >
+          {name}
+        </span>
+      )
     },
     {
       title: 'Allotted To',
       dataIndex: 'assignedTeamLeadId',
       key: 'assignedTeamLeadId',
+      width: 180,
       render: (tlId) => {
         const tl = teamLeads.find(t => t.id === tlId);
-        return tl ? <Tag color="geekblue">{tl.name || tl.fullName}</Tag> : <Text type="secondary">Unassigned</Text>;
+        return tl ? (
+          <Tag color="geekblue" style={{ border: 'none', borderRadius: 4, padding: '3px 8px', fontWeight: 500 }}>
+            {tl.name || tl.fullName}
+          </Tag>
+        ) : (
+          <Text type="secondary" italic>Unassigned</Text>
+        );
       }
     },
     {
       title: 'Login Date',
       dataIndex: 'createdAt',
       key: 'loginDate',
-      render: (date) => dayjs(date).format('DD MMM YYYY')
+      width: 130,
+      render: (date) => <Text style={{ color: '#475569' }}>{dayjs(date).format('DD MMM YYYY')}</Text>
     },
     {
       title: 'Deadline',
       dataIndex: 'endDate',
       key: 'deadline',
+      width: 140,
       render: (date) => {
-        if (!date) return '-';
+        if (!date) return <Text type="secondary">-</Text>;
         const isOverdue = dayjs(date).isBefore(dayjs());
         return (
-          <Space direction="vertical" size={0}>
-            <Text delete={isOverdue} type={isOverdue ? "danger" : "default"}>{dayjs(date).format('DD MMM YYYY')}</Text>
-            {isOverdue && <Tag color="red" style={{ fontSize: '10px', marginTop: 4 }}>Overdue</Tag>}
+          <Space direction="vertical" size={2}>
+            <Text delete={isOverdue} type={isOverdue ? "danger" : "default"} style={{ fontWeight: isOverdue ? 600 : 500 }}>
+              {dayjs(date).format('DD MMM YYYY')}
+            </Text>
+            {isOverdue && <Tag color="error" style={{ fontSize: '10px', borderRadius: 4, margin: 0 }}>Overdue</Tag>}
           </Space>
         );
       }
@@ -275,30 +308,42 @@ const PMDashboardPage = () => {
       title: 'Project Value',
       dataIndex: 'budgetTable',
       key: 'projectValue',
+      width: 150,
       render: (budgetTable) => {
-        if (!Array.isArray(budgetTable)) return '₹ 0';
+        if (!Array.isArray(budgetTable)) return <Text strong>₹0</Text>;
         const total = budgetTable.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
-        return <Text strong>₹ {total.toLocaleString('en-IN')}</Text>;
+        return <Text strong style={{ color: '#0f766e', fontSize: '14px' }}>₹{total.toLocaleString('en-IN')}</Text>;
       }
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      width: 120,
       render: (status) => <StatusBadge status={status} />
     },
     {
       title: 'Progress (hrs)',
       key: 'progress',
+      width: 180,
       render: (_, record) => {
         const total = Number(record.totalHours) || 100;
         const consumed = Number(record.consumedHours) || 0;
         const pct = Math.min(100, Math.round((consumed / total) * 100));
         return (
           <Tooltip title={`${consumed} / ${total} hrs consumed`}>
-            <div style={{ width: 120 }}>
-              <Progress percent={pct} size="small" status={pct > 90 ? 'exception' : 'active'} />
-              <div style={{ fontSize: '10px', textAlign: 'right', color: '#8c8c8c' }}>{consumed}h / {total}h</div>
+            <div style={{ width: '100%', minWidth: 120 }}>
+              <Progress 
+                percent={pct} 
+                size="small" 
+                status={pct > 90 ? 'exception' : 'active'}
+                strokeColor={pct > 90 ? '#ef4444' : '#10b981'}
+                style={{ margin: 0 }}
+              />
+              <div style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', color: '#64748b', marginTop: 4 }}>
+                <span>Consumed: {consumed}h</span>
+                <span>Total: {total}h</span>
+              </div>
             </div>
           </Tooltip>
         );
@@ -307,11 +352,34 @@ const PMDashboardPage = () => {
     {
       title: 'Action',
       key: 'action',
+      width: 250,
+      fixed: 'right',
+      align: 'center',
       render: (_, record) => (
         <Space size="small">
-          <Button icon={<EyeOutlined />} size="small" onClick={() => navigate(`/pm/projects/${record.id}`)}>View</Button>
-          <Button icon={<DashboardOutlined />} size="small" type="primary" ghost onClick={() => navigate(`/pm/projects/${record.id}/kanban`)}>Kanban</Button>
-          <Button icon={<FileTextOutlined />} size="small" onClick={() => handleOpenMilestoneDrawer(record)}>Milestones</Button>
+          <Button 
+            icon={<EyeOutlined />} 
+            size="small" 
+            onClick={() => navigate(`/pm/projects/${record.id}`)}
+          >
+            View
+          </Button>
+          <Button 
+            icon={<DashboardOutlined />} 
+            size="small" 
+            type="primary" 
+            ghost 
+            onClick={() => navigate(`/pm/projects/${record.id}/kanban`)}
+          >
+            Kanban
+          </Button>
+          <Button 
+            icon={<FileTextOutlined />} 
+            size="small" 
+            onClick={() => handleOpenMilestoneDrawer(record)}
+          >
+            Milestones
+          </Button>
         </Space>
       )
     }
@@ -323,26 +391,30 @@ const PMDashboardPage = () => {
       title: 'Project Code',
       dataIndex: 'code',
       key: 'code',
+      width: 140,
       render: (text) => <Text code>{text}</Text>
     },
     {
       title: 'Project Name',
       dataIndex: 'name',
       key: 'name',
-      render: (text) => <Text strong>{text}</Text>
+      width: 220,
+      render: (text) => <Text strong style={{ fontSize: '14px' }}>{text}</Text>
     },
     {
       title: 'Client Name',
       dataIndex: 'client',
-      key: 'client'
+      key: 'client',
+      width: 160,
     },
     {
       title: 'Submitted By Accounts',
       key: 'totalHours',
+      width: 200,
       render: (_, record) => (
-        <Space direction="vertical" size={0}>
+        <Space direction="vertical" size={2}>
           <Text>Total Hours: <strong>{record.totalHours}h</strong></Text>
-          <Text type="secondary" style={{ fontSize: '12px' }}>Buffer: {record.bufferHours}h</Text>
+          <Text type="secondary" style={{ fontSize: '11px' }}>Buffer: {record.bufferHours}h</Text>
         </Space>
       )
     },
@@ -350,20 +422,24 @@ const PMDashboardPage = () => {
       title: 'Project Value',
       dataIndex: 'budgetTable',
       key: 'value',
+      width: 160,
       render: (budgetTable) => {
-        if (!Array.isArray(budgetTable)) return '₹ 0';
+        if (!Array.isArray(budgetTable)) return <Text strong>₹0</Text>;
         const total = budgetTable.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
-        return <Text strong style={{ color: '#52c41a' }}>₹ {total.toLocaleString('en-IN')}</Text>;
+        return <Text strong style={{ color: '#16a34a', fontSize: '14px' }}>₹{total.toLocaleString('en-IN')}</Text>;
       }
     },
     {
       title: 'Actions',
       key: 'actions',
+      width: 320,
+      align: 'center',
       render: (_, record) => (
         <Space>
           <Button 
             type="primary" 
             icon={<CheckCircleOutlined />} 
+            style={{ background: '#16a34a', borderColor: '#16a34a' }}
             onClick={() => handleApproveProject(record)}
           >
             Approve & Auto-gen Tickets
@@ -374,7 +450,7 @@ const PMDashboardPage = () => {
             icon={<RollbackOutlined />} 
             onClick={() => handleOpenReturnModal(record)}
           >
-            Return to Accounts
+            Return
           </Button>
         </Space>
       )
@@ -383,8 +459,80 @@ const PMDashboardPage = () => {
 
   if (loading) return <Skeleton active paragraph={{ rows: 10 }} />;
 
+  // Card Background Style Mappings (Light/Dark Mode)
+  const activeCardStyle = {
+    background: isDarkMode ? 'linear-gradient(135deg, #075985 0%, #0c4a6e 100%)' : 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+    border: 'none',
+    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)'
+  };
+  const pendingCardStyle = {
+    background: isDarkMode ? 'linear-gradient(135deg, #854d0e 0%, #713f12 100%)' : 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+    border: 'none',
+    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)'
+  };
+  const overdueCardStyle = {
+    background: isDarkMode ? 'linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%)' : 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+    border: 'none',
+    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)'
+  };
+  const alertsCardStyle = {
+    background: isDarkMode ? 'linear-gradient(135deg, #581c87 0%, #4a044e 100%)' : 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+    border: 'none',
+    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.05)'
+  };
+
   return (
-    <div>
+    <div style={{ padding: '4px 0' }}>
+      {/* Custom Styles Injection */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .pm-card {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          border-radius: 12px !important;
+          overflow: hidden;
+        }
+        .pm-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.1), 0 8px 8px -5px rgba(0, 0, 0, 0.04);
+        }
+        .pm-table .ant-table-thead > tr > th {
+          background: ${isDarkMode ? '#1e293b' : '#f8fafc'} !important;
+          color: ${isDarkMode ? '#cbd5e1' : '#475569'} !important;
+          font-weight: 600 !important;
+          border-bottom: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'} !important;
+          font-size: 13px;
+        }
+        .project-link:hover {
+          color: #096dd9 !important;
+          text-decoration: underline;
+        }
+        .deadline-badge {
+          background: ${isDarkMode ? '#1e293b' : '#ffffff'};
+          border: 1px solid ${isDarkMode ? '#334155' : '#e2e8f0'};
+          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          border-radius: 8px;
+          padding: 14px 20px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 20px;
+        }
+        .stat-value {
+          font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-size: 28px;
+          font-weight: 700;
+          line-height: 1.1;
+          color: ${isDarkMode ? '#ffffff' : '#1e293b'};
+        }
+        .stat-title {
+          font-size: 12px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: ${isDarkMode ? '#94a3b8' : '#64748b'};
+          margin-bottom: 6px;
+        }
+      `}} />
+
       <PageHeader title="Project Manager Dashboard" />
 
       {unreadCount > 0 && (
@@ -397,44 +545,54 @@ const PMDashboardPage = () => {
               View Alerts
             </Button>
           }
-          style={{ marginBottom: 24 }}
+          style={{ marginBottom: 24, borderRadius: 10 }}
         />
       )}
 
-      {/* KPI Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card size="small">
+      {/* KPI Cards Grid */}
+      <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
+        <Col xs={12} sm={12} lg={6}>
+          <Card className="pm-card" style={activeCardStyle} bodyStyle={{ padding: 20 }}>
             <Statistic
-              title="Active Projects"
+              title={<div className="stat-title">Active Projects</div>}
               value={activeProjects.length}
-              prefix={<ProjectOutlined />}
+              valueStyle={{ color: isDarkMode ? '#38bdf8' : '#0284c7' }}
+              formatter={(val) => <div className="stat-value">{val}</div>}
+              prefix={<ProjectOutlined style={{ marginRight: 8, color: isDarkMode ? '#38bdf8' : '#0284c7' }} />}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card size="small">
+        <Col xs={12} sm={12} lg={6}>
+          <Card className="pm-card" style={pendingCardStyle} bodyStyle={{ padding: 20 }}>
             <Statistic 
-              title="Pending PM Approval" 
+              title={<div className="stat-title">Pending PM Approval</div>}
               value={pendingApprovalProjects.length} 
-              prefix={<FileTextOutlined style={{ color: '#fa8c16' }} />} 
-              valueStyle={{ color: '#fa8c16' }}
+              valueStyle={{ color: isDarkMode ? '#fbbf24' : '#d97706' }} 
+              formatter={(val) => <div className="stat-value">{val}</div>}
+              prefix={<FileTextOutlined style={{ marginRight: 8, color: isDarkMode ? '#fbbf24' : '#d97706' }} />}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card size="small">
+        <Col xs={12} sm={12} lg={6}>
+          <Card className="pm-card" style={overdueCardStyle} bodyStyle={{ padding: 20 }}>
             <Statistic 
-              title="Overdue Projects" 
+              title={<div className="stat-title">Overdue Projects</div>}
               value={dlStats.crossedDeadlines} 
-              prefix={<WarningOutlined style={{ color: '#cf1322' }} />} 
-              valueStyle={{ color: '#cf1322' }} 
+              valueStyle={{ color: isDarkMode ? '#f87171' : '#dc2626' }} 
+              formatter={(val) => <div className="stat-value">{val}</div>}
+              prefix={<WarningOutlined style={{ marginRight: 8, color: isDarkMode ? '#f87171' : '#dc2626' }} />}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card size="small">
-            <Statistic title="Unread Alerts" value={unreadCount} prefix={<BellOutlined />} valueStyle={{ color: unreadCount > 0 ? '#fa8c16' : '#3f9142' }} />
+        <Col xs={12} sm={12} lg={6}>
+          <Card className="pm-card" style={alertsCardStyle} bodyStyle={{ padding: 20 }}>
+            <Statistic 
+              title={<div className="stat-title">Unread Alerts</div>} 
+              value={unreadCount} 
+              valueStyle={{ color: isDarkMode ? '#c084fc' : '#7c3aed' }} 
+              formatter={(val) => <div className="stat-value">{val}</div>}
+              prefix={<BellOutlined style={{ marginRight: 8, color: isDarkMode ? '#c084fc' : '#7c3aed' }} />}
+            />
           </Card>
         </Col>
       </Row>
@@ -442,34 +600,44 @@ const PMDashboardPage = () => {
       {/* Pending PM Approval Section */}
       {pendingApprovalProjects.length > 0 && (
         <Card 
-          title={<Space><FileTextOutlined style={{ color: '#fa8c16' }} /> <span style={{ color: '#fa8c16' }}>Projects Waiting for PM Approval</span></Space>}
-          style={{ marginBottom: 24, border: '1px solid #ffe7ba', background: isDarkMode ? '#1c1b16' : '#fffbe6', borderRadius: 12 }}
+          title={<Space><FileTextOutlined style={{ color: '#d97706' }} /> <span style={{ color: isDarkMode ? '#fbbf24' : '#b45309' }}>Projects Waiting for PM Approval</span></Space>}
+          style={{ marginBottom: 24, border: '1px solid #fef3c7', background: isDarkMode ? '#1e1b10' : '#fffbeb', borderRadius: 12 }}
+          bodyStyle={{ padding: 0 }}
         >
           <Table
             dataSource={pendingApprovalProjects}
             columns={pendingColumns}
             rowKey="id"
             pagination={false}
+            scroll={{ x: 'max-content' }}
+            className="pm-table"
           />
         </Card>
       )}
 
       {/* Active Projects Table & Filters Section */}
       <Card 
-        title={<Space><ProjectOutlined /> <span>Active Project Tracking</span></Space>} 
-        style={{ borderRadius: 12 }}
+        title={
+          <Space>
+            <ProjectOutlined style={{ color: '#1890ff' }} /> 
+            <span style={{ fontWeight: 600 }}>Active Projects Workspace</span>
+          </Space>
+        } 
+        style={{ borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}
+        bodyStyle={{ padding: 24 }}
       >
-        {/* Filters Header block */}
-        <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-          <Col xs={24} sm={8} md={6} lg={4}>
+        {/* Filters Toolbar */}
+        <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
+          <Col xs={24} sm={12} md={6} lg={5}>
             <Input 
-              placeholder="Search project, client, code" 
+              placeholder="Search project, client, code..." 
               value={searchText} 
               onChange={e => setSearchText(e.target.value)}
-              prefix={<SearchOutlined />}
+              prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+              style={{ borderRadius: 8 }}
             />
           </Col>
-          <Col xs={24} sm={8} md={6} lg={3}>
+          <Col xs={12} sm={6} md={4} lg={3}>
             <Select
               placeholder="Project Type"
               style={{ width: '100%' }}
@@ -481,57 +649,63 @@ const PMDashboardPage = () => {
               ]}
             />
           </Col>
-          <Col xs={24} sm={8} md={6} lg={3}>
+          <Col xs={12} sm={6} md={4} lg={3}>
             <Select
-              placeholder="Client"
+              placeholder="Client Name"
               style={{ width: '100%' }}
               allowClear
               onChange={setSelectedClient}
               options={clientOptions}
             />
           </Col>
-          <Col xs={24} sm={8} md={6} lg={4}>
+          <Col xs={24} sm={12} md={5} lg={4}>
             <Select
-              placeholder="Team Lead"
+              placeholder="Allotted Team Lead"
               style={{ width: '100%' }}
               allowClear
               onChange={setSelectedTL}
               options={teamLeads.map(tl => ({ label: tl.name || tl.fullName, value: tl.id }))}
             />
           </Col>
-          <Col xs={24} sm={8} md={6} lg={3}>
+          <Col xs={12} sm={6} md={5} lg={3}>
             <Select
-              placeholder="Status"
+              placeholder="Project Status"
               style={{ width: '100%' }}
               allowClear
               onChange={setSelectedStatus}
               options={statusOptions}
             />
           </Col>
-          <Col xs={24} sm={12} md={8} lg={5}>
+          <Col xs={12} sm={6} md={6} lg={6}>
             <RangePicker 
-              style={{ width: '100%' }}
+              style={{ width: '100%', borderRadius: 8 }}
               onChange={setDateRange}
             />
           </Col>
         </Row>
 
-        {/* Deadline stats banner */}
-        <div style={{ background: isDarkMode ? '#1e293b' : '#f8fafc', padding: '12px 16px', borderRadius: 8, marginBottom: 16 }}>
-          <Text strong>Deadline Status Tracker: </Text>
-          <Space split={<Divider type="vertical" />}>
-            <Text type="secondary">Total: <Text strong>{dlStats.totalDeadlines}</Text></Text>
-            <Text type="secondary">This Month Deadlines: <Text strong style={{ color: '#fa8c16' }}>{dlStats.thisMonthDeadlines}</Text></Text>
-            <Text type="secondary">Crossed Deadlines: <Text strong style={{ color: '#cf1322' }}>{dlStats.crossedDeadlines}</Text></Text>
+        {/* Deadline Status Banner */}
+        <div className="deadline-badge">
+          <Space>
+            <ClockCircleOutlined style={{ color: '#64748b', fontSize: '16px' }} />
+            <Text strong style={{ color: '#475569', fontSize: '13px' }}>Deadline Status Tracker</Text>
+          </Space>
+          <Space size="large" split={<Divider type="vertical" style={{ height: 16 }} />}>
+            <Text style={{ fontSize: '13px' }}>Total Tracked: <strong style={{ color: isDarkMode ? '#fff' : '#1e293b' }}>{dlStats.totalDeadlines}</strong></Text>
+            <Text style={{ fontSize: '13px' }}>Due This Month: <strong style={{ color: '#d97706' }}>{dlStats.thisMonthDeadlines}</strong></Text>
+            <Text style={{ fontSize: '13px' }}>Crossed Deadlines: <strong style={{ color: '#ef4444' }}>{dlStats.crossedDeadlines}</strong></Text>
           </Space>
         </div>
 
+        {/* Responsive Table */}
         <Table 
           columns={activeColumns} 
           dataSource={filteredActiveProjects} 
           rowKey="id" 
-          pagination={{ pageSize: 8 }}
+          pagination={{ pageSize: 8, showSizeChanger: true }}
           locale={{ emptyText: 'No active projects matching the filters.' }}
+          scroll={{ x: 'max-content' }}
+          className="pm-table"
         />
       </Card>
 
@@ -566,25 +740,22 @@ const PMDashboardPage = () => {
         open={isMilestoneDrawerVisible}
       >
         {selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones) ? (
-          <Timeline mode="left">
+          <Timeline mode="left" style={{ marginTop: 10 }}>
             {selectedProjectForMilestones.milestones.map((m, index) => (
               <Timeline.Item 
                 key={index}
-                dot={<CalendarOutlined style={{ fontSize: '16px' }} />}
+                dot={<CalendarOutlined style={{ fontSize: '16px', color: '#10b981' }} />}
                 color={dayjs(m.date).isBefore(dayjs()) ? 'red' : 'green'}
               >
-                <div style={{ marginBottom: 8 }}>
-                  <Text strong style={{ fontSize: '15px' }}>{m.title}</Text>
-                  <br />
-                  <Text type="secondary">{m.description || 'No description'}</Text>
-                  <br />
-                  <Tag color="green" style={{ marginTop: 4 }}>
-                    Value: ₹ {Number(m.amount || 0).toLocaleString('en-IN')}
+                <div style={{ marginBottom: 12 }}>
+                  <Text strong style={{ fontSize: '14px', display: 'block', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>{m.title}</Text>
+                  <Text type="secondary" style={{ fontSize: '12px', display: 'block', margin: '4px 0' }}>{m.description || 'No description'}</Text>
+                  <Tag color="success" style={{ marginTop: 2, border: 'none', borderRadius: 4 }}>
+                    Value: ₹{Number(m.amount || 0).toLocaleString('en-IN')}
                   </Tag>
-                  <br />
-                  <Text type="secondary" style={{ fontSize: '11px' }}>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: 4 }}>
                     Release Date: {m.date ? dayjs(m.date).format('DD MMM YYYY') : 'Not Set'}
-                  </Text>
+                  </div>
                 </div>
               </Timeline.Item>
             ))}
