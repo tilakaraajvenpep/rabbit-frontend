@@ -19,6 +19,7 @@ import { leaveService } from '../../services/leaveService';
 import { adminService } from '../../services/adminService';
 import { timerRequestService } from '../../services/timerRequestService';
 import { projectService } from '../../services/projectService';
+import { reportAccessService } from '../../services/reportAccessService';
 
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -68,6 +69,13 @@ const EODReportPage = () => {
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [leaveApplying, setLeaveApplying] = useState(false);
   const [leaveForm] = Form.useForm();
+
+  // Modal State for Report Access Request
+  const [isAccessRequestModalOpen, setIsAccessRequestModalOpen] = useState(false);
+  const [accessRequestSubmitting, setAccessRequestSubmitting] = useState(false);
+  const [accessRequestForm] = Form.useForm();
+  const [myAccessRequests, setMyAccessRequests] = useState([]);
+  const [hasAccessForDate, setHasAccessForDate] = useState(false);
 
   const { control, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm({
     defaultValues: {
@@ -241,7 +249,7 @@ const EODReportPage = () => {
       const today = dayjs();
       const currentWeekStart = today.startOf('week').add(1, 'day'); // Monday
       const currentWeekEnd = today.startOf('week').add(7, 'day');   // Sunday
-      const isCurrentWeek = dates[0].isSame(currentWeekStart, 'day') || 
+      const isCurrentWeek = dates[0].isSame(currentWeekStart, 'day') ||
                             (dates[0].isBefore(currentWeekEnd) && dates[6].isAfter(currentWeekStart));
 
       const statusMap = {};
@@ -252,9 +260,12 @@ const EODReportPage = () => {
           l => dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr && l.status === 'Approved'
         );
         const isSunday = d.day() === 0;
+        const isSaturday = d.day() === 6;
         const isPast = d.isBefore(today, 'day');
 
-        if (approvedLeave) {
+        if (isSunday) {
+          statusMap[dateStr] = 'holiday';
+        } else if (approvedLeave) {
           if (approvedLeave.type === 'FullDay') {
             statusMap[dateStr] = 'leave';
           } else if (approvedLeave.type === 'HalfDay') {
@@ -266,8 +277,9 @@ const EODReportPage = () => {
           }
         } else if (report) {
           statusMap[dateStr] = 'submitted';
-        } else if (isCurrentWeek && isPast && !isSunday) {
-          // Past weekday in current week with no report = Incomplete
+        } else if (isSaturday) {
+          statusMap[dateStr] = 'optional';
+        } else if (isCurrentWeek && isPast) {
           statusMap[dateStr] = 'incomplete';
         } else if (!isCurrentWeek) {
           statusMap[dateStr] = 'restricted';
@@ -296,14 +308,31 @@ const EODReportPage = () => {
       setCurrentLeave(leaveOnDate || null);
 
       const res = await reportService.getReportByDate(currentUser.id, date);
-      
-      const isHoliday = dayjs(date).day() === 0;
+
+      const isHoliday = dayjs(date).day() === 0; // Sunday
+      const isSaturday = dayjs(date).day() === 6;
       const today = dayjs();
       const currentWeekMonday = today.startOf('week').add(1, 'day');
       const currentWeekSunday = today.startOf('week').add(7, 'day');
       const dateObj = dayjs(date);
       const outsideCurrentWeek = dateObj.isBefore(currentWeekMonday, 'day') || dateObj.isAfter(currentWeekSunday, 'day');
       setIsOutsideCurrentWeek(outsideCurrentWeek);
+
+      // Check if employee has approved report access for this date
+      let approvedAccess = false;
+      if (outsideCurrentWeek) {
+        try {
+          const accessRes = await reportAccessService.checkAccess(date);
+          approvedAccess = accessRes?.data?.hasAccess || false;
+        } catch (_) {}
+      }
+      setHasAccessForDate(approvedAccess);
+
+      // Fetch employee's access requests for status display
+      try {
+        const arRes = await reportAccessService.getMyRequests();
+        setMyAccessRequests(arRes?.data || []);
+      } catch (_) {}
 
       const hasReport = !!res.data;
 
@@ -336,8 +365,8 @@ const EODReportPage = () => {
         setExistingReport(null);
         
         const isFullDayLeave = leaveOnDate && leaveOnDate.type === 'FullDay';
-        // Outside current week with no report = locked (contact HR/PM)
-        if (isHoliday || outsideCurrentWeek || isFullDayLeave) {
+        // Outside current week with no report = locked unless approved access
+        if (isHoliday || (outsideCurrentWeek && !approvedAccess) || isFullDayLeave) {
           setViewOnly(true);
         } else {
           setViewOnly(false);
@@ -548,6 +577,8 @@ const EODReportPage = () => {
 
   const getStatusDisplay = (date) => {
     const status = weeklyStatus[date.format('YYYY-MM-DD')];
+    if (status === 'holiday') return <Badge color="#8c8c8c" text="Holiday" />;
+    if (status === 'optional') return <Badge color="#722ed1" text="Optional" />;
     if (status === 'leave') return <Badge color="#fa8c16" text="Full Day" />;
     if (status === 'half_leave') return <Badge color="#1890ff" text="Half Day" />;
     if (status === 'permission') return <Badge color="#13c2c2" text="Permission" />;
@@ -684,12 +715,21 @@ const EODReportPage = () => {
                     const status = weeklyStatus[dateStr];
                     const isIncomplete = status === 'incomplete';
                     const isRestricted = status === 'restricted';
+                    const isHolidayDate = status === 'holiday';
+                    const isOptional = status === 'optional';
                     let bg = 'transparent';
                     let border = `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#f0f0f0'}`;
                     let opacity = 1;
                     if (isSelected) {
                       bg = isDarkMode ? 'rgba(79, 70, 229, 0.2)' : '#e6f7ff';
                       border = `1px solid ${token.colorPrimary}`;
+                    } else if (isHolidayDate) {
+                      bg = isDarkMode ? 'rgba(140,140,140,0.1)' : '#f5f5f5';
+                      border = '1px solid #d9d9d9';
+                      opacity = 0.65;
+                    } else if (isOptional) {
+                      bg = isDarkMode ? 'rgba(114, 46, 209, 0.1)' : '#f9f0ff';
+                      border = '1px solid #d3adf7';
                     } else if (isIncomplete) {
                       bg = isDarkMode ? 'rgba(255, 77, 79, 0.12)' : '#fff1f0';
                       border = '1px solid #ffccc7';
@@ -698,7 +738,7 @@ const EODReportPage = () => {
                     }
                     return {
                       textAlign: 'center',
-                      cursor: isRestricted ? 'not-allowed' : 'pointer',
+                      cursor: isHolidayDate ? 'default' : isRestricted ? 'not-allowed' : 'pointer',
                       padding: '8px 12px', borderRadius: 12, minWidth: 90,
                       background: bg, border, margin: '0 4px', opacity,
                       transition: 'all 0.2s'
@@ -732,24 +772,53 @@ const EODReportPage = () => {
 
       {dayjs(selectedDate).day() === 0 ? (
         <Result icon={<CheckCircleOutlined style={{ color: '#faad14' }} />} title="Happy Sunday!" />
-      ) : isOutsideCurrentWeek && !existingReport ? (
-        <Result
-          status="warning"
-          title="Reporting Not Allowed"
-          subTitle={
-            <span>
-              Reporting for <strong>{dayjs(selectedDate).format('DD MMMM YYYY')}</strong> is outside the current work week.
-              <br />
-              If you need to submit or amend a report for this date, please contact <strong>HR</strong> or your <strong>Project Manager</strong>.
-            </span>
-          }
-          extra={
-            <Button type="default" onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}>
-              Go to Today
-            </Button>
-          }
-        />
-      ) : currentLeave && currentLeave.type === 'FullDay' ? (
+      ) : isOutsideCurrentWeek && !existingReport && !hasAccessForDate ? (() => {
+        const existingReq = myAccessRequests.find(r => r.targetDate === selectedDate);
+        return (
+          <Result
+            status={existingReq?.status === 'Rejected' ? 'error' : 'warning'}
+            title={existingReq?.status === 'Pending' ? 'Access Request Pending' : existingReq?.status === 'Rejected' ? 'Access Request Rejected' : 'Reporting Restricted'}
+            subTitle={
+              <Space direction="vertical" style={{ width: '100%', textAlign: 'center' }}>
+                <span>
+                  Reporting for <strong>{dayjs(selectedDate).format('DD MMMM YYYY')}</strong> is outside the current work week.
+                </span>
+                {existingReq?.status === 'Pending' && (
+                  <Alert message="Your access request is pending review by HR / Project Manager. You will be notified once approved." type="info" showIcon style={{ textAlign: 'left', borderRadius: 8 }} />
+                )}
+                {existingReq?.status === 'Rejected' && (
+                  <Alert message={`Request was rejected. ${existingReq.reviewerComments ? `Reason: ${existingReq.reviewerComments}` : ''}`} type="error" showIcon style={{ textAlign: 'left', borderRadius: 8 }} />
+                )}
+                {!existingReq && (
+                  <span style={{ fontSize: 13, color: '#8c8c8c' }}>
+                    You can raise an access request to HR / PM to report for this date. Once approved, reporting will be unlocked.
+                  </span>
+                )}
+              </Space>
+            }
+            extra={
+              <Space>
+                <Button type="default" onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}>
+                  Go to Today
+                </Button>
+                {!existingReq || existingReq.status === 'Rejected' ? (
+                  <Button
+                    type="primary"
+                    icon={<CalendarOutlined />}
+                    onClick={() => {
+                      accessRequestForm.resetFields();
+                      accessRequestForm.setFieldsValue({ targetDate: selectedDate });
+                      setIsAccessRequestModalOpen(true);
+                    }}
+                  >
+                    Raise Access Request
+                  </Button>
+                ) : null}
+              </Space>
+            }
+          />
+        );
+      })() : currentLeave && currentLeave.type === 'FullDay' ? (
         <Result icon={<CheckCircleOutlined style={{ color: '#818cf8' }} />} title="On Approved Full Day Leave!" subTitle="No EOD report submission is required for today." />
       ) : (
         <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
@@ -1280,6 +1349,81 @@ const EODReportPage = () => {
           >
             <TextArea rows={4} placeholder="E.g., I was unable to activate the timer because of a production hotspot checkout, OR the client design requested an extra sub-module integration..." />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal for Report Date Access Request */}
+      <Modal
+        title={
+          <Space>
+            <CalendarOutlined style={{ color: '#6366f1' }} />
+            <span>Request Access to Report for Past/Future Date</span>
+          </Space>
+        }
+        open={isAccessRequestModalOpen}
+        onCancel={() => setIsAccessRequestModalOpen(false)}
+        onOk={() => accessRequestForm.submit()}
+        okText="Submit Access Request"
+        confirmLoading={accessRequestSubmitting}
+        destroyOnClose
+      >
+        <Form
+          form={accessRequestForm}
+          layout="vertical"
+          onFinish={async (values) => {
+            setAccessRequestSubmitting(true);
+            try {
+              await reportAccessService.createRequest({
+                targetDate: values.targetDate,
+                reason: values.reason
+              });
+              notification.success({
+                message: 'Access Request Submitted',
+                description: 'Your request to report for this date has been sent to HR and Project Manager. You will be notified once it is reviewed.'
+              });
+              setIsAccessRequestModalOpen(false);
+              // Refresh access requests
+              const arRes = await reportAccessService.getMyRequests();
+              setMyAccessRequests(arRes?.data || []);
+            } catch (e) {
+              notification.error({
+                message: 'Failed to submit request',
+                description: e.response?.data?.message || 'An error occurred.'
+              });
+            } finally {
+              setAccessRequestSubmitting(false);
+            }
+          }}
+        >
+          <Form.Item name="targetDate" hidden><Input /></Form.Item>
+
+          <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Requesting access for</Text>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#6366f1', marginTop: 4 }}>
+              {dayjs(selectedDate).format('dddd, DD MMMM YYYY')}
+            </div>
+          </div>
+
+          <Form.Item
+            name="reason"
+            label="Reason for Late/Early Reporting"
+            rules={[
+              { required: true, message: 'Please explain the reason' },
+              { min: 10, message: 'Please provide a more detailed explanation (min 10 chars)' }
+            ]}
+          >
+            <TextArea
+              rows={4}
+              placeholder="E.g., I was on-site at the client location and did not have system access. I need to report the work done on that date..."
+            />
+          </Form.Item>
+
+          <Alert
+            message="This request will be sent to HR and your Project Manager. You can only report for this date once the request is approved."
+            type="info"
+            showIcon
+            style={{ borderRadius: 8 }}
+          />
         </Form>
       </Modal>
     </div>
