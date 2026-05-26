@@ -124,21 +124,24 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
               name="assignedTo"
               control={control}
               rules={{ required: 'Please assign an employee' }}
-              render={({ field }) => (
-                <Select {...field} style={{ width: '100%' }} placeholder="Select employee">
-                  {employees.map(emp => {
-                    const empTL = users.find(tl => tl.id === emp.teamLeadId);
-                    const empTLName = empTL ? empTL.name || empTL.fullName : 'None';
-                    const projectTL = users.find(tl => tl.id === project?.assignedTeamLeadId);
-                    const projectTLName = projectTL ? projectTL.name || projectTL.fullName : 'None';
-                    return (
-                      <Select.Option key={emp.id} value={emp.id}>
-                        {emp.name || emp.fullName} (TL: {empTLName}) - Project TL: {projectTLName}
+              render={({ field }) => {
+                const projectTLId = project?.assignedTeamLeadId;
+                const eligibleUsers = users.filter(u => {
+                  if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
+                  if (u.role === 'TeamLead' && u.id === projectTLId) return true;
+                  if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
+                  return false;
+                });
+                return (
+                  <Select {...field} style={{ width: '100%' }} placeholder="Select employee">
+                    {eligibleUsers.map(u => (
+                      <Select.Option key={u.id} value={u.id}>
+                        {u.name || u.fullName}
                       </Select.Option>
-                    );
-                  })}
-                </Select>
-              )}
+                    ))}
+                  </Select>
+                );
+              }}
             />
           </Form.Item>
 

@@ -679,16 +679,19 @@ const KanbanBoard = () => {
               <Select
                 allowClear
                 placeholder="Unassigned"
-                options={users.filter(u => u.role === 'Employee').map(u => {
-                  const empTL = users.find(tl => tl.id === u.teamLeadId);
-                  const empTLName = empTL ? empTL.name || empTL.fullName : 'None';
-                  const projectTL = users.find(tl => tl.id === project?.assignedTeamLeadId);
-                  const projectTLName = projectTL ? projectTL.name || projectTL.fullName : 'None';
-                  return {
+                options={(() => {
+                  const projectTLId = project?.assignedTeamLeadId;
+                  const eligibleUsers = users.filter(u => {
+                    if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
+                    if (u.role === 'TeamLead' && u.id === projectTLId) return true;
+                    if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
+                    return false;
+                  });
+                  return eligibleUsers.map(u => ({
                     value: u.id || u.userId,
-                    label: `${u.name || u.fullName} (TL: ${empTLName}) - Project TL: ${projectTLName}`
-                  };
-                })}
+                    label: u.name || u.fullName
+                  }));
+                })()}
               />
             </Form.Item>
           </div>

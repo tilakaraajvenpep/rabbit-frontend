@@ -29,7 +29,7 @@ const { Title, Text } = Typography;
 
 const EODReportPage = () => {
   const navigate = useNavigate();
-  const { currentUser } = useAuthStore();
+  const { currentUser, role } = useAuthStore();
   const { token } = theme.useToken();
   const { isDarkMode } = useThemeStore();
 
@@ -231,8 +231,14 @@ const EODReportPage = () => {
   const fetchTickets = async () => {
     try {
       const res = await ticketService.getTickets();
+      let ticketsData = res.data || [];
       // Filter out completed tickets.
-      setMyTickets(res.data.filter(t => t.status !== 'Done'));
+      ticketsData = ticketsData.filter(t => t.status !== 'Done');
+      // If user is a Team Lead, only show tickets assigned to them
+      if (role === 'TeamLead') {
+        ticketsData = ticketsData.filter(t => t.assignedToUserId === currentUser.id);
+      }
+      setMyTickets(ticketsData);
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to load tickets.' });
     }
