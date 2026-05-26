@@ -104,7 +104,7 @@ const CrossTeamSharePage = () => {
         title: `Borrowed: ${values.title}`,
         description: fullDescription,
         priority: values.priority || 'Medium',
-        estimatedHours: values.estimatedHours,
+        estimatedHours: parseFloat(String(values.estimatedHours)),
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
         assignedToUserId: selectedEmployee.id || selectedEmployee.userId,
         milestone: values.milestone || 'Cross-Team Sharing'
@@ -312,7 +312,7 @@ const CrossTeamSharePage = () => {
                 <Select.Option value="Low">Low</Select.Option>
                 <Select.Option value="Medium">Medium</Select.Option>
                 <Select.Option value="High">High</Select.Option>
-                <Select.Option value="Urgent">Urgent</Select.Option>
+                <Select.Option value="Critical">Critical</Select.Option>
               </Select>
             </Form.Item>
           </Form>
