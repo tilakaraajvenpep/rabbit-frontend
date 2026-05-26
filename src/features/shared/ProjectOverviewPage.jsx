@@ -32,6 +32,7 @@ const ProjectOverviewPage = () => {
   const { role } = useAuthStore();
   const [project, setProject] = useState(null);
   const [auditLog, setAuditLog] = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [form] = Form.useForm();
@@ -43,12 +44,14 @@ const ProjectOverviewPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [projRes, auditRes] = await Promise.all([
+      const [projRes, auditRes, docsRes] = await Promise.all([
         projectService.getProjectOverview(id),
-        projectService.getAuditLog(id)
+        projectService.getAuditLog(id),
+        projectService.getDocuments(id)
       ]);
       setProject(projRes.data);
       setAuditLog(auditRes.data);
+      setDocuments(docsRes.data || []);
       form.setFieldsValue({
         status: projRes.data.status,
         note: projRes.data.latestStatusNote
@@ -171,20 +174,45 @@ const ProjectOverviewPage = () => {
             </Row>
           </Card>
 
-          <Card title="Scope Documents" style={{ marginBottom: 16 }}>
+          <Card title="Scope & Project Documents" style={{ marginBottom: 16 }}>
             <Table 
               size="small"
               pagination={false}
-              dataSource={[
-                { key: '1', version: 'v1.0', fileName: 'Scope_Draft.pdf', uploadedBy: 'Sales Rep', date: '2024-04-10', status: 'Approved' }
-              ]}
+              dataSource={documents}
+              rowKey="id"
+              locale={{ emptyText: 'No documents uploaded yet.' }}
               columns={[
-                { title: 'Version', dataIndex: 'version', key: 'version' },
-                { title: 'File', dataIndex: 'fileName', key: 'fileName' },
-                { title: 'Uploaded By', dataIndex: 'uploadedBy', key: 'uploadedBy' },
-                { title: 'Date', dataIndex: 'date', key: 'date', render: d => dayjs(d).format('DD MMM YYYY') },
-                { title: 'Status', dataIndex: 'status', key: 'status', render: s => <Tag color="green">{s}</Tag> },
-                { title: 'Action', key: 'action', render: () => <Button type="link" size="small">Download</Button> }
+                { 
+                  title: 'File Name', 
+                  dataIndex: 'fileName', 
+                  key: 'fileName',
+                  render: (text, record) => <Text strong>{text || record.name || 'document.pdf'}</Text>
+                },
+                { 
+                  title: 'Category', 
+                  dataIndex: 'documentCategory', 
+                  key: 'documentCategory',
+                  render: (cat) => <Tag color={cat === 'scope' ? 'purple' : 'blue'}>{cat ? cat.toUpperCase() : 'DOCUMENT'}</Tag>
+                },
+                { 
+                  title: 'Uploaded Date', 
+                  dataIndex: 'createdAt', 
+                  key: 'createdAt', 
+                  render: d => d ? dayjs(d).format('DD MMM YYYY') : '-' 
+                },
+                { 
+                  title: 'Action', 
+                  key: 'action', 
+                  render: (_, record) => (
+                    <Button 
+                      type="link" 
+                      size="small" 
+                      onClick={() => projectService.downloadDocument(project.id || id, record.documentId || record.id, record.fileName || record.name)}
+                    >
+                      Download
+                    </Button>
+                  ) 
+                }
               ]}
             />
           </Card>
