@@ -68,7 +68,8 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/pm/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
         { key: '/pm/team', icon: <TeamOutlined />, label: 'TL & Employees' },
         { key: '/pm/cross-team', icon: <SwapOutlined />, label: 'Cross-Team Status' },
-        { key: '/pm/timer-requests', icon: <ClockCircleOutlined />, label: 'Timer Approvals' }
+        { key: '/pm/timer-requests', icon: <ClockCircleOutlined />, label: 'Timer Approvals' },
+        { key: '/pm/report-access-approvals', icon: <CalendarOutlined />, label: 'Report Approvals' }
       );
     }
 
@@ -123,7 +124,8 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
     if (role === 'HR') {
       items.push(
         { key: '/hr/team', icon: <TeamOutlined />, label: 'Team Details' },
-        { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Approved Leaves' }
+        { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Approved Leaves' },
+        { key: '/hr/report-access-approvals', icon: <CalendarOutlined />, label: 'Report Approvals' }
       );
     }
 

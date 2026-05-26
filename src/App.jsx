@@ -59,6 +59,7 @@ const LeaveApprovalsPage = React.lazy(() => import('./features/pm/LeaveApprovals
 const TeamDetailsPage = React.lazy(() => import('./features/pm/TeamDetailsPage'));
 const CrossTeamPage = React.lazy(() => import('./features/pm/CrossTeamPage'));
 const TimerRequestsApprovalPage = React.lazy(() => import('./features/pm/TimerRequestsApprovalPage'));
+const ReportAccessApprovalPage = React.lazy(() => import('./features/pm/ReportAccessApprovalPage'));
 
 
 const ProjectOverviewPage = React.lazy(() => import('./features/shared/ProjectOverviewPage'));
@@ -169,6 +170,7 @@ const App = () => {
                 <Route path="/pm/team" element={<TeamDetailsPage />} />
                 <Route path="/pm/cross-team" element={<CrossTeamPage />} />
                 <Route path="/pm/timer-requests" element={<TimerRequestsApprovalPage />} />
+                <Route path="/pm/report-access-approvals" element={<ReportAccessApprovalPage />} />
               </Route>
 
 
@@ -221,6 +223,7 @@ const App = () => {
               <Route element={<ProtectedRoute allowedRoles={['HR']} />}>
                 <Route path="/hr/team" element={<HRTeamPage />} />
                 <Route path="/hr/leaves" element={<HRApprovedLeavesPage />} />
+                <Route path="/hr/report-access-approvals" element={<ReportAccessApprovalPage />} />
               </Route>
 
               {/* Shared Reports for Managers */}
