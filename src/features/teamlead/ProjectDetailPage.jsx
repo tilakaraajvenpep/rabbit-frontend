@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Button, Space, Avatar, Tooltip, Skeleton, notification } from 'antd';
+import { Card, Row, Col, Statistic, Table, Button, Space, Avatar, Tooltip, Skeleton, notification, Descriptions, Tag } from 'antd';
 import { 
   DashboardOutlined, 
   TeamOutlined, 
@@ -138,6 +138,15 @@ const ProjectDetailPage = () => {
 
       <Card style={{ marginBottom: 24 }}>
         <HoursProgress consumed={project.consumedHours} total={project.approvedHours} />
+      </Card>
+
+      <Card title="Project Info" style={{ marginBottom: 24 }}>
+        <Descriptions bordered column={{ xxl: 4, xl: 3, lg: 3, md: 2, sm: 1, xs: 1 }}>
+          <Descriptions.Item label="Client">{project.client}</Descriptions.Item>
+          <Descriptions.Item label="Project Category">{project.projectCategory || <Tag color="warning">Not Set</Tag>}</Descriptions.Item>
+          <Descriptions.Item label="Status"><StatusBadge status={project.status} /></Descriptions.Item>
+          <Descriptions.Item label="Expected Start">{project.startDate ? dayjs(project.startDate).format('DD MMM YYYY') : '-'}</Descriptions.Item>
+        </Descriptions>
       </Card>
 
       <Card title="Team Members" style={{ marginBottom: 24 }}>

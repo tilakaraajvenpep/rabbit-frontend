@@ -255,18 +255,15 @@ const PMDashboardPage = () => {
       render: (client) => <Text strong style={{ color: isDarkMode ? '#e2e8f0' : '#334155' }}>{client || '-'}</Text>
     },
     {
-      title: 'Project Type',
-      dataIndex: 'description',
-      key: 'projectType',
+      title: 'Project Category',
+      dataIndex: 'projectCategory',
+      key: 'projectCategory',
       width: 130,
-      render: (desc) => {
-        const isCustom = desc?.toLowerCase().includes('custom') || desc?.toLowerCase().includes('special');
-        return (
-          <Tag color={isCustom ? 'cyan' : 'blue'} style={{ borderRadius: 6, fontWeight: 500, padding: '2px 8px' }}>
-            {isCustom ? 'Customised' : 'General'}
-          </Tag>
-        );
-      }
+      render: (cat) => (
+        <Tag color="cyan" style={{ borderRadius: 6, fontWeight: 500, padding: '2px 8px' }}>
+          {cat || 'N/A'}
+        </Tag>
+      )
     },
     {
       title: 'Sales Owner',
@@ -433,6 +430,13 @@ const PMDashboardPage = () => {
       dataIndex: 'client',
       key: 'client',
       width: 160,
+    },
+    {
+      title: 'Project Category',
+      dataIndex: 'projectCategory',
+      key: 'projectCategory',
+      width: 140,
+      render: (cat) => <Tag color="cyan">{cat || 'N/A'}</Tag>
     },
     {
       title: 'Submitted By Accounts',

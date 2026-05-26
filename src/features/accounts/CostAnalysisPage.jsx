@@ -371,6 +371,7 @@ const CostAnalysisPage = () => {
             <Descriptions column={2} size="small">
               <Descriptions.Item label="Project Name"><Text strong>{project.name}</Text></Descriptions.Item>
               <Descriptions.Item label="Client">{project.client}</Descriptions.Item>
+              <Descriptions.Item label="Project Category">{project.projectCategory || 'N/A'}</Descriptions.Item>
               <Descriptions.Item label="Status"><StatusBadge status={project.status} /></Descriptions.Item>
               <Descriptions.Item label="Expected Start">{project.startDate ? dayjs(project.startDate).format('DD MMM YYYY') : '-'}</Descriptions.Item>
               <Descriptions.Item label="Scope Doc" span={2}>

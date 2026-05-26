@@ -90,6 +90,7 @@ const PendingReviewPage = () => {
       ) 
     },
     { title: 'Client Name', dataIndex: 'client', key: 'client' },
+    { title: 'Project Category', dataIndex: 'projectCategory', key: 'projectCategory', render: (text) => text ? <Text strong>{text}</Text> : <Text type="secondary" italic>N/A</Text> },
     { title: 'Submitted Date', dataIndex: 'createdAt', key: 'createdAt', render: (date) => dayjs(date).format('DD MMM YYYY') },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (status) => <StatusBadge status={status} /> },
     {

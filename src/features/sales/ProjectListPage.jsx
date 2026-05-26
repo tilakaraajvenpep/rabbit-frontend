@@ -83,6 +83,12 @@ const ProjectListPage = () => {
       key: 'client',
     },
     {
+      title: 'Project Category',
+      dataIndex: 'projectCategory',
+      key: 'projectCategory',
+      render: (text) => text ? <Text strong>{text}</Text> : <Text type="secondary" italic>N/A</Text>
+    },
+    {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',

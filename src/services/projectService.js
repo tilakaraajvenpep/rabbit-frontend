@@ -53,7 +53,8 @@ export const projectService = {
       startDate: projectData.expectedStart,
       budgetTable: projectData.budgetTable,
       milestones: projectData.milestones,
-      status: projectData.status
+      status: projectData.status,
+      projectCategory: projectData.projectCategory
     };
     const response = await apiClient.post('/projects', mappedPayload);
     return { data: mapProject(response.data.data) };
@@ -80,7 +81,8 @@ export const projectService = {
       startDate: projectData.expectedStart,
       budgetTable: projectData.budgetTable,
       milestones: projectData.milestones,
-      status: projectData.status
+      status: projectData.status,
+      projectCategory: projectData.projectCategory
     };
     const response = await apiClient.put(`/projects/${projectId}`, mappedPayload);
     return { data: mapProject(response.data.data) };
@@ -96,13 +98,16 @@ export const projectService = {
     return apiClient.delete(`/projects/${projectId}`);
   },
 
-  uploadDocument: async (projectId, file) => {
+  uploadDocument: async (projectId, file, category) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 1500));
       return { data: { success: true, fileName: file.name, version: 'v1.0' } };
     }
     const formData = new FormData();
     formData.append('file', file);
+    if (category) {
+      formData.append('documentCategory', category);
+    }
     const response = await apiClient.post(`/projects/${projectId}/documents`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'

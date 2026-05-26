@@ -24,9 +24,11 @@ const CreateProjectPage = () => {
     defaultValues: {
       name: '',
       client: '',
+      projectCategory: '',
       expectedStart: null,
       description: '',
-      scopeFile: null
+      scopeFile: null,
+      budgetFile: null
     }
   });
 
@@ -41,6 +43,7 @@ const CreateProjectPage = () => {
           setProject(p);
           setValue('name', p.name);
           setValue('client', p.client);
+          setValue('projectCategory', p.projectCategory || '');
           if (p.startDate) {
             setValue('expectedStart', dayjs(p.startDate));
           }
@@ -59,11 +62,12 @@ const CreateProjectPage = () => {
   const onSubmit = async (data, submitStatus = 'PendingReview') => {
     setLoading(true);
     try {
-      const { scopeFile, ...projectData } = data;
+      const { scopeFile, budgetFile, ...projectData } = data;
 
       const formattedData = {
         name: projectData.name,
         client: projectData.client,
+        projectCategory: projectData.projectCategory,
         expectedStart: projectData.expectedStart ? projectData.expectedStart.toISOString() : null,
         description: projectData.description,
         budgetTable: null, // Budget is inside the scope document
@@ -80,12 +84,18 @@ const CreateProjectPage = () => {
       
       const targetProjectId = id || response.data.id;
 
-      // Handle file upload if present
+      // Handle file uploads if present
       if (scopeFile) {
-        await projectService.uploadDocument(targetProjectId, scopeFile);
+        await projectService.uploadDocument(targetProjectId, scopeFile, 'scope');
+      }
+      if (budgetFile) {
+        await projectService.uploadDocument(targetProjectId, budgetFile, 'budget_milestones');
+      }
+
+      if (scopeFile || budgetFile) {
         notification.success({
-          message: id ? 'Project Updated & Scope Document Uploaded' : 'Project Created & Scope Document Uploaded',
-          description: `Successfully processed project and uploaded scope document (containing budget & milestones).`
+          message: id ? 'Project Updated & Documents Uploaded' : 'Project Created & Documents Uploaded',
+          description: `Successfully processed project and uploaded files.`
         });
       } else {
         notification.success({
@@ -196,6 +206,25 @@ const CreateProjectPage = () => {
           </Form.Item>
 
           <Form.Item 
+            label="Project Category" 
+            required
+            validateStatus={errors.projectCategory ? 'error' : ''} 
+            help={errors.projectCategory?.message}
+          >
+            <Controller
+              name="projectCategory"
+              control={control}
+              rules={{ 
+                required: 'Project category is required',
+                maxLength: { value: 255, message: 'Maximum 255 characters' }
+              }}
+              render={({ field }) => (
+                <Input {...field} placeholder="e.g. Web App, Mobile App, Consultancy" size="large" />
+              )}
+            />
+          </Form.Item>
+
+          <Form.Item 
             label="Expected Start Date" 
             required
             validateStatus={errors.expectedStart ? 'error' : ''} 
@@ -232,7 +261,7 @@ const CreateProjectPage = () => {
           </Form.Item>
 
           <Form.Item 
-            label="Upload Scope Document (containing Budget & Milestones)"
+            label="Upload Project Scope Document"
             required={!id}
             validateStatus={errors.scopeFile ? 'error' : ''}
             help={errors.scopeFile?.message}
@@ -257,7 +286,39 @@ const CreateProjectPage = () => {
                     <InboxOutlined />
                   </p>
                   <p className="ant-upload-text">Click or drag scope document to this area to upload</p>
-                  <p className="ant-upload-hint">Upload the PDF or DOCX file containing the technical requirements, project budget table, and milestones.</p>
+                  <p className="ant-upload-hint">Upload the PDF or DOCX file containing the technical requirements and project scope details.</p>
+                </Upload.Dragger>
+              )}
+            />
+          </Form.Item>
+
+          <Form.Item 
+            label="Upload Budget and Milestones Document"
+            required={!id}
+            validateStatus={errors.budgetFile ? 'error' : ''}
+            help={errors.budgetFile?.message}
+          >
+            <Controller
+              name="budgetFile"
+              control={control}
+              rules={id ? {} : { required: 'Budget and milestones document is required to submit the project' }}
+              render={({ field: { value, onChange } }) => (
+                <Upload.Dragger
+                  name="file"
+                  multiple={false}
+                  maxCount={1}
+                  beforeUpload={(file) => {
+                    onChange(file);
+                    return false; // Prevent auto-upload
+                  }}
+                  onRemove={() => onChange(null)}
+                  fileList={value ? [value] : []}
+                >
+                  <p className="ant-upload-drag-icon">
+                    <InboxOutlined />
+                  </p>
+                  <p className="ant-upload-text">Click or drag budget & milestones document to this area to upload</p>
+                  <p className="ant-upload-hint">Upload the PDF or DOCX file containing the itemized budget table and milestones breakdown.</p>
                 </Upload.Dragger>
               )}
             />
@@ -314,11 +375,12 @@ const CreateProjectPage = () => {
             <Descriptions title="Project Information" bordered column={2}>
               <Descriptions.Item label="Project Name" span={2}>{previewData.name}</Descriptions.Item>
               <Descriptions.Item label="Client Name">{previewData.client}</Descriptions.Item>
+              <Descriptions.Item label="Project Category">{previewData.projectCategory}</Descriptions.Item>
               <Descriptions.Item label="Expected Start Date">
                 {previewData.expectedStart ? previewData.expectedStart.format('DD MMM YYYY') : '-'}
               </Descriptions.Item>
               <Descriptions.Item label="Description" span={2}>{previewData.description || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Scope Document" span={2}>
+              <Descriptions.Item label="Project Scope Document" span={2}>
                 {previewData.scopeFile ? (
                   <span>
                     <FileTextOutlined style={{ marginRight: 8, color: '#1890ff' }} />
@@ -328,11 +390,21 @@ const CreateProjectPage = () => {
                   <span style={{ color: '#aaa', fontStyle: 'italic' }}>No new document uploaded in this session</span>
                 )}
               </Descriptions.Item>
+              <Descriptions.Item label="Budget & Milestones Document" span={2}>
+                {previewData.budgetFile ? (
+                  <span>
+                    <FileTextOutlined style={{ marginRight: 8, color: '#52c41a' }} />
+                    {previewData.budgetFile.name} ({(previewData.budgetFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </span>
+                ) : (
+                  <span style={{ color: '#aaa', fontStyle: 'italic' }}>No new document uploaded in this session</span>
+                )}
+              </Descriptions.Item>
             </Descriptions>
 
             <Alert
-              message="Scope Document Verification"
-              description="The project details, itemized budget tables, and milestones are contained within the attached scope document. Accounts will review and extract these details during analysis."
+              message="Documents Verification"
+              description="The project details, scope, budget tables, and milestones are contained within the attached documents. Accounts will review the Budget & Milestones, while PMs and TLs can view the Project Scope."
               type="info"
               showIcon
             />

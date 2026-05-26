@@ -145,6 +145,7 @@ const ScopeUploadPage = () => {
           <Descriptions bordered column={{ xxl: 4, xl: 3, lg: 3, md: 3, sm: 2, xs: 1 }}>
             <Descriptions.Item label="Project Code"><Text code>{project.code}</Text></Descriptions.Item>
             <Descriptions.Item label="Client">{project.client}</Descriptions.Item>
+            <Descriptions.Item label="Project Category">{project.projectCategory || 'N/A'}</Descriptions.Item>
             <Descriptions.Item label="Status"><StatusBadge status={project.status} /></Descriptions.Item>
             <Descriptions.Item label="Description" span={3}>{project.description}</Descriptions.Item>
           </Descriptions>
