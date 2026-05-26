@@ -632,578 +632,546 @@ const EODReportPage = () => {
   const isLocked = viewOnly && !adminUnlocked;
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', paddingBottom: 40, display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <PageHeader title="Weekly Work Report" />
+    <div style={{ height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+      
+      {/* Top Header bar with compact stats */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isDarkMode ? 'rgba(255,255,255,0.01)' : '#fff', padding: '8px 16px', borderRadius: 12, border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#eef2f6'}` }}>
+        <Space size={8}>
+          <ClockCircleOutlined style={{ fontSize: 18, color: '#6366f1' }} />
+          <div>
+            <Title level={5} style={{ margin: 0, fontSize: 14 }}>Weekly EOD Logging</Title>
+            <Text type="secondary" style={{ fontSize: 10 }}>Quota: {REQUIRED_HOURS}h/day &bull; {weeklyAllocated.toFixed(1)}h/week</Text>
+          </div>
+        </Space>
 
-      {/* Allocated Hours Banner */}
-      <Card
-        style={{
-          borderRadius: 12,
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(139,92,246,0.08) 100%)',
-          border: '1px solid rgba(99,102,241,0.25)',
-        }}
-        bodyStyle={{ padding: '14px 20px' }}
-      >
-        <Row align="middle" justify="space-between" gutter={[16, 16]}>
-          <Col xs={24} sm={10}>
-            <Space size={12}>
-              <ClockCircleOutlined style={{ fontSize: 22, color: '#6366f1' }} />
-              <div>
-                <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  Weekly Work Quota
-                </Text>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#6366f1', lineHeight: 1.2 }}>
-                  {weeklyAllocated.toFixed(1)}h / week
-                </div>
-                <Text type="secondary" style={{ fontSize: 11 }}>
-                  Daily Quota: {REQUIRED_HOURS}h/day
-                </Text>
-              </div>
-            </Space>
-          </Col>
-          <Col xs={24} sm={14}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 24 }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#10b981' }}>
-                  {totalHours.toFixed(1)}h
-                </div>
-                <Text type="secondary" style={{ fontSize: 11 }}>Logged Today</Text>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#6366f1' }}>
-                  {loggedThisWeek.toFixed(1)}h
-                </div>
-                <Text type="secondary" style={{ fontSize: 11 }}>Logged This Week</Text>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: remainingWeekly > 0 ? '#fa9e0b' : '#6b7280' }}>
-                  {remainingWeekly.toFixed(1)}h
-                </div>
-                <Text type="secondary" style={{ fontSize: 11 }}>Remaining Weekly</Text>
-              </div>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#10b981', lineHeight: 1.1 }}>{totalHours.toFixed(1)}h</div>
+            <Text type="secondary" style={{ fontSize: 9 }}>Today</Text>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#6366f1', lineHeight: 1.1 }}>{loggedThisWeek.toFixed(1)}h</div>
+            <Text type="secondary" style={{ fontSize: 9 }}>This Week</Text>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: remainingWeekly > 0 ? '#fa9e0b' : '#6b7280', lineHeight: 1.1 }}>{remainingWeekly.toFixed(1)}h</div>
+            <Text type="secondary" style={{ fontSize: 9 }}>Remaining</Text>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Split Panel Area */}
+      <div style={{ display: 'flex', flex: 1, gap: 12, overflow: 'hidden', minHeight: 0 }}>
+        
+        {/* LEFT COLUMN: Date Navigator & Status Lists (300px) */}
+        <div style={{ width: 310, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
+          
+          {/* Compact Calendar Card */}
+          <Card size="small" title="Work Week Navigator" style={{ borderRadius: 12 }} bodyStyle={{ padding: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Button size="small" icon={<LeftOutlined />} onClick={handlePrevWeek} shape="circle" />
+              <Text strong style={{ fontSize: 11 }}>{weekDates[0]?.format('MMM DD')} - {weekDates[6]?.format('MMM DD')}</Text>
+              <Button size="small" icon={<RightOutlined />} onClick={handleNextWeek} shape="circle" />
             </div>
-          </Col>
-        </Row>
-      </Card>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+              {weekDates.map(date => {
+                const isSelected = selectedDate === date.format('YYYY-MM-DD');
+                const dateStr = date.format('YYYY-MM-DD');
+                const status = weeklyStatus[dateStr];
+                const isIncomplete = status === 'incomplete';
+                const isRestricted = status === 'restricted';
+                const isHolidayDate = status === 'holiday';
+                const isOptional = status === 'optional';
+                
+                let bg = 'transparent';
+                let border = `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#f0f0f0'}`;
+                let opacity = 1;
+                
+                if (isSelected) {
+                  bg = isDarkMode ? 'rgba(79, 70, 229, 0.3)' : '#e6f7ff';
+                  border = `1px solid ${token.colorPrimary}`;
+                } else if (isHolidayDate) {
+                  bg = isDarkMode ? 'rgba(140,140,140,0.1)' : '#f5f5f5';
+                  border = '1px solid #d9d9d9';
+                  opacity = 0.65;
+                } else if (isOptional) {
+                  bg = isDarkMode ? 'rgba(114, 46, 209, 0.1)' : '#f9f0ff';
+                  border = '1px solid #d3adf7';
+                } else if (isIncomplete) {
+                  bg = isDarkMode ? 'rgba(255, 77, 79, 0.12)' : '#fff1f0';
+                  border = '1px solid #ffccc7';
+                } else if (isRestricted) {
+                  opacity = 0.5;
+                }
 
-
-      {/* Weekly Navigator */}
-      <Card style={{ borderRadius: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <Button icon={<LeftOutlined />} onClick={handlePrevWeek} shape="circle" />
-          <div style={{ display: 'flex', flex: 1, justifycontent: 'space-between', alignItems: 'center', overflowX: 'auto', padding: '10px 0' }}>
-            {weekDates.map(date => {
-              const isSelected = selectedDate === date.format('YYYY-MM-DD');
-              return (
-                <div
-                  key={date.toString()}
-                  onClick={() => {
-                    const dateStr = date.format('YYYY-MM-DD');
-                    const today = dayjs();
-                    const currentWeekMonday = today.startOf('week').add(1, 'day');
-                    const currentWeekSunday = today.startOf('week').add(7, 'day');
-                    const isOutside = date.isBefore(currentWeekMonday, 'day') || date.isAfter(currentWeekSunday, 'day');
-                    if (isOutside) {
+                return (
+                  <div
+                    key={date.toString()}
+                    onClick={() => {
+                      const today = dayjs();
+                      const currentWeekMonday = today.startOf('week').add(1, 'day');
+                      const currentWeekSunday = today.startOf('week').add(7, 'day');
+                      const isOutside = date.isBefore(currentWeekMonday, 'day') || date.isAfter(currentWeekSunday, 'day');
                       setSelectedDate(dateStr);
-                      // fetchReportForDate will handle showing the locked state
-                      return;
-                    }
-                    setSelectedDate(dateStr);
-                  }}
-                  style={(() => {
-                    const dateStr = date.format('YYYY-MM-DD');
-                    const status = weeklyStatus[dateStr];
-                    const isIncomplete = status === 'incomplete';
-                    const isRestricted = status === 'restricted';
-                    const isHolidayDate = status === 'holiday';
-                    const isOptional = status === 'optional';
-                    let bg = 'transparent';
-                    let border = `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#f0f0f0'}`;
-                    let opacity = 1;
-                    if (isSelected) {
-                      bg = isDarkMode ? 'rgba(79, 70, 229, 0.2)' : '#e6f7ff';
-                      border = `1px solid ${token.colorPrimary}`;
-                    } else if (isHolidayDate) {
-                      bg = isDarkMode ? 'rgba(140,140,140,0.1)' : '#f5f5f5';
-                      border = '1px solid #d9d9d9';
-                      opacity = 0.65;
-                    } else if (isOptional) {
-                      bg = isDarkMode ? 'rgba(114, 46, 209, 0.1)' : '#f9f0ff';
-                      border = '1px solid #d3adf7';
-                    } else if (isIncomplete) {
-                      bg = isDarkMode ? 'rgba(255, 77, 79, 0.12)' : '#fff1f0';
-                      border = '1px solid #ffccc7';
-                    } else if (isRestricted) {
-                      opacity = 0.5;
-                    }
-                    return {
+                    }}
+                    style={{
                       textAlign: 'center',
                       cursor: isHolidayDate ? 'default' : isRestricted ? 'not-allowed' : 'pointer',
-                      padding: '8px 12px', borderRadius: 12, minWidth: 90,
-                      background: bg, border, margin: '0 4px', opacity,
+                      padding: '6px 2px', borderRadius: 8,
+                      background: bg, border, opacity,
                       transition: 'all 0.2s'
-                    };
-                  })()}
-                >
-                  <Text type="secondary" style={{ fontSize: 12 }}>{date.format('ddd')}</Text>
-                  <div style={{ fontSize: 18, fontWeight: isSelected ? 700 : 400, margin: '2px 0' }}>{date.format('DD')}</div>
-                  {getStatusDisplay(date)}
-                </div>
-              );
-            })}
-          </div>
-          <Button icon={<RightOutlined />} onClick={handleNextWeek} shape="circle" />
-        </div>
-      </Card>
-
-      {currentLeave && (
-        <Alert
-          message={currentLeave.type === 'FullDay' ? 'Full Day Leave Approved' : 'Half Day Leave Approved'}
-          description={
-            currentLeave.type === 'FullDay'
-              ? 'You are on an approved Full Day Leave today. No daily report submission is required.'
-              : `You are on an approved Half Day Leave today. Your required daily work quota is reduced by 50% to ${REQUIRED_HOURS} hours.`
-          }
-          type="warning"
-          showIcon
-          style={{ borderRadius: 12 }}
-        />
-      )}
-
-      {dayjs(selectedDate).day() === 0 ? (
-        <Result icon={<CheckCircleOutlined style={{ color: '#faad14' }} />} title="Happy Sunday!" />
-      ) : isOutsideCurrentWeek && !existingReport && !hasAccessForDate ? (() => {
-        const existingReq = myAccessRequests.find(r => r.targetDate === selectedDate);
-        return (
-          <Result
-            status={existingReq?.status === 'Rejected' ? 'error' : 'warning'}
-            title={existingReq?.status === 'Pending' ? 'Access Request Pending' : existingReq?.status === 'Rejected' ? 'Access Request Rejected' : 'Reporting Restricted'}
-            subTitle={
-              <Space direction="vertical" style={{ width: '100%', textAlign: 'center' }}>
-                <span>
-                  Reporting for <strong>{dayjs(selectedDate).format('DD MMMM YYYY')}</strong> is outside the current work week.
-                </span>
-                {existingReq?.status === 'Pending' && (
-                  <Alert message="Your access request is pending review by HR / Project Manager. You will be notified once approved." type="info" showIcon style={{ textAlign: 'left', borderRadius: 8 }} />
-                )}
-                {existingReq?.status === 'Rejected' && (
-                  <Alert message={`Request was rejected. ${existingReq.reviewerComments ? `Reason: ${existingReq.reviewerComments}` : ''}`} type="error" showIcon style={{ textAlign: 'left', borderRadius: 8 }} />
-                )}
-                {!existingReq && (
-                  <span style={{ fontSize: 13, color: '#8c8c8c' }}>
-                    You can raise an access request to HR / PM to report for this date. Once approved, reporting will be unlocked.
-                  </span>
-                )}
-              </Space>
-            }
-            extra={
-              <Space>
-                <Button type="default" onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}>
-                  Go to Today
-                </Button>
-                {!existingReq || existingReq.status === 'Rejected' ? (
-                  <Button
-                    type="primary"
-                    icon={<CalendarOutlined />}
-                    onClick={() => {
-                      accessRequestForm.resetFields();
-                      accessRequestForm.setFieldsValue({ targetDate: selectedDate });
-                      setIsAccessRequestModalOpen(true);
                     }}
                   >
-                    Raise Access Request
-                  </Button>
-                ) : null}
-              </Space>
-            }
-          />
-        );
-      })() : currentLeave && currentLeave.type === 'FullDay' ? (
-        <Result icon={<CheckCircleOutlined style={{ color: '#818cf8' }} />} title="On Approved Full Day Leave!" subTitle="No EOD report submission is required for today." />
-      ) : (
-        <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
-          <Card style={{ background: isDarkMode ? 'rgba(255, 255, 255, 0.02)' : '#fafafa' }}>
-            <Row align="middle" gutter={24}>
-              <Col span={12}>
-                <Title level={5} style={{ margin: 0 }}>{dayjs(selectedDate).format('DD MMMM YYYY')}</Title>
-                <Text type="secondary">
-                  Allocated: <Text strong>{REQUIRED_HOURS}h</Text> &nbsp;|&nbsp; Logged: 
-                  <Text strong type={totalHours >= REQUIRED_HOURS ? 'success' : totalHours > REQUIRED_HOURS * 0.8 ? 'warning' : 'secondary'}>
-                    {' '}{totalHours.toFixed(1)}h
-                  </Text>
-                  {totalHours > REQUIRED_HOURS && (
-                    <Text type="danger" style={{ marginLeft: 8, fontSize: 12 }}>⚠ Exceeds allocation!</Text>
-                  )}
-                </Text>
-              </Col>
-              <Col span={12}>
-                <Progress
-                  percent={Math.round(Math.min((totalHours / REQUIRED_HOURS) * 100, 100))}
-                  status={totalHours >= REQUIRED_HOURS ? 'success' : 'active'}
-                  format={(percent) => `${percent}%`}
-                />
-              </Col>
-            </Row>
+                    <div style={{ fontSize: 9, color: '#8c8c8c' }}>{date.format('dd')}</div>
+                    <div style={{ fontSize: 12, fontWeight: isSelected ? 700 : 500, margin: '2px 0' }}>{date.format('DD')}</div>
+                    <div style={{ fontSize: 7, scale: '0.8' }}>
+                      {status === 'holiday' && <Badge color="#8c8c8c" />}
+                      {status === 'optional' && <Badge color="#722ed1" />}
+                      {status === 'leave' && <Badge color="#fa8c16" />}
+                      {status === 'half_leave' && <Badge color="#1890ff" />}
+                      {status === 'permission' && <Badge color="#13c2c2" />}
+                      {status === 'submitted' && <Badge status="success" />}
+                      {status === 'incomplete' && <Badge color="#ff4d4f" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </Card>
 
-          {fields.map((field, index) => {
-            const currentItemProjectId = watchedItems?.[index]?.projectId;
-            const currentItemTicketId = watchedItems?.[index]?.ticketId;
-            const ticketData = myTickets.find(t => t.id === currentItemTicketId);
+          {/* Quick Date Status Legend Card */}
+          <Card size="small" title="Status Details" style={{ borderRadius: 12 }} bodyStyle={{ padding: '8px 12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 11 }}>Selected Date:</Text>
+                <Tag color="purple" style={{ margin: 0, fontSize: 10 }}>{dayjs(selectedDate).format('DD MMM YYYY')}</Tag>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 11 }}>Status:</Text>
+                <div style={{ scale: '0.9', origin: 'right' }}>{getStatusDisplay(dayjs(selectedDate))}</div>
+              </div>
+            </div>
+          </Card>
 
-            let availableHours = 0;
-            let timerHours = 0;
-            let showTimerMissedWarning = false;
-            let showLimitExceededWarning = false;
-            let hasApprovedTimerRequest = false;
-
-            if (ticketData) {
-              timerHours = parseFloat(((ticketData.timerAccumulatedSeconds || 0) / 3600).toFixed(2));
-              availableHours = (Number(ticketData.estimatedHours) || 0) - (Number(ticketData.consumedHours) || 0);
-              
-              hasApprovedTimerRequest = myTimerRequests.some(r => 
-                r.request.ticketId === ticketData.id && r.request.status === 'Approved'
-              );
-
-              if ((ticketData.timerAccumulatedSeconds || 0) === 0 && !hasApprovedTimerRequest) {
-                showTimerMissedWarning = true;
-              }
-
-              const currentInputVal = watchedItems?.[index]?.hours || 0;
-              if (currentInputVal > availableHours && !hasApprovedTimerRequest) {
-                showLimitExceededWarning = true;
-              }
-            }
-
-            return (
-              <Card
-                key={field.id}
-                style={{ marginTop: 16 }}
+          {/* Compact Timer/Hours Request Approvals inside left column */}
+          {myTimerRequests.length > 0 && (
+            <Card 
+              size="small"
+              title={<Space style={{ fontSize: 11 }}><ApartmentOutlined /><span>Issues Log</span></Space>}
+              style={{ borderRadius: 12, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+              bodyStyle={{ padding: 4, flex: 1, overflowY: 'auto' }}
+            >
+              <Table 
+                columns={[
+                  {
+                    title: 'Ticket',
+                    dataIndex: 'ticketCode',
+                    key: 'ticketCode',
+                    render: (c) => <Text style={{ fontSize: 10 }} code>{c}</Text>
+                  },
+                  {
+                    title: 'Status',
+                    dataIndex: ['request', 'status'],
+                    key: 'status',
+                    render: (s) => (
+                      <Tag color={s === 'Approved' ? 'success' : s === 'Pending' ? 'warning' : 'error'} style={{ fontSize: 9, padding: '0 4px', margin: 0 }}>
+                        {s}
+                      </Tag>
+                    )
+                  }
+                ]}
+                dataSource={myTimerRequests}
+                rowKey={(r) => r.request.requestId}
+                pagination={false}
                 size="small"
-                title={
-                  <Space>
-                    <Text strong>Task {index + 1}</Text>
-                    {ticketData && (
-                      <Tag color="cyan">
-                        Live Timer: {timerHours} hrs
-                      </Tag>
-                    )}
-                    {ticketData && (
-                      <Tag color="purple">
-                        Available: {availableHours.toFixed(2)} hrs
-                      </Tag>
-                    )}
-                    {ticketData && (
-                      <Tag color="blue">
-                        Est. Limit: {ticketData.estimatedHours} hrs
-                      </Tag>
-                    )}
-                    {hasApprovedTimerRequest && (
-                      <Tag color="success">
-                        Approved Extension
-                      </Tag>
-                    )}
-                  </Space>
-                }
-                extra={
-                  <Space>
-                    {!isLocked && (
-                      <Button
-                        size="small"
-                        icon={<CalendarOutlined />}
-                        onClick={() => handleOpenApplyLeaveModal(selectedDate)}
-                        style={{ color: '#10b981', borderColor: '#10b981' }}
-                      >
-                        Apply Leave
-                      </Button>
-                    )}
-                    {!isLocked && (
-                      <Button
-                        size="small"
-                        icon={<PlusOutlined />}
-                        onClick={() => {
-                          setActiveTicketRowIndex(index);
-                          setIsTicketModalOpen(true);
-                        }}
-                      >
-                        New Ticket
-                      </Button>
-                    )}
-                    {!isLocked && fields.length > 1 && (
-                      <Button icon={<DeleteOutlined />} danger type="text" onClick={() => remove(index)} />
-                    )}
-                  </Space>
-                }
-              >
-                <Row gutter={16}>
-                  <Col span={8}>
-                    <Form.Item label="Project" required help={errors.items?.[index]?.projectId?.message} validateStatus={errors.items?.[index]?.projectId ? 'error' : ''}>
-                      <Controller
-                        name={`items.${index}.projectId`}
-                        control={control}
-                        rules={{ required: !isLocked ? 'Required' : false }}
-                        render={({ field }) => (
-                          <Select
-                            {...field}
-                            disabled={isLocked}
-                            placeholder="Select project"
-                            onChange={(val) => {
-                              field.onChange(val);
-                              setValue(`items.${index}.ticketId`, '');
-                              setValue(`items.${index}.hours`, 0);
-                            }}
-                          >
-                            {allProjects.map(p => (
-                              <Select.Option key={p.id} value={p.id}>
-                                {p.name || p.projectName}
-                              </Select.Option>
-                            ))}
-                          </Select>
-                        )}
-                      />
-                    </Form.Item>
-                  </Col>
+              />
+            </Card>
+          )}
+        </div>
 
-                  <Col span={8}>
-                    <Form.Item label="Ticket" required help={errors.items?.[index]?.ticketId?.message} validateStatus={errors.items?.[index]?.ticketId ? 'error' : ''}>
-                      <Controller
-                        name={`items.${index}.ticketId`}
-                        control={control}
-                        rules={{ required: !isLocked ? 'Required' : false }}
-                        render={({ field }) => {
-                          const projectTickets = myTickets.filter(t => 
-                            String(t.projectId) === String(currentItemProjectId)
-                          );
-                          return (
-                            <Select
-                              {...field}
-                              disabled={isLocked || !currentItemProjectId}
-                              placeholder="Select ticket"
-                              showSearch
-                              optionFilterProp="children"
-                              onChange={(val) => {
-                                field.onChange(val);
-                                const ticket = myTickets.find(t => t.id === val);
-                                if (ticket) {
-                                  const hoursCalculated = parseFloat(((ticket.timerAccumulatedSeconds || 0) / 3600).toFixed(2));
-                                  setValue(`items.${index}.hours`, hoursCalculated);
-                                } else {
-                                  setValue(`items.${index}.hours`, 0);
-                                }
-                              }}
-                            >
-                              {projectTickets.map(t => {
-                                const isAlreadySelectedElsewhere = selectedTicketIds.includes(t.id) && currentItemTicketId !== t.id;
-                                const available = (Number(t.estimatedHours) || 0) - (Number(t.consumedHours) || 0);
-                                return (
-                                  <Select.Option
-                                    key={t.id}
-                                    value={t.id}
-                                    disabled={isAlreadySelectedElsewhere}
-                                  >
-                                    <Space>
-                                      {t.code} — {t.title}
-                                      <Text type="secondary" style={{ fontSize: '11px' }}>
-                                        (Available: {available.toFixed(1)}h)
-                                      </Text>
-                                      {isAlreadySelectedElsewhere && <Tag color="warning" style={{ fontSize: '10px' }}>Selected</Tag>}
-                                    </Space>
-                                  </Select.Option>
-                                );
-                              })}
-                            </Select>
-                          );
-                        }}
-                      />
-                    </Form.Item>
-                  </Col>
-                  
-                  <Col span={8}>
-                    <Form.Item label="Hours" required={!showTimerMissedWarning} help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''}>
-                      <Controller
-                        name={`items.${index}.hours`}
-                        control={control}
-                        rules={{
-                          required: (!isLocked && !showTimerMissedWarning) ? 'Required' : false,
-                          min: (!isLocked && !showTimerMissedWarning) ? { value: 0.1, message: 'Min 0.1' } : undefined
-                        }}
-                        render={({ field }) => (
-                          <InputNumber
-                            {...field}
-                            disabled={isLocked || !currentItemTicketId || showTimerMissedWarning}
-                            style={{ width: '100%' }}
-                            min={0}
-                            step={0.5}
-                          />
-                        )}
-                      />
-                    </Form.Item>
-                  </Col>
-
-                  {/* VALIDATION WARNING CARDS & EXCEPTION WORKFLOWS */}
-                  {showTimerMissedWarning && (
-                    <Col span={24} style={{ marginBottom: 16 }}>
-                      <Alert
-                        message={
-                          <Space>
-                            <WarningOutlined style={{ color: '#fa541c' }} />
-                            <Text strong style={{ color: '#fa541c' }}>Timer Missed Restriction</Text>
-                          </Space>
-                        }
-                        description={
-                          <Space direction="vertical" style={{ width: '100%', marginTop: 4 }}>
-                            <Text style={{ fontSize: 12 }}>
-                              You cannot report hours on this ticket because you missed running the Kanban timer. Please raise a "Timer Missed" issue to your Team Lead.
-                            </Text>
-                            <Button 
-                              type="primary" 
-                              danger 
-                              size="small"
-                              icon={<RaiseIcon />}
-                              onClick={() => handleOpenRequestModal('TimerMissed', ticketData)}
-                              style={{ background: '#fa541c', borderColor: '#fa541c', borderRadius: 4 }}
-                            >
-                              Raise Timer Missed Issue
-                            </Button>
-                          </Space>
-                        }
-                        type="warning"
-                        showIcon={false}
-                        style={{ border: '1px solid #ffbb96', background: '#fff2e8' }}
-                      />
-                    </Col>
-                  )}
-
-                  {showLimitExceededWarning && (
-                    <Col span={24} style={{ marginBottom: 16 }}>
-                      <Alert
-                        message={
-                          <Space>
-                            <WarningOutlined style={{ color: '#722ed1' }} />
-                            <Text strong style={{ color: '#722ed1' }}>Insufficient Reporting Hours ({availableHours.toFixed(2)}h Available)</Text>
-                          </Space>
-                        }
-                        description={
-                          <Space direction="vertical" style={{ width: '100%', marginTop: 4 }}>
-                            <Text style={{ fontSize: 12 }}>
-                              You are reporting work hours exceeding the remaining available limit on this ticket. Please raise a request to obtain approval.
-                            </Text>
-                            <Button 
-                              type="primary" 
-                              size="small"
-                              icon={<RaiseIcon />}
-                              onClick={() => handleOpenRequestModal('ExceededLimit', ticketData)}
-                              style={{ background: '#722ed1', borderColor: '#722ed1', borderRadius: 4 }}
-                            >
-                              Raise Hours Exceeded Issue
-                            </Button>
-                          </Space>
-                        }
-                        type="warning"
-                        showIcon={false}
-                        style={{ border: '1px solid #d3adf7', background: '#f9f0ff' }}
-                      />
-                    </Col>
-                  )}
-
-                  <Col span={24}>
-                    <Form.Item label="Work Done" required help={errors.items?.[index]?.workDone?.message} validateStatus={errors.items?.[index]?.workDone ? 'error' : ''}>
-                      <Controller
-                        name={`items.${index}.workDone`}
-                        control={control}
-                        rules={{ required: !isLocked ? 'Required' : false, minLength: { value: 5, message: 'Too short' } }}
-                        render={({ field }) => <TextArea {...field} disabled={isLocked} rows={2} placeholder="What did you complete?" />}
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Card>
-            );
-          })}
-
-          {!isLocked && (
-            <Button type="dashed" onClick={() => append({ projectId: '', ticketId: '', hours: 0, workDone: '' })} block icon={<PlusOutlined />} style={{ marginTop: 16, marginBottom: 24 }}>
-              Add Task Row
-            </Button>
+        {/* RIGHT COLUMN: Interactive Form Column (Flex 1) */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: isDarkMode ? 'rgba(255, 255, 255, 0.01)' : '#fff', border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#eef2f6'}`, borderRadius: 12, overflow: 'hidden' }}>
+          
+          {currentLeave && (
+            <Alert
+              message={currentLeave.type === 'FullDay' ? 'Full Day Leave Approved' : 'Half Day Leave Approved'}
+              description={`Quota reduced to ${currentLeave.type === 'FullDay' ? '0' : REQUIRED_HOURS} hours.`}
+              type="warning"
+              showIcon
+              size="small"
+              style={{ margin: 8, borderRadius: 8 }}
+            />
           )}
 
-          <Card title="Blockers" size="small" style={{ marginBottom: 24 }}>
-            <Controller name="blockers" control={control} render={({ field }) => <TextArea {...field} disabled={isLocked} rows={2} />} />
-          </Card>
+          {dayjs(selectedDate).day() === 0 ? (
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <Result icon={<CheckCircleOutlined style={{ color: '#faad14', fontSize: 40 }} />} title="Happy Sunday!" subTitle="Rest & Recharge. No daily reporting is required today." />
+            </div>
+          ) : isOutsideCurrentWeek && !existingReport && !hasAccessForDate ? (() => {
+            const existingReq = myAccessRequests.find(r => r.targetDate === selectedDate);
+            return (
+              <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+                <Result
+                  status={existingReq?.status === 'Rejected' ? 'error' : 'warning'}
+                  title={existingReq?.status === 'Pending' ? 'Access Pending' : existingReq?.status === 'Rejected' ? 'Access Rejected' : 'Reporting Restricted'}
+                  subTitle={
+                    <Space direction="vertical" style={{ width: '100%', textAlign: 'center' }}>
+                      <span style={{ fontSize: 12 }}>
+                        Reporting for <strong>{dayjs(selectedDate).format('DD MMM YYYY')}</strong> is outside the current work week.
+                      </span>
+                      {existingReq?.status === 'Pending' && (
+                        <Alert message="Access request is pending review by HR/PM." type="info" showIcon style={{ textAlign: 'left', borderRadius: 8, padding: 8, fontSize: 11 }} />
+                      )}
+                      {existingReq?.status === 'Rejected' && (
+                        <Alert message={`Rejected. ${existingReq.reviewerComments ? `Reason: ${existingReq.reviewerComments}` : ''}`} type="error" showIcon style={{ textAlign: 'left', borderRadius: 8, padding: 8, fontSize: 11 }} />
+                      )}
+                      {!existingReq && (
+                        <span style={{ fontSize: 11, color: '#8c8c8c' }}>
+                          Submit an access request to HR / PM to unlock reporting for this date.
+                        </span>
+                      )}
+                    </Space>
+                  }
+                  extra={
+                    <Space>
+                      <Button size="small" type="default" onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}>
+                        Go to Today
+                      </Button>
+                      {!existingReq || existingReq.status === 'Rejected' ? (
+                        <Button
+                          size="small"
+                          type="primary"
+                          icon={<CalendarOutlined />}
+                          onClick={() => {
+                            accessRequestForm.resetFields();
+                            accessRequestForm.setFieldsValue({ targetDate: selectedDate });
+                            setIsAccessRequestModalOpen(true);
+                          }}
+                        >
+                          Request Access
+                        </Button>
+                      ) : null}
+                    </Space>
+                  }
+                />
+              </div>
+            );
+          })() : currentLeave && currentLeave.type === 'FullDay' ? (
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <Result icon={<CheckCircleOutlined style={{ color: '#818cf8', fontSize: 40 }} />} title="On Approved Leave!" subTitle="No EOD report is required today." />
+            </div>
+          ) : (
+            <Form layout="vertical" onFinish={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+              
+              {/* Daily progress subheader */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 16px', background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc', borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#eef2f6'}` }}>
+                <div>
+                  <Text strong style={{ fontSize: 13 }}>Tasks on {dayjs(selectedDate).format('DD MMM')}</Text>
+                  <Text type="secondary" style={{ marginLeft: 8, fontSize: 11 }}>
+                    Logged: <Text strong type={totalHours >= REQUIRED_HOURS ? 'success' : 'warning'}>{totalHours.toFixed(1)}h / {REQUIRED_HOURS}h</Text>
+                  </Text>
+                </div>
+                <div style={{ width: 120 }}>
+                  <Progress
+                    percent={Math.round(Math.min((totalHours / REQUIRED_HOURS) * 100, 100))}
+                    size="small"
+                    status={totalHours >= REQUIRED_HOURS ? 'success' : 'active'}
+                  />
+                </div>
+              </div>
 
-          <Card title={<Space><AlertOutlined style={{color: 'red'}}/> Raise Alert Issue?</Space>} size="small" style={{ marginBottom: 24 }}>
-            <Controller 
-              name="isAlertIssue" 
-              control={control} 
-              render={({ field }) => (
-                <Radio.Group {...field} disabled={isLocked} style={{ marginBottom: field.value ? 16 : 0 }}>
-                  <Radio value={false}>No</Radio>
-                  <Radio value={true}>Yes</Radio>
-                </Radio.Group>
-              )} 
-            />
-            {watch('isAlertIssue') && (
-              <Controller 
-                name="alertMessage" 
-                control={control} 
-                rules={{ required: watch('isAlertIssue') ? 'Please describe the alert issue' : false }}
-                render={({ field }) => (
-                  <Form.Item validateStatus={errors.alertMessage ? 'error' : ''} help={errors.alertMessage?.message} style={{ marginBottom: 0 }}>
-                    <TextArea {...field} disabled={isLocked} rows={2} placeholder="Describe the critical alert issue..." />
-                  </Form.Item>
-                )} 
-              />
-            )}
-          </Card>
+              {/* Scrollable form body */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                
+                {fields.map((field, index) => {
+                  const currentItemProjectId = watchedItems?.[index]?.projectId;
+                  const currentItemTicketId = watchedItems?.[index]?.ticketId;
+                  const ticketData = myTickets.find(t => t.id === currentItemTicketId);
 
-          <div style={{ textAlign: 'right' }}>
-            <Space>
-              <Button onClick={() => navigate(-1)}>Back</Button>
-              {isLocked && existingReport && (
-                <Button type="default" onClick={() => setViewOnly(false)}>
-                  Add Tasks / Edit
-                </Button>
-              )}
-              {!isLocked && existingReport && (
-                <Button 
-                  onClick={() => {
-                    setViewOnly(true);
-                    reset(existingReport);
-                  }}
-                >
-                  Cancel
-                </Button>
-              )}
-              {!isLocked && (
-                <Button type="primary" icon={<SendOutlined />} htmlType="submit" loading={submitting} disabled={totalHours === 0}>
-                  {existingReport ? 'Update Report' : 'Submit Report'}
-                </Button>
-              )}
-            </Space>
-          </div>
-        </Form>
-      )}
+                  let availableHours = 0;
+                  let timerHours = 0;
+                  let showTimerMissedWarning = false;
+                  let showLimitExceededWarning = false;
+                  let hasApprovedTimerRequest = false;
 
-      {/* TRACKING DASHBOARD FOR TIMER/HOURS REQUESTS */}
-      {myTimerRequests.length > 0 && (
-        <Card 
-          title={
-            <Space>
-              <ApartmentOutlined style={{ color: token.colorPrimary }} />
-              <span>My Hours & Timer Extension Requests</span>
-            </Space>
-          }
-          style={{ marginTop: 24, borderRadius: 16, overflow: 'hidden' }}
-        >
-          <Table 
-            columns={requestColumns}
-            dataSource={myTimerRequests}
-            rowKey={(r) => r.request.requestId}
-            pagination={{ pageSize: 5 }}
-            size="small"
-          />
-        </Card>
-      )}
+                  if (ticketData) {
+                    timerHours = parseFloat(((ticketData.timerAccumulatedSeconds || 0) / 3600).toFixed(2));
+                    availableHours = (Number(ticketData.estimatedHours) || 0) - (Number(ticketData.consumedHours) || 0);
+                    
+                    hasApprovedTimerRequest = myTimerRequests.some(r => 
+                      r.request.ticketId === ticketData.id && r.request.status === 'Approved'
+                    );
+
+                    if ((ticketData.timerAccumulatedSeconds || 0) === 0 && !hasApprovedTimerRequest) {
+                      showTimerMissedWarning = true;
+                    }
+
+                    const currentInputVal = watchedItems?.[index]?.hours || 0;
+                    if (currentInputVal > availableHours && !hasApprovedTimerRequest) {
+                      showLimitExceededWarning = true;
+                    }
+                  }
+
+                  return (
+                    <Card
+                      key={field.id}
+                      size="small"
+                      bodyStyle={{ padding: '8px 12px' }}
+                      title={
+                        <Space style={{ fontSize: 11 }}>
+                          <Text strong>Task {index + 1}</Text>
+                          {ticketData && <Tag color="cyan" style={{ fontSize: 9 }}>Timer: {timerHours}h</Tag>}
+                          {ticketData && <Tag color="purple" style={{ fontSize: 9 }}>Available: {availableHours.toFixed(1)}h</Tag>}
+                          {hasApprovedTimerRequest && <Tag color="success" style={{ fontSize: 9 }}>Unlocked</Tag>}
+                        </Space>
+                      }
+                      extra={
+                        <Space>
+                          {!isLocked && (
+                            <Button
+                              size="small"
+                              icon={<CalendarOutlined />}
+                              onClick={() => handleOpenApplyLeaveModal(selectedDate)}
+                              style={{ color: '#10b981', borderColor: '#10b981', fontSize: 10, height: 24, padding: '0 8px' }}
+                            >
+                              Leave
+                            </Button>
+                          )}
+                          {!isLocked && (
+                            <Button
+                              size="small"
+                              icon={<PlusOutlined />}
+                              onClick={() => {
+                                setActiveTicketRowIndex(index);
+                                setIsTicketModalOpen(true);
+                              }}
+                              style={{ fontSize: 10, height: 24, padding: '0 8px' }}
+                            >
+                              New Ticket
+                            </Button>
+                          )}
+                          {!isLocked && fields.length > 1 && (
+                            <Button size="small" icon={<DeleteOutlined />} danger type="text" onClick={() => remove(index)} />
+                          )}
+                        </Space>
+                      }
+                      style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
+                    >
+                      <Row gutter={10}>
+                        <Col span={10}>
+                          <Form.Item label={<span style={{ fontSize: 10 }}>Project</span>} required style={{ marginBottom: 6 }} help={errors.items?.[index]?.projectId?.message} validateStatus={errors.items?.[index]?.projectId ? 'error' : ''}>
+                            <Controller
+                              name={`items.${index}.projectId`}
+                              control={control}
+                              rules={{ required: !isLocked ? 'Required' : false }}
+                              render={({ field }) => (
+                                <Select
+                                  {...field}
+                                  size="small"
+                                  disabled={isLocked}
+                                  placeholder="Select"
+                                  onChange={(val) => {
+                                    field.onChange(val);
+                                    setValue(`items.${index}.ticketId`, '');
+                                    setValue(`items.${index}.hours`, 0);
+                                  }}
+                                >
+                                  {allProjects.map(p => (
+                                    <Select.Option key={p.id} value={p.id}>{p.name || p.projectName}</Select.Option>
+                                  ))}
+                                </Select>
+                              )}
+                            />
+                          </Form.Item>
+                        </Col>
+
+                        <Col span={10}>
+                          <Form.Item label={<span style={{ fontSize: 10 }}>Ticket</span>} required style={{ marginBottom: 6 }} help={errors.items?.[index]?.ticketId?.message} validateStatus={errors.items?.[index]?.ticketId ? 'error' : ''}>
+                            <Controller
+                              name={`items.${index}.ticketId`}
+                              control={control}
+                              rules={{ required: !isLocked ? 'Required' : false }}
+                              render={({ field }) => {
+                                const projectTickets = myTickets.filter(t => String(t.projectId) === String(currentItemProjectId));
+                                return (
+                                  <Select
+                                    {...field}
+                                    size="small"
+                                    disabled={isLocked || !currentItemProjectId}
+                                    placeholder="Select"
+                                    showSearch
+                                    optionFilterProp="children"
+                                    onChange={(val) => {
+                                      field.onChange(val);
+                                      const ticket = myTickets.find(t => t.id === val);
+                                      if (ticket) {
+                                        setValue(`items.${index}.hours`, parseFloat(((ticket.timerAccumulatedSeconds || 0) / 3600).toFixed(2)));
+                                      } else {
+                                        setValue(`items.${index}.hours`, 0);
+                                      }
+                                    }}
+                                  >
+                                    {projectTickets.map(t => (
+                                      <Select.Option key={t.id} value={t.id} disabled={selectedTicketIds.includes(t.id) && currentItemTicketId !== t.id}>
+                                        {t.code} — {t.title}
+                                      </Select.Option>
+                                    ))}
+                                  </Select>
+                                );
+                              }}
+                            />
+                          </Form.Item>
+                        </Col>
+                        
+                        <Col span={4}>
+                          <Form.Item label={<span style={{ fontSize: 10 }}>Hours</span>} required={!showTimerMissedWarning} style={{ marginBottom: 6 }} help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''}>
+                            <Controller
+                              name={`items.${index}.hours`}
+                              control={control}
+                              rules={{
+                                required: (!isLocked && !showTimerMissedWarning) ? 'Required' : false,
+                                min: (!isLocked && !showTimerMissedWarning) ? { value: 0.1, message: 'Min 0.1' } : undefined
+                              }}
+                              render={({ field }) => (
+                                <InputNumber
+                                  {...field}
+                                  size="small"
+                                  disabled={isLocked || !currentItemTicketId || showTimerMissedWarning}
+                                  style={{ width: '100%' }}
+                                  min={0}
+                                  step={0.5}
+                                />
+                              )}
+                            />
+                          </Form.Item>
+                        </Col>
+
+                        {showTimerMissedWarning && (
+                          <Col span={24} style={{ marginBottom: 6 }}>
+                            <Alert
+                              message={
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Text style={{ fontSize: 10, color: '#fa541c' }}><WarningOutlined /> Timer Missed Restriction. Raise issue to TL:</Text>
+                                  <Button size="small" type="primary" danger icon={<RaiseIcon />} onClick={() => handleOpenRequestModal('TimerMissed', ticketData)} style={{ fontSize: 9, height: 20, background: '#fa541c', borderColor: '#fa541c' }}>
+                                    Raise Timer Missed
+                                  </Button>
+                                </div>
+                              }
+                              type="warning"
+                              showIcon={false}
+                              style={{ padding: '4px 8px', borderRadius: 4 }}
+                            />
+                          </Col>
+                        )}
+
+                        {showLimitExceededWarning && (
+                          <Col span={24} style={{ marginBottom: 6 }}>
+                            <Alert
+                              message={
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Text style={{ fontSize: 10, color: '#722ed1' }}><WarningOutlined /> Exceeds available limit ({availableHours.toFixed(1)}h). Request approval:</Text>
+                                  <Button size="small" type="primary" icon={<RaiseIcon />} onClick={() => handleOpenRequestModal('ExceededLimit', ticketData)} style={{ fontSize: 9, height: 20, background: '#722ed1', borderColor: '#722ed1' }}>
+                                    Request Limit Lift
+                                  </Button>
+                                </div>
+                              }
+                              type="warning"
+                              showIcon={false}
+                              style={{ padding: '4px 8px', borderRadius: 4 }}
+                            />
+                          </Col>
+                        )}
+
+                        <Col span={24}>
+                          <Form.Item label={<span style={{ fontSize: 10 }}>Work Done</span>} required style={{ marginBottom: 0 }} help={errors.items?.[index]?.workDone?.message} validateStatus={errors.items?.[index]?.workDone ? 'error' : ''}>
+                            <Controller
+                              name={`items.${index}.workDone`}
+                              control={control}
+                              rules={{ required: !isLocked ? 'Required' : false, minLength: { value: 5, message: 'Too short' } }}
+                              render={({ field }) => <TextArea {...field} size="small" disabled={isLocked} rows={1} placeholder="What did you complete?" />}
+                            />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </Card>
+                  );
+                })}
+
+                {!isLocked && (
+                  <Button type="dashed" onClick={() => append({ projectId: '', ticketId: '', hours: 0, workDone: '' })} block icon={<PlusOutlined />} size="small" style={{ borderRadius: 8 }}>
+                    Add Task Row
+                  </Button>
+                )}
+
+                <Row gutter={8}>
+                  <Col span={12}>
+                    <Card title={<span style={{ fontSize: 11 }}>Blockers</span>} size="small" bodyStyle={{ padding: 6 }}>
+                      <Controller name="blockers" control={control} render={({ field }) => <TextArea {...field} disabled={isLocked} rows={1} style={{ fontSize: 11 }} />} />
+                    </Card>
+                  </Col>
+                  
+                  <Col span={12}>
+                    <Card title={<span style={{ fontSize: 11 }}><AlertOutlined style={{color: 'red'}}/> Raise Alert Issue?</span>} size="small" bodyStyle={{ padding: 6 }}>
+                      <Controller 
+                        name="isAlertIssue" 
+                        control={control} 
+                        render={({ field }) => (
+                          <Radio.Group {...field} disabled={isLocked} size="small" style={{ marginBottom: field.value ? 4 : 0 }}>
+                            <Radio value={false} style={{ fontSize: 10 }}>No</Radio>
+                            <Radio value={true} style={{ fontSize: 10 }}>Yes</Radio>
+                          </Radio.Group>
+                        )} 
+                      />
+                      {watch('isAlertIssue') && (
+                        <Controller 
+                          name="alertMessage" 
+                          control={control} 
+                          rules={{ required: watch('isAlertIssue') ? 'Required' : false }}
+                          render={({ field }) => (
+                            <Form.Item validateStatus={errors.alertMessage ? 'error' : ''} help={errors.alertMessage?.message} style={{ marginBottom: 0 }}>
+                              <TextArea {...field} size="small" disabled={isLocked} rows={1} placeholder="Describe issue..." style={{ fontSize: 11 }} />
+                            </Form.Item>
+                          )} 
+                        />
+                      )}
+                    </Card>
+                  </Col>
+                </Row>
+              </div>
+
+              {/* Fixed Action Footer Bar */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 16px', background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc', borderTop: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#eef2f6'}` }}>
+                <Space size={8}>
+                  <Button size="small" onClick={() => navigate(-1)}>Back</Button>
+                  {isLocked && existingReport && (
+                    <Button size="small" type="default" onClick={() => setViewOnly(false)}>
+                      Add Tasks / Edit
+                    </Button>
+                  )}
+                  {!isLocked && existingReport && (
+                    <Button 
+                      size="small"
+                      onClick={() => {
+                        setViewOnly(true);
+                        reset(existingReport);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  {!isLocked && (
+                    <Button size="small" type="primary" icon={<SendOutlined />} htmlType="submit" loading={submitting} disabled={totalHours === 0}>
+                      {existingReport ? 'Update' : 'Submit'}
+                    </Button>
+                  )}
+                </Space>
+              </div>
+            </Form>
+          )}
+        </div>
+      </div>
+
 
       {/* Modal for Creating New Ticket */}
       <Modal
