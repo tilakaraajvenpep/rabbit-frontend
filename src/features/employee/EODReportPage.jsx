@@ -76,6 +76,7 @@ const EODReportPage = () => {
   const [accessRequestForm] = Form.useForm();
   const [myAccessRequests, setMyAccessRequests] = useState([]);
   const [hasAccessForDate, setHasAccessForDate] = useState(false);
+  const [activeTabKey, setActiveTabKey] = useState('task-0');
 
   const { control, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm({
     defaultValues: {
