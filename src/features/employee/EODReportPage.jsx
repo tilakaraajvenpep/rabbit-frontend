@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Form, Input, InputNumber, Select, Button, Space, Typography,
-  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table
+  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table, Badge
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, SendOutlined, CheckCircleOutlined,
@@ -18,6 +18,7 @@ import { analyticsService } from '../../services/analyticsService';
 import { leaveService } from '../../services/leaveService';
 import { adminService } from '../../services/adminService';
 import { timerRequestService } from '../../services/timerRequestService';
+import { projectService } from '../../services/projectService';
 
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -53,6 +54,8 @@ const EODReportPage = () => {
   const [requestForm] = Form.useForm();
   const [requesting, setRequesting] = useState(false);
   const [activeRequestDetails, setActiveRequestDetails] = useState(null);
+  const [teamLeads, setTeamLeads] = useState([]);
+  const [selectedTeamLeadId, setSelectedTeamLeadId] = useState(null);
 
   // Modal State for New Ticket
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
@@ -92,15 +95,28 @@ const EODReportPage = () => {
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
 
+  const fetchTeamLeads = async () => {
+    try {
+      const res = await adminService.getUsers();
+      const tls = (res.data || []).filter(u => u.role === 'TeamLead');
+      setTeamLeads(tls);
+    } catch (e) {
+      console.error('Failed to fetch team leads', e);
+    }
+  };
+
   useEffect(() => {
     updateWeekDates(baseDate);
     fetchTickets();
     fetchProjects();
     fetchTimerRequests();
+    fetchTeamLeads();
     // Fetch fresh allocatedHours from server
     adminService.getMyProfile().then(res => {
       const fresh = Number(res?.data?.allocatedHours);
       if (fresh && fresh > 0) setAllocatedHoursPerDay(fresh);
+      const tlId = res?.data?.teamLeadId;
+      if (tlId) setSelectedTeamLeadId(tlId);
     }).catch(() => {});
   }, []);
 
@@ -369,7 +385,8 @@ const EODReportPage = () => {
     requestForm.setFieldsValue({
       ticketId: ticket.id,
       requestType: type,
-      requestedHours: type === 'ExceededLimit' ? 4 : 0
+      requestedHours: type === 'ExceededLimit' ? 4 : 0,
+      teamLeadId: selectedTeamLeadId
     });
     setIsRequestModalOpen(true);
   };
@@ -381,7 +398,8 @@ const EODReportPage = () => {
         ticketId: values.ticketId,
         requestType: values.requestType,
         requestedHours: values.requestedHours,
-        reason: values.reason
+        reason: values.reason,
+        teamLeadId: values.teamLeadId
       });
       notification.success({ 
         message: 'Request Submitted', 
@@ -964,6 +982,20 @@ const EODReportPage = () => {
             <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>Ticket Name</Text>
             <Text strong>{activeRequestDetails?.ticket?.ticketCode} - {activeRequestDetails?.ticket?.title}</Text>
           </div>
+
+          <Form.Item
+            name="teamLeadId"
+            label="Select Team Lead"
+            rules={[{ required: true, message: 'Please select a Team Lead' }]}
+          >
+            <Select placeholder="Select a Team Lead" onChange={(val) => setSelectedTeamLeadId(val)}>
+              {teamLeads.map(tl => (
+                <Select.Option key={tl.id} value={tl.id}>
+                  {tl.fullName} ({tl.email})
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
 
           {activeRequestDetails?.type === 'ExceededLimit' && (
             <Form.Item 
