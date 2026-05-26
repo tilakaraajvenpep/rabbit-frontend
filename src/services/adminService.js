@@ -70,6 +70,16 @@ export const adminService = {
     return apiClient.put(`/users/${id}/role`, { role });
   },
 
+  updateUserTeamLead: async (id, teamLeadId) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const user = mockUsers.find(u => u.id === id);
+      if (user) user.teamLeadId = teamLeadId;
+      return { data: { success: true } };
+    }
+    return apiClient.put(`/users/${id}/team-lead`, { teamLeadId });
+  },
+
   toggleUserStatus: async (id) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 500));

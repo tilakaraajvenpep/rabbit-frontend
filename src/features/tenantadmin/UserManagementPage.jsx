@@ -62,6 +62,16 @@ const UserManagementPage = () => {
     }
   };
 
+  const handleTeamLeadChange = async (userId, teamLeadId) => {
+    try {
+      await adminService.updateUserTeamLead(userId, teamLeadId || null);
+      notification.success({ message: 'Team Lead Updated' });
+      fetchUsers();
+    } catch (error) {
+      notification.error({ message: 'Update Failed' });
+    }
+  };
+
   const handleStatusToggle = async (userId) => {
     try {
       await adminService.toggleUserStatus(userId);
@@ -144,16 +154,26 @@ const UserManagementPage = () => {
       title: 'Team Lead',
       dataIndex: 'teamLeadId',
       key: 'teamLeadId',
-      render: (tlId) => {
-        const tl = users.find(u => String(u.id) === String(tlId));
-        return tl ? tl.name : '-';
-      }
-    },
-    {
-      title: 'Last Login',
-      dataIndex: 'lastLogin',
-      key: 'lastLogin',
-      render: (date) => date || 'Never'
+      render: (tlId, record) => (
+        <Select
+          value={tlId ? String(tlId) : undefined}
+          style={{ width: 160 }}
+          placeholder="None"
+          allowClear
+          onChange={(val) => handleTeamLeadChange(record.id, val)}
+        >
+          {users
+            .filter(u => {
+              const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
+              return role === 'teamlead' && String(u.id) !== String(record.id);
+            })
+            .map(tl => (
+              <Select.Option key={tl.id} value={String(tl.id)}>
+                {tl.name || tl.fullName}
+              </Select.Option>
+            ))}
+        </Select>
+      )
     },
     {
       title: 'Actions',
