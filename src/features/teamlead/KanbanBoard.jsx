@@ -671,7 +671,7 @@ const KanbanBoard = () => {
               <Select
                 allowClear
                 placeholder="Unassigned"
-                options={users.map(u => ({ value: u.id || u.userId, label: u.name || u.fullName }))}
+                options={users.filter(u => u.role === 'Employee').map(u => ({ value: u.id || u.userId, label: u.name || u.fullName }))}
               />
             </Form.Item>
           </div>
