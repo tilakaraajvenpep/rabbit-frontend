@@ -213,12 +213,10 @@ const UserManagementPage = () => {
       <Table 
         dataSource={users.filter(user => {
           const term = searchText.toLowerCase();
-          return (
-            user.name?.toLowerCase().includes(term) ||
-            user.fullName?.toLowerCase().includes(term) ||
-            user.email?.toLowerCase().includes(term) ||
-            user.role?.toLowerCase().includes(term)
-          );
+          const name = (user.name || user.fullName || '').toLowerCase();
+          const email = (user.email || '').toLowerCase();
+          const role = (user.role || '').toLowerCase();
+          return name.includes(term) || email.includes(term) || role.includes(term);
         })} 
         columns={columns} 
         rowKey="id" 
