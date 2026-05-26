@@ -98,7 +98,22 @@ const EODReportPage = () => {
   const fetchTeamLeads = async () => {
     try {
       const res = await adminService.getUsers();
-      const tls = (res.data || []).filter(u => u.role === 'TeamLead');
+      const allUsers = res.data || [];
+      
+      // Filter for TeamLead first (case-insensitive)
+      let tls = allUsers.filter(u => {
+        const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
+        return role === 'teamlead';
+      });
+
+      // If no team leads are found, fall back to PMs and TenantAdmins
+      if (tls.length === 0) {
+        tls = allUsers.filter(u => {
+          const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
+          return role === 'projectmanager' || role === 'tenantadmin';
+        });
+      }
+
       setTeamLeads(tls);
     } catch (e) {
       console.error('Failed to fetch team leads', e);
@@ -991,7 +1006,7 @@ const EODReportPage = () => {
             <Select placeholder="Select a Team Lead" onChange={(val) => setSelectedTeamLeadId(val)}>
               {teamLeads.map(tl => (
                 <Select.Option key={tl.id} value={tl.id}>
-                  {tl.fullName} ({tl.email})
+                  {tl.fullName || tl.name} ({tl.email})
                 </Select.Option>
               ))}
             </Select>

@@ -45,6 +45,7 @@ export const mockUsers = [
     email: 'emp@acme.com',
     role: 'Employee',
     tenantCode: 'acme',
+    teamLeadId: 'u5',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=john'
   },
   {
@@ -56,11 +57,45 @@ export const mockUsers = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=sarah'
   },
   {
-    id: 'u7',
+    id: 'u8',
     name: 'Venpep Admin',
     email: 'admin@venpep.com',
     role: 'TenantAdmin',
     tenantCode: 'venpep',
     avatar: 'https://xsgames.co/randomusers/avatar.php?g=pixel&key=7'
+  },
+  {
+    id: 'u9',
+    name: 'Dev Team Lead',
+    email: 'teamlead@dev.com',
+    role: 'TeamLead',
+    tenantCode: 'dev',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=devlead'
+  },
+  {
+    id: 'u10',
+    name: 'Dev Employee',
+    email: 'employee@dev.com',
+    role: 'Employee',
+    tenantCode: 'dev',
+    teamLeadId: 'u9',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=devemp'
+  },
+  {
+    id: 'u11',
+    name: 'Venpep Team Lead',
+    email: 'lead@venpep.com',
+    role: 'TeamLead',
+    tenantCode: 'venpep',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=venpeplead'
+  },
+  {
+    id: 'u12',
+    name: 'Venpep Employee',
+    email: 'emp@venpep.com',
+    role: 'Employee',
+    tenantCode: 'venpep',
+    teamLeadId: 'u11',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=venpepemp'
   }
 ];

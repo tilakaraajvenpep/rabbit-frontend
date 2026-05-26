@@ -149,6 +149,21 @@ export const adminService = {
   },
 
   getMyProfile: async () => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      const { role } = useAuthStore.getState();
+      const user = mockUsers.find(u => u.role === role) || mockUsers[0];
+      return { data: {
+        userId: user.id,
+        fullName: user.name || user.fullName,
+        email: user.email,
+        role: user.role,
+        isActive: true,
+        allocatedHours: '8.50',
+        tenantId: 1,
+        teamLeadId: user.teamLeadId || 'u5'
+      } };
+    }
     const response = await apiClient.get('/users/me');
     return { data: response.data.data };
   }
