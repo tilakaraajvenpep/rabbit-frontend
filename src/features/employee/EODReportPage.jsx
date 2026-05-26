@@ -764,18 +764,18 @@ const EODReportPage = () => {
                   </Col>
                   
                   <Col span={8}>
-                    <Form.Item label="Hours" required help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''}>
+                    <Form.Item label="Hours" required={!showTimerMissedWarning} help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''}>
                       <Controller
                         name={`items.${index}.hours`}
                         control={control}
                         rules={{
-                          required: !isLocked ? 'Required' : false,
-                          min: { value: 0.1, message: 'Min 0.1' }
+                          required: (!isLocked && !showTimerMissedWarning) ? 'Required' : false,
+                          min: (!isLocked && !showTimerMissedWarning) ? { value: 0.1, message: 'Min 0.1' } : undefined
                         }}
                         render={({ field }) => (
                           <InputNumber
                             {...field}
-                            disabled={isLocked || !currentItemTicketId}
+                            disabled={isLocked || !currentItemTicketId || showTimerMissedWarning}
                             style={{ width: '100%' }}
                             min={0}
                             step={0.5}
