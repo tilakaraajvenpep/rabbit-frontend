@@ -42,6 +42,7 @@ const EODReportPage = () => {
   const [viewOnly, setViewOnly] = useState(false);
   const [myTickets, setMyTickets] = useState([]);
   const [allProjects, setAllProjects] = useState([]);
+  const [isOutsideCurrentWeek, setIsOutsideCurrentWeek] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [existingReport, setExistingReport] = useState(null);
   const [currentLeave, setCurrentLeave] = useState(null);
@@ -237,6 +238,12 @@ const EODReportPage = () => {
         console.error('Failed to fetch leaves for status map');
       }
 
+      const today = dayjs();
+      const currentWeekStart = today.startOf('week').add(1, 'day'); // Monday
+      const currentWeekEnd = today.startOf('week').add(7, 'day');   // Sunday
+      const isCurrentWeek = dates[0].isSame(currentWeekStart, 'day') || 
+                            (dates[0].isBefore(currentWeekEnd) && dates[6].isAfter(currentWeekStart));
+
       const statusMap = {};
       dates.forEach(d => {
         const dateStr = d.format('YYYY-MM-DD');
@@ -244,6 +251,8 @@ const EODReportPage = () => {
         const approvedLeave = userLeaves.find(
           l => dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr && l.status === 'Approved'
         );
+        const isSunday = d.day() === 0;
+        const isPast = d.isBefore(today, 'day');
 
         if (approvedLeave) {
           if (approvedLeave.type === 'FullDay') {
@@ -257,6 +266,11 @@ const EODReportPage = () => {
           }
         } else if (report) {
           statusMap[dateStr] = 'submitted';
+        } else if (isCurrentWeek && isPast && !isSunday) {
+          // Past weekday in current week with no report = Incomplete
+          statusMap[dateStr] = 'incomplete';
+        } else if (!isCurrentWeek) {
+          statusMap[dateStr] = 'restricted';
         } else {
           statusMap[dateStr] = 'pending';
         }
@@ -284,8 +298,13 @@ const EODReportPage = () => {
       const res = await reportService.getReportByDate(currentUser.id, date);
       
       const isHoliday = dayjs(date).day() === 0;
-      const endOfCurrentWeek = dayjs().endOf('week');
-      const isFuture = dayjs(date).isAfter(endOfCurrentWeek, 'day');
+      const today = dayjs();
+      const currentWeekMonday = today.startOf('week').add(1, 'day');
+      const currentWeekSunday = today.startOf('week').add(7, 'day');
+      const dateObj = dayjs(date);
+      const outsideCurrentWeek = dateObj.isBefore(currentWeekMonday, 'day') || dateObj.isAfter(currentWeekSunday, 'day');
+      setIsOutsideCurrentWeek(outsideCurrentWeek);
+
       const hasReport = !!res.data;
 
       // Force fetch tickets if they aren't loaded yet to map properly
@@ -317,7 +336,8 @@ const EODReportPage = () => {
         setExistingReport(null);
         
         const isFullDayLeave = leaveOnDate && leaveOnDate.type === 'FullDay';
-        if (isHoliday || (isFuture && !adminUnlocked) || isFullDayLeave) {
+        // Outside current week with no report = locked (contact HR/PM)
+        if (isHoliday || outsideCurrentWeek || isFullDayLeave) {
           setViewOnly(true);
         } else {
           setViewOnly(false);
@@ -532,6 +552,8 @@ const EODReportPage = () => {
     if (status === 'half_leave') return <Badge color="#1890ff" text="Half Day" />;
     if (status === 'permission') return <Badge color="#13c2c2" text="Permission" />;
     if (status === 'submitted') return <Badge status="success" text="Logged" />;
+    if (status === 'incomplete') return <Badge color="#ff4d4f" text="Incomplete" />;
+    if (status === 'restricted') return <Badge status="default" text="Restricted" />;
     return <Badge status="default" text="Pending" />;
   };
 
@@ -645,22 +667,43 @@ const EODReportPage = () => {
                 <div
                   key={date.toString()}
                   onClick={() => {
-                    if (weeklyStatus[date.format('YYYY-MM-DD')] === 'not_available') {
-                      notification.warning({ message: 'Restricted', description: 'Contact admin to report for that day.' });
+                    const dateStr = date.format('YYYY-MM-DD');
+                    const today = dayjs();
+                    const currentWeekMonday = today.startOf('week').add(1, 'day');
+                    const currentWeekSunday = today.startOf('week').add(7, 'day');
+                    const isOutside = date.isBefore(currentWeekMonday, 'day') || date.isAfter(currentWeekSunday, 'day');
+                    if (isOutside) {
+                      setSelectedDate(dateStr);
+                      // fetchReportForDate will handle showing the locked state
                       return;
                     }
-                    setSelectedDate(date.format('YYYY-MM-DD'));
+                    setSelectedDate(dateStr);
                   }}
-                  style={{
-                    textAlign: 'center', cursor: 'pointer', padding: '8px 12px', borderRadius: 12, minWidth: 90,
-                    background: isSelected 
-                      ? (isDarkMode ? 'rgba(79, 70, 229, 0.2)' : '#e6f7ff') 
-                      : 'transparent',
-                    border: isSelected 
-                      ? `1px solid ${token.colorPrimary}` 
-                      : `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#f0f0f0'}`,
-                    margin: '0 4px'
-                  }}
+                  style={(() => {
+                    const dateStr = date.format('YYYY-MM-DD');
+                    const status = weeklyStatus[dateStr];
+                    const isIncomplete = status === 'incomplete';
+                    const isRestricted = status === 'restricted';
+                    let bg = 'transparent';
+                    let border = `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#f0f0f0'}`;
+                    let opacity = 1;
+                    if (isSelected) {
+                      bg = isDarkMode ? 'rgba(79, 70, 229, 0.2)' : '#e6f7ff';
+                      border = `1px solid ${token.colorPrimary}`;
+                    } else if (isIncomplete) {
+                      bg = isDarkMode ? 'rgba(255, 77, 79, 0.12)' : '#fff1f0';
+                      border = '1px solid #ffccc7';
+                    } else if (isRestricted) {
+                      opacity = 0.5;
+                    }
+                    return {
+                      textAlign: 'center',
+                      cursor: isRestricted ? 'not-allowed' : 'pointer',
+                      padding: '8px 12px', borderRadius: 12, minWidth: 90,
+                      background: bg, border, margin: '0 4px', opacity,
+                      transition: 'all 0.2s'
+                    };
+                  })()}
                 >
                   <Text type="secondary" style={{ fontSize: 12 }}>{date.format('ddd')}</Text>
                   <div style={{ fontSize: 18, fontWeight: isSelected ? 700 : 400, margin: '2px 0' }}>{date.format('DD')}</div>
@@ -689,6 +732,23 @@ const EODReportPage = () => {
 
       {dayjs(selectedDate).day() === 0 ? (
         <Result icon={<CheckCircleOutlined style={{ color: '#faad14' }} />} title="Happy Sunday!" />
+      ) : isOutsideCurrentWeek && !existingReport ? (
+        <Result
+          status="warning"
+          title="Reporting Not Allowed"
+          subTitle={
+            <span>
+              Reporting for <strong>{dayjs(selectedDate).format('DD MMMM YYYY')}</strong> is outside the current work week.
+              <br />
+              If you need to submit or amend a report for this date, please contact <strong>HR</strong> or your <strong>Project Manager</strong>.
+            </span>
+          }
+          extra={
+            <Button type="default" onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}>
+              Go to Today
+            </Button>
+          }
+        />
       ) : currentLeave && currentLeave.type === 'FullDay' ? (
         <Result icon={<CheckCircleOutlined style={{ color: '#818cf8' }} />} title="On Approved Full Day Leave!" subTitle="No EOD report submission is required for today." />
       ) : (
