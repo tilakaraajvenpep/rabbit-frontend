@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Space, Typography, Tag, Modal, Input, message, Spin, Empty } from 'antd';
-import { ClockCircleOutlined, SendOutlined, CheckCircleOutlined, FileTextOutlined } from '@ant-design/icons';
+import { ClockCircleOutlined, SendOutlined, CheckCircleOutlined, CloseCircleOutlined, FileTextOutlined } from '@ant-design/icons';
 import { timerRequestService } from '../../services/timerRequestService';
 import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
@@ -18,6 +18,12 @@ const TimerRequestsReviewPage = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [forwardComment, setForwardComment] = useState('');
   const [forwarding, setForwarding] = useState(false);
+
+  // Direct Respond State
+  const [isRespondModalOpen, setIsRespondModalOpen] = useState(false);
+  const [isApproval, setIsApproval] = useState(true);
+  const [tlComment, setTlComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchTLRequests();
@@ -55,6 +61,31 @@ const TimerRequestsReviewPage = () => {
       message.error('Failed to forward request');
     } finally {
       setForwarding(false);
+    }
+  };
+
+  const handleOpenRespondModal = (record, approve) => {
+    setSelectedRequest(record);
+    setIsApproval(approve);
+    setTlComment('');
+    setIsRespondModalOpen(true);
+  };
+
+  const handleRespondSubmit = async () => {
+    if (!selectedRequest) return;
+    setSubmitting(true);
+    try {
+      await timerRequestService.respondToRequest(selectedRequest.request.requestId, {
+        approved: isApproval,
+        comments: tlComment
+      });
+      message.success(`Request ${isApproval ? 'Approved' : 'Rejected'} successfully! Employee has been notified.`);
+      setIsRespondModalOpen(false);
+      fetchTLRequests();
+    } catch (err) {
+      message.error('Failed to submit response');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -102,14 +133,33 @@ const TimerRequestsReviewPage = () => {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
-        <Button 
-          type="primary" 
-          icon={<SendOutlined />}
-          onClick={() => handleOpenForwardModal(record)}
-          style={{ borderRadius: 6 }}
-        >
-          Forward to PM
-        </Button>
+        <Space size={8}>
+          <Button 
+            type="primary" 
+            icon={<CheckCircleOutlined />}
+            onClick={() => handleOpenRespondModal(record, true)}
+            style={{ background: '#52c41a', borderColor: '#52c41a', borderRadius: 6 }}
+          >
+            Approve
+          </Button>
+          <Button 
+            type="primary" 
+            danger
+            icon={<CloseCircleOutlined />}
+            onClick={() => handleOpenRespondModal(record, false)}
+            style={{ borderRadius: 6 }}
+          >
+            Reject
+          </Button>
+          <Button 
+            type="default" 
+            icon={<SendOutlined />}
+            onClick={() => handleOpenForwardModal(record)}
+            style={{ borderRadius: 6 }}
+          >
+            Forward to PM
+          </Button>
+        </Space>
       )
     }
   ];
@@ -118,7 +168,7 @@ const TimerRequestsReviewPage = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader 
         title="Review Employee Hours Requests" 
-        subtitle="Review employee timer missed and hours exceeded alerts, and forward them to the Project Manager"
+        subtitle="Review and approve, reject, or forward employee timer missed and hours exceeded requests"
       />
 
       {loading ? (
@@ -169,6 +219,42 @@ const TimerRequestsReviewPage = () => {
           value={forwardComment}
           onChange={(e) => setForwardComment(e.target.value)}
           placeholder="Write your recommendation comments to help the Project Manager review this request..."
+          style={{ marginTop: 8 }}
+        />
+      </Modal>
+
+      {/* Respond (Approve/Reject) Modal */}
+      <Modal
+        title={
+          <Space>
+            {isApproval ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <CloseCircleOutlined style={{ color: '#ff4d4f' }} />}
+            <span>{isApproval ? 'Approve' : 'Reject'} Employee Hours Request</span>
+          </Space>
+        }
+        open={isRespondModalOpen}
+        onCancel={() => setIsRespondModalOpen(false)}
+        onOk={handleRespondSubmit}
+        confirmLoading={submitting}
+        okText={isApproval ? 'Approve Request' : 'Reject Request'}
+        okType={isApproval ? 'primary' : 'danger'}
+        cancelText="Cancel"
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+          <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>Employee Request Details</Text>
+          <Text strong>{selectedRequest?.employeeName}</Text> ({selectedRequest?.ticketCode} - {selectedRequest?.ticketTitle})
+          <div style={{ marginTop: 8 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Reason: </Text>
+            <Text italic style={{ fontSize: 12 }}>"{selectedRequest?.request?.reason}"</Text>
+          </div>
+        </div>
+
+        <Text strong>Add Team Lead Comments</Text>
+        <TextArea
+          rows={4}
+          value={tlComment}
+          onChange={(e) => setTlComment(e.target.value)}
+          placeholder="Provide remarks to the employee..."
           style={{ marginTop: 8 }}
         />
       </Modal>

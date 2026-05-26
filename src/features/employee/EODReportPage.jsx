@@ -7,7 +7,7 @@ import {
   PlusOutlined, DeleteOutlined, SendOutlined, CheckCircleOutlined,
   CheckCircleFilled, ExclamationCircleFilled, ClockCircleOutlined,
   LeftOutlined, RightOutlined, ProjectOutlined, AlertOutlined,
-  WarningOutlined, SendOutlined as RaiseIcon, ApartmentOutlined
+  WarningOutlined, SendOutlined as RaiseIcon, ApartmentOutlined, CalendarOutlined
 } from '@ant-design/icons';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -65,7 +65,7 @@ const EODReportPage = () => {
 
   const { control, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm({
     defaultValues: {
-      items: [{ ticketId: '', hours: 0, workDone: '' }],
+      items: [{ projectId: '', ticketId: '', hours: 0, workDone: '' }],
       blockers: '',
       isAlertIssue: false,
       alertMessage: ''
@@ -107,13 +107,11 @@ const EODReportPage = () => {
           return role === 'projectmanager' || role === 'tenantadmin';
         });
       } else {
-        // Filter for TeamLead first (case-insensitive)
         tls = allUsers.filter(u => {
           const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
           return role === 'teamlead';
         });
 
-        // If no team leads are found, fall back to PMs and TenantAdmins
         if (tls.length === 0) {
           tls = allUsers.filter(u => {
             const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
@@ -128,13 +126,42 @@ const EODReportPage = () => {
     }
   };
 
+  const fetchProjects = async () => {
+    try {
+      const res = await projectService.getProjects();
+      setAllProjects(res.data || []);
+    } catch (e) {
+      console.error('Failed to fetch projects');
+    }
+  };
+
+  const fetchTickets = async () => {
+    try {
+      const res = await ticketService.getTickets();
+      let ticketsData = res.data || [];
+      ticketsData = ticketsData.filter(t => t.status !== 'Done');
+      if (role === 'TeamLead') {
+        const myUserId = currentUser?.userId || currentUser?.id;
+        ticketsData = ticketsData.filter(t => 
+          (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
+          (t.assignedTo && String(t.assignedTo) === String(myUserId))
+        );
+      }
+      setMyTickets(ticketsData);
+    } catch (error) {
+      notification.error({ message: 'Error', description: 'Failed to load tickets.' });
+    }
+  };
+
   useEffect(() => {
-    updateWeekDates(baseDate);
-    fetchTickets();
-    fetchProjects();
-    fetchTimerRequests();
-    fetchTeamLeads();
-    // Fetch fresh allocatedHours from server
+    const init = async () => {
+      await fetchProjects();
+      await fetchTickets();
+      await fetchTimerRequests();
+      await fetchTeamLeads();
+    };
+    init();
+    
     adminService.getMyProfile().then(res => {
       const fresh = Number(res?.data?.allocatedHours);
       if (fresh && fresh > 0) setAllocatedHoursPerDay(fresh);
@@ -201,57 +228,28 @@ const EODReportPage = () => {
       const statusMap = {};
       dates.forEach(d => {
         const dateStr = d.format('YYYY-MM-DD');
-        const report = res.data.find(r => r.date === dateStr);
-        const endOfCurrentWeek = dayjs().endOf('week');
-        const leave = userLeaves.find(l => dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr && l.status === 'Approved');
+        const report = (res.data || []).find(r => r.date === dateStr);
+        const approvedLeave = userLeaves.find(
+          l => dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr && l.status === 'Approved'
+        );
 
-        if (d.day() === 0) statusMap[dateStr] = 'holiday';
-        else if (leave) statusMap[dateStr] = leave.type === 'FullDay' ? 'full_leave' : 'half_leave';
-        else if (report) statusMap[dateStr] = 'submitted';
-        else if (d.isAfter(endOfCurrentWeek, 'day')) statusMap[dateStr] = 'not_available';
-        else if (d.day() === 6) statusMap[dateStr] = 'optional';
-        else if (d.isBefore(dayjs(), 'day')) statusMap[dateStr] = 'incomplete';
-        else statusMap[dateStr] = 'pending';
+        if (approvedLeave) {
+          statusMap[dateStr] = approvedLeave.type === 'FullDay' ? 'leave' : 'half_leave';
+        } else if (report) {
+          statusMap[dateStr] = 'submitted';
+        } else {
+          statusMap[dateStr] = 'pending';
+        }
       });
       setWeeklyStatus(statusMap);
-    } catch (error) {
-      console.error('Failed to fetch weekly status', error);
-    }
-  };
-
-  const fetchProjects = async () => {
-    try {
-      const res = await projectService.getProjects();
-      setAllProjects(res.data);
     } catch (e) {
-      console.error('Failed to fetch projects');
-    }
-  };
-
-  const fetchTickets = async () => {
-    try {
-      const res = await ticketService.getTickets();
-      let ticketsData = res.data || [];
-      // Filter out completed tickets.
-      ticketsData = ticketsData.filter(t => t.status !== 'Done');
-      // If user is a Team Lead, only show tickets assigned to them
-      if (role === 'TeamLead') {
-        const myUserId = currentUser?.userId || currentUser?.id;
-        ticketsData = ticketsData.filter(t => 
-          (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
-          (t.assignedTo && String(t.assignedTo) === String(myUserId))
-        );
-      }
-      setMyTickets(ticketsData);
-    } catch (error) {
-      notification.error({ message: 'Error', description: 'Failed to load tickets.' });
+      console.error('Failed to fetch weekly status', e);
     }
   };
 
   const fetchReportForDate = async (date) => {
     setLoading(true);
     try {
-      // Fetch leave for this date
       let leaveOnDate = null;
       try {
         const leavesRes = await leaveService.getMyLeaves();
@@ -270,12 +268,32 @@ const EODReportPage = () => {
       const isFuture = dayjs(date).isAfter(endOfCurrentWeek, 'day');
       const hasReport = !!res.data;
 
+      // Force fetch tickets if they aren't loaded yet to map properly
+      let ticketsList = myTickets;
+      if (ticketsList.length === 0) {
+        const ticketsRes = await ticketService.getTickets();
+        ticketsList = ticketsRes.data || [];
+      }
+
       if (hasReport) {
-        reset(res.data);
-        setExistingReport(res.data);
+        const mappedItems = (res.data.items || []).map(item => {
+          const ticket = ticketsList.find(t => String(t.id) === String(item.ticketId));
+          return {
+            projectId: ticket ? ticket.projectId : '',
+            ticketId: item.ticketId,
+            hours: item.hoursSpent,
+            workDone: item.workDone
+          };
+        });
+        const mappedReport = {
+          ...res.data,
+          items: mappedItems
+        };
+        reset(mappedReport);
+        setExistingReport(mappedReport);
         setViewOnly(true);
       } else {
-        reset({ items: [{ ticketId: '', hours: 0, workDone: '' }], blockers: '', isAlertIssue: false, alertMessage: '' });
+        reset({ items: [{ projectId: '', ticketId: '', hours: 0, workDone: '' }], blockers: '', isAlertIssue: false, alertMessage: '' });
         setExistingReport(null);
         
         const isFullDayLeave = leaveOnDate && leaveOnDate.type === 'FullDay';
@@ -300,7 +318,7 @@ const EODReportPage = () => {
         description: values.description || '',
         priority: 'Medium',
         estimatedHours: values.estimatedHours || 8,
-        assignedToUserId: currentUser.id,
+        assignedToUserId: currentUser.userId || currentUser.id,
         dueDate: dayjs().add(7, 'day').toISOString()
       };
       const res = await ticketService.createTicket(values.projectId, payload);
@@ -320,6 +338,7 @@ const EODReportPage = () => {
       ticketForm.resetFields();
       
       if (activeTicketRowIndex !== null) {
+        setValue(`items.${activeTicketRowIndex}.projectId`, values.projectId);
         setValue(`items.${activeTicketRowIndex}.ticketId`, newTicketId);
         setValue(`items.${activeTicketRowIndex}.hours`, 0);
       }
@@ -329,6 +348,35 @@ const EODReportPage = () => {
     } finally {
       setNewTicketLoading(false);
     }
+  };
+
+  const handleOpenApplyLeaveModal = (date) => {
+    Modal.confirm({
+      title: `Apply Leave for ${dayjs(date).format('DD MMMM YYYY')}?`,
+      content: 'This will submit a Full Day Leave request for this date. The request will be routed to HR.',
+      okText: 'Apply Leave',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          await leaveService.applyLeave({
+            fromDate: date,
+            toDate: date,
+            type: 'FullDay',
+            reason: `Applied from EOD Weekly Work Report Page`
+          });
+          notification.success({
+            message: 'Leave Requested',
+            description: `Full day leave successfully requested for ${dayjs(date).format('DD MMMM YYYY')}.`
+          });
+          fetchReportForDate(date);
+        } catch (e) {
+          notification.error({
+            message: 'Failed to request leave',
+            description: e.response?.data?.message || 'Error occurred.'
+          });
+        }
+      }
+    });
   };
 
   const onSubmit = async (data) => {
@@ -351,12 +399,12 @@ const EODReportPage = () => {
         return;
       }
 
-      // Limit Exceeded Validation
-      const estHours = Number(ticket.estimatedHours) || 4;
-      if (item.hours > estHours && !hasApprovedTimerRequest) {
+      // Limit Exceeded Validation based on Available Hours
+      const availableHours = (Number(ticket.estimatedHours) || 0) - (Number(ticket.consumedHours) || 0);
+      if (item.hours > availableHours && !hasApprovedTimerRequest) {
         notification.error({
           message: 'Submission Blocked',
-          description: `You are trying to report ${item.hours}h on ticket "${ticket.ticketCode}" which has a limit of ${estHours}h. Please submit an Exceeded Limit request to report additional hours.`,
+          description: `You are trying to report ${item.hours}h on ticket "${ticket.ticketCode}" which has available limit of ${availableHours.toFixed(2)}h. Please submit an Exceeded Limit request to report additional hours.`,
           duration: 6
         });
         return;
@@ -432,11 +480,13 @@ const EODReportPage = () => {
         requestType: values.requestType,
         requestedHours: values.requestedHours,
         reason: values.reason,
-        teamLeadId: values.teamLeadId
+        teamLeadId: role === 'TeamLead' ? undefined : values.teamLeadId
       });
       notification.success({ 
         message: 'Request Submitted', 
-        description: 'Your request has been forwarded to your Team Lead. You will be notified once approved by the PM.' 
+        description: role === 'TeamLead' 
+          ? 'Your request has been forwarded to the Project Manager.' 
+          : 'Your request has been forwarded to your Team Lead. You will be notified once approved by the PM.' 
       });
       setIsRequestModalOpen(false);
       fetchTimerRequests();
@@ -448,42 +498,22 @@ const EODReportPage = () => {
   };
 
   const getStatusDisplay = (date) => {
-    const dateStr = date.format('YYYY-MM-DD');
-    const status = weeklyStatus[dateStr];
-    if (date.day() === 0) return <Tag color="default">Holiday</Tag>;
-
-    switch (status) {
-      case 'submitted':
-        return <Space direction="vertical" size={0}><CheckCircleFilled style={{ color: '#52c41a' }} /><Text type="success" style={{ fontSize: 10 }}>Completed</Text></Space>;
-      case 'incomplete':
-        return <Space direction="vertical" size={0}><ExclamationCircleFilled style={{ color: '#ff4d4f' }} /><Text type="danger" style={{ fontSize: 10 }}>Incomplete</Text></Space>;
-      case 'not_available':
-        return <Space direction="vertical" size={0}><ClockCircleOutlined style={{ color: '#d9d9d9' }} /><Text disabled style={{ fontSize: 10 }}>Not Available</Text></Space>;
-      case 'optional':
-        return <Space direction="vertical" size={0}><ClockCircleOutlined style={{ color: '#bfbfbf' }} /><Text type="secondary" style={{ fontSize: 10 }}>Optional</Text></Space>;
-      case 'full_leave':
-        return <Space direction="vertical" size={0}><CheckCircleFilled style={{ color: '#818cf8' }} /><Text style={{ fontSize: 10, color: '#818cf8', fontWeight: 600 }}>Full Leave</Text></Space>;
-      case 'half_leave':
-        return <Space direction="vertical" size={0}><CheckCircleFilled style={{ color: '#22d3ee' }} /><Text style={{ fontSize: 10, color: '#22d3ee', fontWeight: 600 }}>Half Leave</Text></Space>;
-      default:
-        return <Space direction="vertical" size={0}><ClockCircleOutlined style={{ color: '#bfbfbf' }} /><Text type="secondary" style={{ fontSize: 10 }}>Pending</Text></Space>;
-    }
+    const status = weeklyStatus[date.format('YYYY-MM-DD')];
+    if (status === 'leave') return <Badge status="warning" text="Leave" />;
+    if (status === 'half_leave') return <Badge status="processing" text="Half Day" />;
+    if (status === 'submitted') return <Badge status="success" text="Logged" />;
+    return <Badge status="default" text="Pending" />;
   };
 
   const requestColumns = [
     {
-      title: 'Ticket Code',
-      dataIndex: ['ticketCode'],
+      title: 'Ticket',
+      dataIndex: 'ticketCode',
       key: 'ticketCode',
-      render: (code) => <Text code>{code}</Text>
+      render: (code, record) => <Text code>{code} - {record.ticketTitle}</Text>
     },
     {
-      title: 'Ticket Title',
-      dataIndex: ['ticketTitle'],
-      key: 'ticketTitle',
-    },
-    {
-      title: 'Issue Type',
+      title: 'Request Type',
       dataIndex: ['request', 'requestType'],
       key: 'requestType',
       render: (t) => <Tag color={t === 'TimerMissed' ? 'volcano' : 'purple'}>{t === 'TimerMissed' ? 'Timer Missed' : 'Hours Exceeded'}</Tag>
@@ -492,7 +522,7 @@ const EODReportPage = () => {
       title: 'Requested Hours',
       dataIndex: ['request', 'requestedHours'],
       key: 'requestedHours',
-      render: (h) => `${h} hrs`
+      render: (h) => h ? `${h} hrs` : '-'
     },
     {
       title: 'Status',
@@ -501,7 +531,7 @@ const EODReportPage = () => {
       render: (status) => {
         const conf = {
           PendingTL: { color: 'orange', label: 'Pending TL Approval' },
-          PendingPM: { color: 'blue', label: 'Forwarded to PM' },
+          PendingPM: { color: 'blue', label: 'Pending PM Approval' },
           Approved: { color: 'green', label: 'Approved & Unlocked' },
           Rejected: { color: 'red', label: 'Rejected' },
         }[status] || { color: 'default', label: status };
@@ -578,7 +608,7 @@ const EODReportPage = () => {
       <Card style={{ borderRadius: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <Button icon={<LeftOutlined />} onClick={handlePrevWeek} shape="circle" />
-          <div style={{ display: 'flex', flex: 1, justifyContent: 'space-between', alignItems: 'center', overflowX: 'auto', padding: '10px 0' }}>
+          <div style={{ display: 'flex', flex: 1, justifycontent: 'space-between', alignItems: 'center', overflowX: 'auto', padding: '10px 0' }}>
             {weekDates.map(date => {
               const isSelected = selectedDate === date.format('YYYY-MM-DD');
               return (
@@ -598,7 +628,8 @@ const EODReportPage = () => {
                       : 'transparent',
                     border: isSelected 
                       ? `1px solid ${token.colorPrimary}` 
-                      : `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#f0f0f0'}`
+                      : `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#f0f0f0'}`,
+                    margin: '0 4px'
                   }}
                 >
                   <Text type="secondary" style={{ fontSize: 12 }}>{date.format('ddd')}</Text>
@@ -657,10 +688,11 @@ const EODReportPage = () => {
           </Card>
 
           {fields.map((field, index) => {
+            const currentItemProjectId = watchedItems?.[index]?.projectId;
             const currentItemTicketId = watchedItems?.[index]?.ticketId;
             const ticketData = myTickets.find(t => t.id === currentItemTicketId);
 
-            let maxAllowed = 0;
+            let availableHours = 0;
             let timerHours = 0;
             let showTimerMissedWarning = false;
             let showLimitExceededWarning = false;
@@ -668,20 +700,18 @@ const EODReportPage = () => {
 
             if (ticketData) {
               timerHours = parseFloat(((ticketData.timerAccumulatedSeconds || 0) / 3600).toFixed(2));
-              maxAllowed = Number(ticketData.estimatedHours) || 4;
+              availableHours = (Number(ticketData.estimatedHours) || 0) - (Number(ticketData.consumedHours) || 0);
               
               hasApprovedTimerRequest = myTimerRequests.some(r => 
                 r.request.ticketId === ticketData.id && r.request.status === 'Approved'
               );
 
-              // 1. Enforce Timer ran check (Requirement 5)
               if ((ticketData.timerAccumulatedSeconds || 0) === 0 && !hasApprovedTimerRequest) {
                 showTimerMissedWarning = true;
               }
 
-              // 2. Enforce estimated hours cap (Requirement 3)
               const currentInputVal = watchedItems?.[index]?.hours || 0;
-              if (currentInputVal > maxAllowed && !hasApprovedTimerRequest) {
+              if (currentInputVal > availableHours && !hasApprovedTimerRequest) {
                 showLimitExceededWarning = true;
               }
             }
@@ -700,8 +730,13 @@ const EODReportPage = () => {
                       </Tag>
                     )}
                     {ticketData && (
+                      <Tag color="purple">
+                        Available: {availableHours.toFixed(2)} hrs
+                      </Tag>
+                    )}
+                    {ticketData && (
                       <Tag color="blue">
-                        Est. Limit: {maxAllowed} hrs
+                        Est. Limit: {ticketData.estimatedHours} hrs
                       </Tag>
                     )}
                     {hasApprovedTimerRequest && (
@@ -713,6 +748,16 @@ const EODReportPage = () => {
                 }
                 extra={
                   <Space>
+                    {!isLocked && (
+                      <Button
+                        size="small"
+                        icon={<CalendarOutlined />}
+                        onClick={() => handleOpenApplyLeaveModal(selectedDate)}
+                        style={{ color: '#10b981', borderColor: '#10b981' }}
+                      >
+                        Apply Leave
+                      </Button>
+                    )}
                     {!isLocked && (
                       <Button
                         size="small"
@@ -732,51 +777,84 @@ const EODReportPage = () => {
                 }
               >
                 <Row gutter={16}>
-                  <Col span={16}>
-                    <Form.Item label="Ticket" required help={errors.items?.[index]?.ticketId?.message} validateStatus={errors.items?.[index]?.ticketId ? 'error' : ''}>
+                  <Col span={8}>
+                    <Form.Item label="Project" required help={errors.items?.[index]?.projectId?.message} validateStatus={errors.items?.[index]?.projectId ? 'error' : ''}>
                       <Controller
-                        name={`items.${index}.ticketId`}
+                        name={`items.${index}.projectId`}
                         control={control}
                         rules={{ required: !isLocked ? 'Required' : false }}
                         render={({ field }) => (
                           <Select
                             {...field}
                             disabled={isLocked}
-                            placeholder="Select ticket"
-                            showSearch
-                            optionFilterProp="children"
+                            placeholder="Select project"
                             onChange={(val) => {
                               field.onChange(val);
-                              // Auto-calculate EOD hours from active timer (Requirement 3)
-                              const ticket = myTickets.find(t => t.id === val);
-                              if (ticket) {
-                                const hoursCalculated = parseFloat(((ticket.timerAccumulatedSeconds || 0) / 3600).toFixed(2));
-                                setValue(`items.${index}.hours`, hoursCalculated);
-                              } else {
-                                setValue(`items.${index}.hours`, 0);
-                              }
+                              setValue(`items.${index}.ticketId`, '');
+                              setValue(`items.${index}.hours`, 0);
                             }}
                           >
-                            {myTickets.map(t => {
-                              const isAlreadySelectedElsewhere = selectedTicketIds.includes(t.id) && currentItemTicketId !== t.id;
-                              return (
-                                <Select.Option
-                                  key={t.id}
-                                  value={t.id}
-                                  disabled={isAlreadySelectedElsewhere}
-                                >
-                                  <Space>
-                                    {t.code} — {t.title}
-                                    <Text type="secondary" style={{ fontSize: '11px' }}>
-                                      ({((t.timerAccumulatedSeconds || 0) / 3600).toFixed(1)}h logged)
-                                    </Text>
-                                    {isAlreadySelectedElsewhere && <Tag color="warning" style={{ fontSize: '10px' }}>Selected</Tag>}
-                                  </Space>
-                                </Select.Option>
-                              );
-                            })}
+                            {allProjects.map(p => (
+                              <Select.Option key={p.id} value={p.id}>
+                                {p.projectName}
+                              </Select.Option>
+                            ))}
                           </Select>
                         )}
+                      />
+                    </Form.Item>
+                  </Col>
+
+                  <Col span={8}>
+                    <Form.Item label="Ticket" required help={errors.items?.[index]?.ticketId?.message} validateStatus={errors.items?.[index]?.ticketId ? 'error' : ''}>
+                      <Controller
+                        name={`items.${index}.ticketId`}
+                        control={control}
+                        rules={{ required: !isLocked ? 'Required' : false }}
+                        render={({ field }) => {
+                          const projectTickets = myTickets.filter(t => 
+                            String(t.projectId) === String(currentItemProjectId)
+                          );
+                          return (
+                            <Select
+                              {...field}
+                              disabled={isLocked || !currentItemProjectId}
+                              placeholder="Select ticket"
+                              showSearch
+                              optionFilterProp="children"
+                              onChange={(val) => {
+                                field.onChange(val);
+                                const ticket = myTickets.find(t => t.id === val);
+                                if (ticket) {
+                                  const hoursCalculated = parseFloat(((ticket.timerAccumulatedSeconds || 0) / 3600).toFixed(2));
+                                  setValue(`items.${index}.hours`, hoursCalculated);
+                                } else {
+                                  setValue(`items.${index}.hours`, 0);
+                                }
+                              }}
+                            >
+                              {projectTickets.map(t => {
+                                const isAlreadySelectedElsewhere = selectedTicketIds.includes(t.id) && currentItemTicketId !== t.id;
+                                const available = (Number(t.estimatedHours) || 0) - (Number(t.consumedHours) || 0);
+                                return (
+                                  <Select.Option
+                                    key={t.id}
+                                    value={t.id}
+                                    disabled={isAlreadySelectedElsewhere}
+                                  >
+                                    <Space>
+                                      {t.code} — {t.title}
+                                      <Text type="secondary" style={{ fontSize: '11px' }}>
+                                        (Available: {available.toFixed(1)}h)
+                                      </Text>
+                                      {isAlreadySelectedElsewhere && <Tag color="warning" style={{ fontSize: '10px' }}>Selected</Tag>}
+                                    </Space>
+                                  </Select.Option>
+                                );
+                              })}
+                            </Select>
+                          );
+                        }}
                       />
                     </Form.Item>
                   </Col>
@@ -843,13 +921,13 @@ const EODReportPage = () => {
                         message={
                           <Space>
                             <WarningOutlined style={{ color: '#722ed1' }} />
-                            <Text strong style={{ color: '#722ed1' }}>Estimation Limit Exceeded ({maxAllowed}h Max)</Text>
+                            <Text strong style={{ color: '#722ed1' }}>Insufficient Reporting Hours ({availableHours.toFixed(2)}h Available)</Text>
                           </Space>
                         }
                         description={
                           <Space direction="vertical" style={{ width: '100%', marginTop: 4 }}>
                             <Text style={{ fontSize: 12 }}>
-                              You are reporting work beyond the ticket's estimated limit. Please raise a request to obtain authorization to exceed the limit.
+                              You are reporting work hours exceeding the remaining available limit on this ticket. Please raise a request to obtain approval.
                             </Text>
                             <Button 
                               type="primary" 
@@ -885,7 +963,7 @@ const EODReportPage = () => {
           })}
 
           {!isLocked && (
-            <Button type="dashed" onClick={() => append({ ticketId: '', hours: 0, workDone: '' })} block icon={<PlusOutlined />} style={{ marginTop: 16, marginBottom: 24 }}>
+            <Button type="dashed" onClick={() => append({ projectId: '', ticketId: '', hours: 0, workDone: '' })} block icon={<PlusOutlined />} style={{ marginTop: 16, marginBottom: 24 }}>
               Add Task Row
             </Button>
           )}
@@ -978,8 +1056,14 @@ const EODReportPage = () => {
         destroyOnClose
       >
         <Form form={ticketForm} layout="vertical" onFinish={handleCreateTicket}>
-          <Form.Item name="projectId" label="Project Name" rules={[{ required: true, message: 'Please enter project name' }]}>
-            <Input placeholder="Enter project name manually" />
+          <Form.Item name="projectId" label="Project Name" rules={[{ required: true, message: 'Please select project' }]}>
+            <Select placeholder="Select Project">
+              {allProjects.map(p => (
+                <Select.Option key={p.id} value={p.id}>
+                  {p.projectName}
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
           <Form.Item name="title" label="Ticket Title" rules={[{ required: true, message: 'Please enter ticket title' }]}>
             <Input placeholder="Enter brief task description" />
@@ -1016,19 +1100,21 @@ const EODReportPage = () => {
             <Text strong>{activeRequestDetails?.ticket?.ticketCode} - {activeRequestDetails?.ticket?.title}</Text>
           </div>
 
-          <Form.Item
-            name="teamLeadId"
-            label="Select Team Lead"
-            rules={[{ required: true, message: 'Please select a Team Lead' }]}
-          >
-            <Select placeholder="Select a Team Lead" onChange={(val) => setSelectedTeamLeadId(val)}>
-              {teamLeads.map(tl => (
-                <Select.Option key={tl.id} value={tl.id}>
-                  {tl.fullName || tl.name} ({tl.email})
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
+          {role !== 'TeamLead' && (
+            <Form.Item
+              name="teamLeadId"
+              label="Select Team Lead"
+              rules={[{ required: true, message: 'Please select a Team Lead' }]}
+            >
+              <Select placeholder="Select a Team Lead" onChange={(val) => setSelectedTeamLeadId(val)}>
+                {teamLeads.map(tl => (
+                  <Select.Option key={tl.id} value={tl.id}>
+                    {tl.fullName || tl.name} ({tl.email})
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          )}
 
           {activeRequestDetails?.type === 'ExceededLimit' && (
             <Form.Item 

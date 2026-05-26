@@ -20,7 +20,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 const { Title, Text, Paragraph } = Typography;
 
 const TicketBacklogsPage = () => {
-  const { currentUser } = useAuthStore();
+  const { currentUser, role } = useAuthStore();
   const { isDarkMode } = useThemeStore();
   
   const [tickets, setTickets] = useState([]);
@@ -60,7 +60,15 @@ const TicketBacklogsPage = () => {
   const fetchBacklogTickets = async () => {
     try {
       const response = await ticketService.getTickets();
-      setTickets(response.data || []);
+      let ticketsData = response.data || [];
+      if (role === 'Employee') {
+        const myUserId = currentUser?.userId || currentUser?.id;
+        ticketsData = ticketsData.filter(t => 
+          (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
+          (t.assignedTo && String(t.assignedTo) === String(myUserId))
+        );
+      }
+      setTickets(ticketsData);
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to fetch tickets.' });
     }

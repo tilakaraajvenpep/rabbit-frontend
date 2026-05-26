@@ -211,6 +211,7 @@ const App = () => {
               <Route element={<ProtectedRoute allowedRoles={['Employee']} />}> 
                 <Route path="/employee/tickets" element={<MyTicketsPage />} />
                 <Route path="/employee/kanban" element={<EmployeeKanbanPage />} />
+                <Route path="/employee/backlogs" element={<TicketBacklogsPage />} />
                 <Route path="/employee/report" element={<EODReportPage />} />
                 <Route path="/employee/reports" element={<EmployeeReportsPage />} />
                 <Route path="/employee/leaves" element={<LeaveRequestsPage />} />
