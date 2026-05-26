@@ -174,13 +174,13 @@ const ProjectOverviewPage = () => {
             </Row>
           </Card>
 
-          <Card title="Scope & Project Documents" style={{ marginBottom: 16 }}>
+          <Card title="Scope Document" style={{ marginBottom: 16 }}>
             <Table 
               size="small"
               pagination={false}
-              dataSource={documents}
+              dataSource={documents.filter(doc => doc.documentCategory === 'scope')}
               rowKey="id"
-              locale={{ emptyText: 'No documents uploaded yet.' }}
+              locale={{ emptyText: 'No scope document uploaded yet.' }}
               columns={[
                 { 
                   title: 'File Name', 
