@@ -449,17 +449,7 @@ const PMDashboardPage = () => {
         </Space>
       )
     },
-    {
-      title: 'Project Value',
-      dataIndex: 'budgetTable',
-      key: 'value',
-      width: 160,
-      render: (budgetTable) => {
-        if (!Array.isArray(budgetTable)) return <Text strong>₹0</Text>;
-        const total = budgetTable.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
-        return <Text strong style={{ color: '#16a34a', fontSize: '14px' }}>₹{total.toLocaleString('en-IN')}</Text>;
-      }
-    },
+
     {
       title: 'Actions',
       key: 'actions',
