@@ -31,6 +31,9 @@ const ScopeUploadPage = React.lazy(() => import('./features/sales/ScopeUploadPag
 const PendingReviewPage = React.lazy(() => import('./features/accounts/PendingReviewPage'));
 const CostAnalysisPage = React.lazy(() => import('./features/accounts/CostAnalysisPage'));
 const CostHistoryPage = React.lazy(() => import('./features/accounts/CostHistoryPage'));
+const ProfitLossPage = React.lazy(() => import('./features/accounts/ProfitLossPage'));
+const AccountsUserManagementPage = React.lazy(() => import('./features/accounts/AccountsUserManagementPage'));
+const CostPerHourPage = React.lazy(() => import('./features/accounts/CostPerHourPage'));
 
 // Team Lead
 const TeamLeadDashboardPage = React.lazy(() => import('./features/teamlead/TeamLeadDashboardPage'));
@@ -182,6 +185,9 @@ const App = () => {
                 <Route path="/accounts/projects/:id/cost" element={<CostAnalysisPage />} />
                 <Route path="/accounts/leaves" element={<LeaveApprovalsPage />} />
                 <Route path="/accounts/cost-history" element={<CostHistoryPage />} />
+                <Route path="/accounts/profit-loss" element={<ProfitLossPage />} />
+                <Route path="/accounts/users" element={<AccountsUserManagementPage />} />
+                <Route path="/accounts/cost-per-hour" element={<CostPerHourPage />} />
               </Route>
 
               {/* TeamLead Routes */}

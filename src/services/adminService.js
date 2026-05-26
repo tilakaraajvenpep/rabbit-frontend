@@ -70,6 +70,16 @@ export const adminService = {
     return apiClient.put(`/users/${id}/role`, { role });
   },
 
+  updateCostPerHour: async (id, costPerHour) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const user = mockUsers.find(u => u.id === id || u.userId === id);
+      if (user) user.costPerHour = String(costPerHour);
+      return { data: { success: true } };
+    }
+    return apiClient.put(`/users/${id}/cost-per-hour`, { costPerHour });
+  },
+
   updateUserTeamLead: async (id, teamLeadId) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 500));

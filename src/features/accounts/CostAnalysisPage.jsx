@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Card, Form, Input, InputNumber, DatePicker, Button, Space, Table, Modal, Alert, 
   notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme, Tooltip,
-  Tag, Empty
+  Tag, Empty, Radio
 } from 'antd';
 import {
   PlusOutlined,
@@ -49,6 +49,7 @@ const CostAnalysisPage = () => {
   const [selectedPMId, setSelectedPMId] = useState(undefined);
 
   // Extraction / Cost Analysis States
+  const [analysisMethod, setAnalysisMethod] = useState('extract');
   const [budgetItems, setBudgetItems] = useState([]);
   const [milestones, setMilestones] = useState([]);
   const [totalHours, setTotalHours] = useState(0);
@@ -87,7 +88,8 @@ const CostAnalysisPage = () => {
       try {
         const docsRes = await projectService.getDocuments(id);
         if (docsRes.data && docsRes.data.length > 0) {
-          setLatestDoc(docsRes.data[0]);
+          const budgetDoc = docsRes.data.find(d => d.documentCategory === 'budget_milestones') || docsRes.data[0];
+          setLatestDoc(budgetDoc);
         }
       } catch {
         // No documents yet
@@ -202,16 +204,7 @@ const CostAnalysisPage = () => {
   const calculatedTotalBudget = budgetItems.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
   const calculatedTotalHours = budgetItems.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0);
 
-  // Submit flow
   const handleOpenPMModal = () => {
-    if (budgetItems.length === 0) {
-      notification.warning({ message: 'Validation', description: 'Please extract or enter the budget items first.' });
-      return;
-    }
-    if (milestones.length === 0) {
-      notification.warning({ message: 'Validation', description: 'Please extract or enter the project milestones.' });
-      return;
-    }
     if (!totalHours || totalHours <= 0) {
       notification.warning({ message: 'Validation', description: 'Please enter a valid amount of total hours.' });
       return;
@@ -366,15 +359,15 @@ const CostAnalysisPage = () => {
       )}
 
       <Card style={{ marginBottom: 24, borderRadius: 12 }}>
-        <Row gutter={24} align="middle">
-          <Col xs={24} sm={18}>
+        <Row gutter={24}>
+          <Col xs={24} md={18}>
             <Descriptions column={2} size="small">
               <Descriptions.Item label="Project Name"><Text strong>{project.name}</Text></Descriptions.Item>
               <Descriptions.Item label="Client">{project.client}</Descriptions.Item>
               <Descriptions.Item label="Project Category">{project.projectCategory || 'N/A'}</Descriptions.Item>
               <Descriptions.Item label="Status"><StatusBadge status={project.status} /></Descriptions.Item>
               <Descriptions.Item label="Expected Start">{project.startDate ? dayjs(project.startDate).format('DD MMM YYYY') : '-'}</Descriptions.Item>
-              <Descriptions.Item label="Scope Doc" span={2}>
+              <Descriptions.Item label="Budget Doc" span={2}>
                 {latestDoc ? (
                   <Space>
                     <FileTextOutlined style={{ color: '#1890ff' }} />
@@ -382,22 +375,37 @@ const CostAnalysisPage = () => {
                     <Text type="secondary">({(latestDoc.fileSize / 1024).toFixed(1)} KB)</Text>
                   </Space>
                 ) : (
-                  <Text type="danger">No scope document uploaded</Text>
+                  <Text type="warning">No budget & milestones document uploaded</Text>
                 )}
               </Descriptions.Item>
             </Descriptions>
+            <Divider style={{ margin: '16px 0' }} />
+            <div>
+              <Text strong style={{ marginRight: 16 }}>Cost Analysis Mode: </Text>
+              <Radio.Group 
+                value={analysisMethod} 
+                onChange={e => setAnalysisMethod(e.target.value)}
+                buttonStyle="solid"
+                size="middle"
+              >
+                <Radio.Button value="extract">Option 1: Extract from Budget Document</Radio.Button>
+                <Radio.Button value="manual">Option 2: Manually Define Budget & Milestones</Radio.Button>
+              </Radio.Group>
+            </div>
           </Col>
-          <Col xs={24} sm={6} style={{ textAlign: 'right' }}>
-            <Button
-              icon={<CalculatorOutlined />}
-              type="primary"
-              onClick={handleExtractFromScope}
-              loading={extracting}
-              disabled={!latestDoc}
-              block
-            >
-              Extract Budget & Milestones
-            </Button>
+          <Col xs={24} md={6} style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingTop: 16 }}>
+            {analysisMethod === 'extract' && (
+              <Button
+                icon={<CalculatorOutlined />}
+                type="primary"
+                onClick={handleExtractFromScope}
+                loading={extracting}
+                disabled={!latestDoc}
+                block
+              >
+                Extract Budget & Milestones
+              </Button>
+            )}
           </Col>
         </Row>
       </Card>
@@ -418,7 +426,7 @@ const CostAnalysisPage = () => {
           dataSource={budgetItems}
           rowKey="key"
           pagination={false}
-          locale={{ emptyText: 'No budget items extracted. Click "Extract Budget & Milestones" above to parse the scope document.' }}
+          locale={{ emptyText: analysisMethod === 'extract' ? 'No budget items extracted. Click "Extract Budget & Milestones" above to parse the scope document.' : 'No budget items defined. Click "Add Item" to add manually (Optional).' }}
           columns={[
             {
               title: 'Budget Section / Item Description',
@@ -508,7 +516,7 @@ const CostAnalysisPage = () => {
           dataSource={milestones}
           rowKey="key"
           pagination={false}
-          locale={{ emptyText: 'No milestones extracted. Click "Extract Budget & Milestones" to populate.' }}
+          locale={{ emptyText: analysisMethod === 'extract' ? 'No milestones extracted. Click "Extract Budget & Milestones" above to populate.' : 'No milestones defined. Click "Add Milestone" to add manually (Optional).' }}
           columns={[
             {
               title: 'Milestone Title',
