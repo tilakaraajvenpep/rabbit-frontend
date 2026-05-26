@@ -137,11 +137,47 @@ const TeamDetailsPage = () => {
           );
         })}
 
-        {teamLeads.length === 0 && (
+        {/* Unassigned Employees section */}
+        {users.filter(u => u.role === 'Employee' && (!u.teamLeadId || !teamLeads.some(tl => String(tl.id) === String(u.teamLeadId)))).length > 0 && (
+          <Card
+            style={{
+              borderRadius: 12,
+              boxShadow: isDarkMode ? 'none' : '0 4px 12px rgba(0,0,0,0.05)',
+              border: isDarkMode ? '1px solid #3f3f46' : '1px solid #e8e8e8',
+              backgroundColor: isDarkMode ? '#1e1b4b' : '#f8fafc'
+            }}
+            title={
+              <Space style={{ padding: '8px 0' }}>
+                <Avatar size="large" icon={<UserOutlined />} style={{ border: '2px solid #64748b', backgroundColor: '#cbd5e1' }} />
+                <div>
+                  <Title level={4} style={{ margin: 0 }}>Unassigned Employees</Title>
+                  <Text type="secondary" style={{ fontSize: '13px' }}>
+                    Employees not currently assigned to any Team Lead
+                  </Text>
+                </div>
+              </Space>
+            }
+            extra={
+              <Badge 
+                count={`${users.filter(u => u.role === 'Employee' && (!u.teamLeadId || !teamLeads.some(tl => String(tl.id) === String(u.teamLeadId)))).length} Members`} 
+                style={{ backgroundColor: '#64748b' }} 
+              />
+            }
+          >
+            <Table
+              dataSource={users.filter(u => u.role === 'Employee' && (!u.teamLeadId || !teamLeads.some(tl => String(tl.id) === String(u.teamLeadId))))}
+              columns={columns}
+              rowKey="id"
+              pagination={false}
+            />
+          </Card>
+        )}
+
+        {teamLeads.length === 0 && users.filter(u => u.role === 'Employee').length === 0 && (
           <Card style={{ textAlign: 'center', padding: '40px 0' }}>
             <TeamOutlined style={{ fontSize: '48px', color: '#bfbfbf', marginBottom: 16 }} />
-            <Title level={4} type="secondary">No Team Leads Found</Title>
-            <Text type="secondary">You can invite and assign Team Leads under the Users feature.</Text>
+            <Title level={4} type="secondary">No Teams Found</Title>
+            <Text type="secondary">You can invite and assign users under the Users feature.</Text>
           </Card>
         )}
       </Space>
