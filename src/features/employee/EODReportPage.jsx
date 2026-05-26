@@ -63,6 +63,11 @@ const EODReportPage = () => {
   const [newTicketLoading, setNewTicketLoading] = useState(false);
   const [ticketForm] = Form.useForm();
 
+  // Modal State for Leave Application
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+  const [leaveApplying, setLeaveApplying] = useState(false);
+  const [leaveForm] = Form.useForm();
+
   const { control, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm({
     defaultValues: {
       items: [{ projectId: '', ticketId: '', hours: 0, workDone: '' }],
@@ -76,11 +81,18 @@ const EODReportPage = () => {
   const watchedItems = watch('items');
   const totalHours = watchedItems?.reduce((acc, curr) => acc + (curr.hours || 0), 0) || 0;
   
-  // Dynamic quota based on half-day/full-day leave
+  // Dynamic quota based on half-day/full-day/permission leave
   const baseRequiredHours = allocatedHoursPerDay;
-  const REQUIRED_HOURS = currentLeave 
-    ? (currentLeave.type === 'HalfDay' ? baseRequiredHours / 2 : 0)
-    : baseRequiredHours;
+  let REQUIRED_HOURS = baseRequiredHours;
+  if (currentLeave) {
+    if (currentLeave.type === 'FullDay') {
+      REQUIRED_HOURS = 0;
+    } else if (currentLeave.type === 'HalfDay') {
+      REQUIRED_HOURS = baseRequiredHours / 2;
+    } else if (currentLeave.type === 'Permission') {
+      REQUIRED_HOURS = Math.max(0, baseRequiredHours - 2);
+    }
+  }
 
   const selectedTicketIds = watchedItems?.map(item => item.ticketId).filter(id => !!id) || [];
 
@@ -234,7 +246,15 @@ const EODReportPage = () => {
         );
 
         if (approvedLeave) {
-          statusMap[dateStr] = approvedLeave.type === 'FullDay' ? 'leave' : 'half_leave';
+          if (approvedLeave.type === 'FullDay') {
+            statusMap[dateStr] = 'leave';
+          } else if (approvedLeave.type === 'HalfDay') {
+            statusMap[dateStr] = 'half_leave';
+          } else if (approvedLeave.type === 'Permission') {
+            statusMap[dateStr] = 'permission';
+          } else {
+            statusMap[dateStr] = 'leave';
+          }
         } else if (report) {
           statusMap[dateStr] = 'submitted';
         } else {
@@ -351,32 +371,39 @@ const EODReportPage = () => {
   };
 
   const handleOpenApplyLeaveModal = (date) => {
-    Modal.confirm({
-      title: `Apply Leave for ${dayjs(date).format('DD MMMM YYYY')}?`,
-      content: 'This will submit a Full Day Leave request for this date. The request will be routed to HR.',
-      okText: 'Apply Leave',
-      cancelText: 'Cancel',
-      onOk: async () => {
-        try {
-          await leaveService.applyLeave({
-            fromDate: date,
-            toDate: date,
-            type: 'FullDay',
-            reason: `Applied from EOD Weekly Work Report Page`
-          });
-          notification.success({
-            message: 'Leave Requested',
-            description: `Full day leave successfully requested for ${dayjs(date).format('DD MMMM YYYY')}.`
-          });
-          fetchReportForDate(date);
-        } catch (e) {
-          notification.error({
-            message: 'Failed to request leave',
-            description: e.response?.data?.message || 'Error occurred.'
-          });
-        }
-      }
+    leaveForm.resetFields();
+    leaveForm.setFieldsValue({
+      leaveDate: date,
+      type: 'FullDay',
+      reason: ''
     });
+    setIsLeaveModalOpen(true);
+  };
+
+  const handleApplyLeaveSubmit = async (values) => {
+    setLeaveApplying(true);
+    try {
+      await leaveService.applyLeave({
+        fromDate: values.leaveDate,
+        toDate: values.leaveDate,
+        type: values.type,
+        reason: values.reason || `Applied from EOD Weekly Work Report Page (${values.type})`
+      });
+      notification.success({
+        message: 'Leave Requested',
+        description: `${values.type === 'FullDay' ? 'Full Day Leave' : values.type === 'HalfDay' ? 'Half Day Leave' : 'Permission'} request successfully submitted.`
+      });
+      setIsLeaveModalOpen(false);
+      fetchReportForDate(values.leaveDate);
+      fetchWeeklyStatus(weekDates);
+    } catch (e) {
+      notification.error({
+        message: 'Failed to request leave',
+        description: e.response?.data?.message || 'Error occurred.'
+      });
+    } finally {
+      setLeaveApplying(false);
+    }
   };
 
   const onSubmit = async (data) => {
@@ -499,8 +526,9 @@ const EODReportPage = () => {
 
   const getStatusDisplay = (date) => {
     const status = weeklyStatus[date.format('YYYY-MM-DD')];
-    if (status === 'leave') return <Badge status="warning" text="Leave" />;
-    if (status === 'half_leave') return <Badge status="processing" text="Half Day" />;
+    if (status === 'leave') return <Badge color="#fa8c16" text="Full Day" />;
+    if (status === 'half_leave') return <Badge color="#1890ff" text="Half Day" />;
+    if (status === 'permission') return <Badge color="#13c2c2" text="Permission" />;
     if (status === 'submitted') return <Badge status="success" text="Logged" />;
     return <Badge status="default" text="Pending" />;
   };
@@ -796,7 +824,7 @@ const EODReportPage = () => {
                           >
                             {allProjects.map(p => (
                               <Select.Option key={p.id} value={p.id}>
-                                {p.projectName}
+                                {p.name || p.projectName}
                               </Select.Option>
                             ))}
                           </Select>
@@ -1060,7 +1088,7 @@ const EODReportPage = () => {
             <Select placeholder="Select Project">
               {allProjects.map(p => (
                 <Select.Option key={p.id} value={p.id}>
-                  {p.projectName}
+                  {p.name || p.projectName}
                 </Select.Option>
               ))}
             </Select>
@@ -1073,6 +1101,62 @@ const EODReportPage = () => {
           </Form.Item>
           <Form.Item name="estimatedHours" label="Estimated Hours" initialValue={8}>
             <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal for Apply Leave */}
+      <Modal
+        title={
+          <Space>
+            <CalendarOutlined style={{ color: '#10b981' }} />
+            <span>Apply Leave — {dayjs(selectedDate).format('DD MMMM YYYY')}</span>
+          </Space>
+        }
+        open={isLeaveModalOpen}
+        onCancel={() => setIsLeaveModalOpen(false)}
+        onOk={() => leaveForm.submit()}
+        okText="Submit Leave Request"
+        confirmLoading={leaveApplying}
+        destroyOnClose
+      >
+        <Form form={leaveForm} layout="vertical" onFinish={handleApplyLeaveSubmit}>
+          <Form.Item name="leaveDate" hidden><Input /></Form.Item>
+
+          <Form.Item
+            name="type"
+            label="Leave Type"
+            rules={[{ required: true, message: 'Please select leave type' }]}
+          >
+            <Radio.Group style={{ width: '100%' }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Radio value="FullDay">
+                  <Space>
+                    <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', background: '#fa8c16', marginRight: 4 }} />
+                    <Text strong>Full Day Leave</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>(Entire day off — no EOD required)</Text>
+                  </Space>
+                </Radio>
+                <Radio value="HalfDay">
+                  <Space>
+                    <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', background: '#1890ff', marginRight: 4 }} />
+                    <Text strong>Half Day Leave</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>(Work quota reduced by 50%)</Text>
+                  </Space>
+                </Radio>
+                <Radio value="Permission">
+                  <Space>
+                    <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', background: '#13c2c2', marginRight: 4 }} />
+                    <Text strong>Permission</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>(Short absence — 2h deducted from quota)</Text>
+                  </Space>
+                </Radio>
+              </Space>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item name="reason" label="Reason (optional)">
+            <TextArea rows={2} placeholder="Briefly explain the reason for leave..." />
           </Form.Item>
         </Form>
       </Modal>
