@@ -236,7 +236,11 @@ const EODReportPage = () => {
       ticketsData = ticketsData.filter(t => t.status !== 'Done');
       // If user is a Team Lead, only show tickets assigned to them
       if (role === 'TeamLead') {
-        ticketsData = ticketsData.filter(t => t.assignedToUserId === currentUser.id);
+        const myUserId = currentUser?.userId || currentUser?.id;
+        ticketsData = ticketsData.filter(t => 
+          (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
+          (t.assignedTo && String(t.assignedTo) === String(myUserId))
+        );
       }
       setMyTickets(ticketsData);
     } catch (error) {

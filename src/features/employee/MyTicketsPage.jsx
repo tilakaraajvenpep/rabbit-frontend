@@ -41,7 +41,11 @@ const MyTicketsPage = () => {
 
       // Filter by assignee if role is TeamLead or ProjectManager
       if (role !== 'Employee') {
-        ticketsData = ticketsData.filter(t => t.assignedToUserId === currentUser.id);
+        const myUserId = currentUser?.userId || currentUser?.id;
+        ticketsData = ticketsData.filter(t => 
+          (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
+          (t.assignedTo && String(t.assignedTo) === String(myUserId))
+        );
       }
 
       // Filter out backlog tickets (overdue and not completed)
