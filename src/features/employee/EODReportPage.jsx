@@ -387,18 +387,20 @@ const EODReportPage = () => {
         fromDate: values.leaveDate,
         toDate: values.leaveDate,
         type: values.type,
-        reason: values.reason || `Applied from EOD Weekly Work Report Page (${values.type})`
+        reason: values.reason || `Applied from EOD Weekly Work Report Page (${values.type})`,
+        autoApprove: true   // Auto-approve from EOD page — HR will be notified
       });
+      const typeLabel = values.type === 'FullDay' ? 'Full Day Leave' : values.type === 'HalfDay' ? 'Half Day Leave' : 'Permission';
       notification.success({
-        message: 'Leave Requested',
-        description: `${values.type === 'FullDay' ? 'Full Day Leave' : values.type === 'HalfDay' ? 'Half Day Leave' : 'Permission'} request successfully submitted.`
+        message: 'Leave Approved',
+        description: `Your ${typeLabel} has been approved and HR has been notified.`
       });
       setIsLeaveModalOpen(false);
       fetchReportForDate(values.leaveDate);
       fetchWeeklyStatus(weekDates);
     } catch (e) {
       notification.error({
-        message: 'Failed to request leave',
+        message: 'Failed to apply leave',
         description: e.response?.data?.message || 'Error occurred.'
       });
     } finally {
