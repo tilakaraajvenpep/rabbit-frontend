@@ -100,18 +100,26 @@ const EODReportPage = () => {
       const res = await adminService.getUsers();
       const allUsers = res.data || [];
       
-      // Filter for TeamLead first (case-insensitive)
-      let tls = allUsers.filter(u => {
-        const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
-        return role === 'teamlead';
-      });
-
-      // If no team leads are found, fall back to PMs and TenantAdmins
-      if (tls.length === 0) {
+      let tls = [];
+      if (currentUser?.role === 'TeamLead') {
         tls = allUsers.filter(u => {
           const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
           return role === 'projectmanager' || role === 'tenantadmin';
         });
+      } else {
+        // Filter for TeamLead first (case-insensitive)
+        tls = allUsers.filter(u => {
+          const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
+          return role === 'teamlead';
+        });
+
+        // If no team leads are found, fall back to PMs and TenantAdmins
+        if (tls.length === 0) {
+          tls = allUsers.filter(u => {
+            const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
+            return role === 'projectmanager' || role === 'tenantadmin';
+          });
+        }
       }
 
       setTeamLeads(tls);

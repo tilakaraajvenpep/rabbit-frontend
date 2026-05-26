@@ -97,6 +97,9 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       items.push(
         { key: '/teamlead/projects', icon: <ProjectOutlined />, label: 'My Projects' },
         { key: '/teamlead/board', icon: <DashboardOutlined />, label: 'Kanban Board' },
+        { key: '/teamlead/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
+        { key: '/teamlead/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
+        { key: '/teamlead/report', icon: <FileTextOutlined />, label: 'Daily Report' },
         { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
         { key: '/teamlead/cross-share', icon: <SwapOutlined />, label: 'Cross-Team Share' },

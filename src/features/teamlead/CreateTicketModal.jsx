@@ -7,7 +7,7 @@ import { adminService } from '../../services/adminService';
 
 const { TextArea } = Input;
 
-const CreateTicketModal = ({ open, onClose, projectId, onSuccess }) => {
+const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     defaultValues: {
@@ -21,18 +21,21 @@ const CreateTicketModal = ({ open, onClose, projectId, onSuccess }) => {
     }
   });
   
+  const [users, setUsers] = useState([]);
   const [employees, setEmployees] = useState([]);
 
   React.useEffect(() => {
-    fetchEmployees();
+    fetchUsers();
   }, []);
 
-  const fetchEmployees = async () => {
+  const fetchUsers = async () => {
     try {
       const res = await adminService.getUsers();
-      setEmployees(res.data.filter(u => u.role === 'Employee'));
+      const allUsers = res.data || [];
+      setUsers(allUsers);
+      setEmployees(allUsers.filter(u => u.role === 'Employee'));
     } catch (e) {
-      console.error('Failed to fetch employees');
+      console.error('Failed to fetch users');
     }
   };
 
@@ -123,9 +126,17 @@ const CreateTicketModal = ({ open, onClose, projectId, onSuccess }) => {
               rules={{ required: 'Please assign an employee' }}
               render={({ field }) => (
                 <Select {...field} style={{ width: '100%' }} placeholder="Select employee">
-                  {employees.map(emp => (
-                    <Select.Option key={emp.id} value={emp.id}>{emp.name}</Select.Option>
-                  ))}
+                  {employees.map(emp => {
+                    const empTL = users.find(tl => tl.id === emp.teamLeadId);
+                    const empTLName = empTL ? empTL.name || empTL.fullName : 'None';
+                    const projectTL = users.find(tl => tl.id === project?.assignedTeamLeadId);
+                    const projectTLName = projectTL ? projectTL.name || projectTL.fullName : 'None';
+                    return (
+                      <Select.Option key={emp.id} value={emp.id}>
+                        {emp.name || emp.fullName} (TL: {empTLName}) - Project TL: {projectTLName}
+                      </Select.Option>
+                    );
+                  })}
                 </Select>
               )}
             />

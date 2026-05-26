@@ -6,6 +6,7 @@ import {
 import { 
   ClockCircleOutlined, SearchOutlined
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -16,7 +17,7 @@ import HoursProgress from '../../components/common/HoursProgress';
 const { Title, Text, Paragraph } = Typography;
 
 const MyTicketsPage = () => {
-  const { currentUser } = useAuthStore();
+  const { currentUser, role } = useAuthStore();
   const { isDarkMode } = useThemeStore();
   
   const [tickets, setTickets] = useState([]);
@@ -36,7 +37,20 @@ const MyTicketsPage = () => {
     setLoading(true);
     try {
       const response = await ticketService.getTickets();
-      setTickets(response.data || []);
+      let ticketsData = response.data || [];
+
+      // Filter by assignee if role is TeamLead or ProjectManager
+      if (role !== 'Employee') {
+        ticketsData = ticketsData.filter(t => t.assignedToUserId === currentUser.id);
+      }
+
+      // Filter out backlog tickets (overdue and not completed)
+      ticketsData = ticketsData.filter(t => {
+        const isBacklog = t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && t.status !== 'Done';
+        return !isBacklog;
+      });
+
+      setTickets(ticketsData);
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to load tickets.' });
     } finally {

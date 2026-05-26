@@ -9,6 +9,7 @@ import {
   EditOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
@@ -52,7 +53,15 @@ const EmployeeKanbanPage = () => {
     setLoading(true);
     try {
       const response = await ticketService.getTickets();
-      setTickets(response.data || []);
+      let ticketsData = response.data || [];
+      
+      // Filter out backlog tickets (overdue and not completed)
+      ticketsData = ticketsData.filter(t => {
+        const isBacklog = t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && t.status !== 'Done';
+        return !isBacklog;
+      });
+
+      setTickets(ticketsData);
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to load tickets.' });
     } finally {

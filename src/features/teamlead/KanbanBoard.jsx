@@ -181,14 +181,21 @@ const KanbanBoard = () => {
   // Effective column config — from saved project data or defaults
   const effectiveColumnList = useMemo(() => deriveColumnConfig(project?.kanbanColumns), [project]);
 
-  // Local kanban columns derived from allTickets + effectiveColumnList
+  const nonBacklogTickets = useMemo(() => {
+    return allTickets.filter(t => {
+      const isOverdue = t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && t.status !== 'Done';
+      return !isOverdue;
+    });
+  }, [allTickets]);
+
+  // Local kanban columns derived from nonBacklogTickets + effectiveColumnList
   const localColumns = useMemo(() => {
     const result = {};
     effectiveColumnList.forEach(({ key }) => {
-      result[key] = allTickets.filter(t => t.status === key);
+      result[key] = nonBacklogTickets.filter(t => t.status === key);
     });
     return result;
-  }, [allTickets, effectiveColumnList]);
+  }, [nonBacklogTickets, effectiveColumnList]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -575,6 +582,7 @@ const KanbanBoard = () => {
         open={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         projectId={projectId} 
+        project={project}
         onSuccess={() => loadTickets(projectId)} 
       />
 
@@ -671,7 +679,16 @@ const KanbanBoard = () => {
               <Select
                 allowClear
                 placeholder="Unassigned"
-                options={users.filter(u => u.role === 'Employee').map(u => ({ value: u.id || u.userId, label: u.name || u.fullName }))}
+                options={users.filter(u => u.role === 'Employee').map(u => {
+                  const empTL = users.find(tl => tl.id === u.teamLeadId);
+                  const empTLName = empTL ? empTL.name || empTL.fullName : 'None';
+                  const projectTL = users.find(tl => tl.id === project?.assignedTeamLeadId);
+                  const projectTLName = projectTL ? projectTL.name || projectTL.fullName : 'None';
+                  return {
+                    value: u.id || u.userId,
+                    label: `${u.name || u.fullName} (TL: ${empTLName}) - Project TL: ${projectTLName}`
+                  };
+                })}
               />
             </Form.Item>
           </div>
