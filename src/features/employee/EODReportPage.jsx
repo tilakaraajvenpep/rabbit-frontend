@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Form, Input, InputNumber, Select, Button, Space, Typography,
-  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table, Badge
+  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table, Badge, Tabs
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, SendOutlined, CheckCircleOutlined,
