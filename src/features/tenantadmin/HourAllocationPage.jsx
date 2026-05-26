@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card, InputNumber, Button, Typography, Space, Tag, Avatar,
-  notification, Skeleton, Row, Col, Statistic, Divider, Tooltip, theme, Badge
+  notification, Skeleton, Row, Col, Divider, Tooltip, theme, Badge
 } from 'antd';
 import {
-  ClockCircleOutlined, UserOutlined, SaveOutlined, TeamOutlined,
-  CheckCircleOutlined, EditOutlined, CloseOutlined, ThunderboltOutlined
+  ClockCircleOutlined, UserOutlined, SaveOutlined,
+  CheckCircleOutlined, EditOutlined, CloseOutlined
 } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import PageHeader from '../../components/common/PageHeader';
@@ -27,18 +27,20 @@ const getInitials = (name = '') =>
 const EmployeeCard = ({ user, onSave }) => {
   const { token } = theme.useToken();
   const { isDarkMode } = useThemeStore();
-  const [hours, setHours] = useState(Number(user.allocatedHours) || 8.5);
+  const currentSaved = user.allocatedHours !== undefined && user.allocatedHours !== null
+    ? Number(user.allocatedHours)
+    : 0.0;
+  const [hours, setHours] = useState(currentSaved);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const currentSaved = Number(user.allocatedHours) || 8.5;
   const isDirty = hours !== currentSaved;
 
   const meta = ROLE_META[user.role] || { color: '#6b7280', bg: 'rgba(107,114,128,0.1)', label: user.role };
 
   const handleSave = async () => {
-    if (!hours || hours <= 0) {
-      notification.warning({ message: 'Invalid', description: 'Hours must be greater than 0.' });
+    if (hours === undefined || hours === null || hours < 0) {
+      notification.warning({ message: 'Invalid', description: 'Hours must be 0 or greater.' });
       return;
     }
     setSaving(true);
@@ -135,7 +137,7 @@ const EmployeeCard = ({ user, onSave }) => {
         <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>Set hours:</Text>
         <InputNumber
           value={hours}
-          min={0.5}
+          min={0}
           step={0.5}
           precision={1}
           style={{ flex: 1 }}
@@ -220,39 +222,12 @@ const HourAllocationPage = () => {
     }
   }, []);
 
-  const totalTeam    = users.length;
-  const avgHours     = totalTeam > 0
-    ? (users.reduce((s, u) => s + (Number(u.allocatedHours) || 8.5), 0) / totalTeam).toFixed(1)
-    : '—';
-  const totalPerDay  = users.reduce((s, u) => s + (Number(u.allocatedHours) || 8.5), 0).toFixed(1);
-
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 80 }}>
       <PageHeader
         title="Work Hour Allocation"
         breadcrumbs={[{ label: 'Admin' }, { label: 'Hour Allocation' }]}
       />
-
-      {/* Summary strip */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 28 }}>
-        {[
-          { label: 'Team Members',     value: totalTeam,    suffix: '',    color: token.colorPrimary,  icon: <TeamOutlined /> },
-          { label: 'Avg Quota/Day',    value: avgHours,     suffix: 'h',   color: '#10b981',           icon: <ClockCircleOutlined /> },
-          { label: 'Total Hours/Day',  value: totalPerDay,  suffix: 'h',   color: '#f59e0b',           icon: <ThunderboltOutlined /> },
-        ].map(s => (
-          <Col xs={24} sm={8} key={s.label}>
-            <Card style={{ borderRadius: 14, borderLeft: `4px solid ${s.color}` }} bodyStyle={{ padding: '16px 20px' }}>
-              <Statistic
-                title={<Text type="secondary" style={{ fontSize: 12 }}>{s.label}</Text>}
-                value={s.value}
-                suffix={s.suffix}
-                prefix={<span style={{ color: s.color }}>{s.icon}</span>}
-                valueStyle={{ color: s.color, fontWeight: 700, fontSize: 22 }}
-              />
-            </Card>
-          </Col>
-        ))}
-      </Row>
 
       <div style={{ marginBottom: 20 }}>
         <Title level={5} style={{ margin: 0 }}>
