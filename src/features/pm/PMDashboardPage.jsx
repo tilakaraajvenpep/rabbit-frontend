@@ -30,6 +30,7 @@ import { adminService } from '../../services/adminService';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import { useThemeStore } from '../../store/themeStore';
+import { useAuthStore } from '../../store/authStore';
 import { timerRequestService } from '../../services/timerRequestService';
 import { ticketService } from '../../services/ticketService';
 
@@ -44,6 +45,7 @@ const PMDashboardPage = () => {
   const [teamLeads, setTeamLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const { unreadCount } = useAlertStore();
+  const { currentUser } = useAuthStore();
 
   // Filters state
   const [searchText, setSearchText] = useState('');
@@ -203,8 +205,14 @@ const PMDashboardPage = () => {
 
   const dlStats = getDeadlineStats();
 
+  // Filter projects to only those assigned to the current PM
+  const pmId = currentUser?.id || currentUser?.userId;
+  const myProjects = pmId
+    ? projects.filter(p => p.assignedProjectManagerId === pmId)
+    : projects;
+
   // Filtering active projects
-  const activeProjects = projects.filter(p => ['Approved', 'InProgress', 'OnHold'].includes(p.status));
+  const activeProjects = myProjects.filter(p => ['Approved', 'InProgress', 'OnHold'].includes(p.status));
   const filteredActiveProjects = activeProjects.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchText.toLowerCase()) || 
                           (p.client && p.client.toLowerCase().includes(searchText.toLowerCase())) ||
@@ -225,7 +233,7 @@ const PMDashboardPage = () => {
     return matchesSearch && matchesType && matchesSales && matchesTL && matchesClient && matchesStatus && matchesDate;
   });
 
-  const pendingApprovalProjects = projects.filter(p => p.status === 'PendingPMApproval');
+  const pendingApprovalProjects = myProjects.filter(p => p.status === 'PendingPMApproval');
 
   // Extract unique options for filter dropdowns
   const clientOptions = Array.from(new Set(activeProjects.map(p => p.client).filter(Boolean))).map(c => ({ label: c, value: c }));
@@ -608,19 +616,7 @@ const PMDashboardPage = () => {
 
       <PageHeader title="Project Manager Dashboard" />
 
-      {unreadCount > 0 && (
-        <Alert
-          message={`You have ${unreadCount} unread critical alerts!`}
-          type="error"
-          showIcon
-          action={
-            <Button size="small" danger onClick={() => navigate('/pm/alerts')}>
-              View Alerts
-            </Button>
-          }
-          style={{ marginBottom: 24, borderRadius: 10 }}
-        />
-      )}
+
 
       {/* KPI Cards Grid */}
       <Row gutter={[20, 20]} style={{ marginBottom: 24 }}>
