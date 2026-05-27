@@ -74,9 +74,7 @@ const EmployeeKanbanPage = () => {
       await ticketService.updateTicketStatus(ticketId, newStatus);
       notification.success({ 
         message: 'Status Updated', 
-        description: newStatus === 'InProgress' 
-          ? 'Timer started automatically! Good luck with your task!' 
-          : 'Timer paused and time recorded successfully!'
+        description: `Ticket status successfully changed to ${newStatus}.`
       });
       fetchMyTickets();
     } catch (error) {
@@ -140,7 +138,7 @@ const EmployeeKanbanPage = () => {
       <Alert 
         message={
           <Text strong style={{ color: '#1d4ed8' }}>
-            💡 Drag and drop the tickets from ToDo To Inprogress to start the timer and track the hours.
+            💡 Drag and drop the tickets or use the quick status buttons to sync your task updates.
           </Text>
         }
         type="info"
@@ -222,9 +220,6 @@ const EmployeeKanbanPage = () => {
                       </div>
                     ) : (
                       columnTickets.map(ticket => {
-                        const seconds = getTicketActiveTime(ticket);
-                        const isTimerActive = ticket.status === 'InProgress';
-                        
                         return (
                           <Card 
                             key={ticket.id}
@@ -237,7 +232,7 @@ const EmployeeKanbanPage = () => {
                             style={{ 
                               borderRadius: 10,
                               background: isDarkMode ? '#2c2c2e' : '#ffffff',
-                              border: isTimerActive ? '2px solid #52c41a' : '1px solid rgba(0,0,0,0.06)',
+                              border: '1px solid rgba(0,0,0,0.06)',
                               cursor: 'grab'
                             }}
                             bodyStyle={{ padding: '16px' }}
@@ -256,29 +251,6 @@ const EmployeeKanbanPage = () => {
                               Project: {ticket.projectName || 'General'}
                             </Text>
 
-                            {/* TIMER COMPONENT */}
-                            <div style={{ 
-                              background: isTimerActive ? 'rgba(82, 196, 26, 0.08)' : 'rgba(0,0,0,0.02)',
-                              padding: '8px 12px',
-                              borderRadius: 8,
-                              marginBottom: 12,
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center'
-                            }}>
-                              <Space size={6}>
-                                <ClockCircleOutlined style={{ color: isTimerActive ? '#52c41a' : '#8c8c8c' }} />
-                                <Text strong style={{ fontSize: 12, color: isTimerActive ? '#52c41a' : 'inherit' }}>
-                                  {formatTimer(seconds)}
-                                </Text>
-                              </Space>
-                              {isTimerActive ? (
-                                <Tag color="success" style={{ margin: 0 }}>Timer Active</Tag>
-                              ) : (
-                                <Text type="secondary" style={{ fontSize: 10 }}>Paused</Text>
-                              )}
-                            </div>
-
                             <Divider style={{ margin: '10px 0' }} />
 
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -289,7 +261,6 @@ const EmployeeKanbanPage = () => {
                               {columnStatus !== 'ToDo' && (
                                 <Button 
                                   size="small"
-                                  icon={<PlayCircleOutlined />}
                                   onClick={() => handleStatusChange(ticket.id, 'ToDo')}
                                 >
                                   To Do
@@ -299,17 +270,14 @@ const EmployeeKanbanPage = () => {
                                 <Button 
                                   size="small"
                                   type="primary"
-                                  icon={<PlayCircleOutlined />}
                                   onClick={() => handleStatusChange(ticket.id, 'InProgress')}
-                                  style={{ background: '#52c41a', borderColor: '#52c41a' }}
                                 >
-                                  Start Timer
+                                  In Progress
                                 </Button>
                               )}
                               {columnStatus !== 'InReview' && (
                                 <Button 
                                   size="small"
-                                  icon={<SyncOutlined />}
                                   onClick={() => handleStatusChange(ticket.id, 'InReview')}
                                 >
                                   Review
