@@ -30,7 +30,7 @@ const { Title, Text } = Typography;
 
 const EODReportPage = () => {
   const navigate = useNavigate();
-  const { currentUser, role } = useAuthStore();
+  const { currentUser, role, setUser } = useAuthStore();
   const { token } = theme.useToken();
   const { isDarkMode } = useThemeStore();
 
@@ -186,7 +186,11 @@ const EODReportPage = () => {
     
     adminService.getMyProfile().then(res => {
       const fresh = Number(res?.data?.allocatedHours);
-      if (fresh && fresh > 0) setAllocatedHoursPerDay(fresh);
+      if (!isNaN(fresh) && fresh >= 0) {
+        setAllocatedHoursPerDay(fresh > 0 ? fresh : 8.5);
+        // Keep auth store in sync so it's consistent across page navigation
+        setUser({ ...currentUser, allocatedHours: String(fresh) });
+      }
       const tlId = res?.data?.teamLeadId;
       if (tlId) setSelectedTeamLeadId(tlId);
     }).catch(() => {});
