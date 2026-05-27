@@ -1,19 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Space, Typography, notification, Modal } from 'antd';
-import { CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { Card, Table, Tag, Space, Typography, notification, Avatar, Row, Col, Statistic } from 'antd';
+import { CalendarOutlined, CheckCircleOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { leaveService } from '../../services/leaveService';
-import { useAuthStore } from '../../store/authStore';
 import PageHeader from '../../components/common/PageHeader';
+import { useThemeStore } from '../../store/themeStore';
 
 const { Text } = Typography;
 
 const LeaveApprovalsPage = () => {
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-  const { currentUser } = useAuthStore();
-  const isAccounts = currentUser?.role === 'Accounts';
+  const { isDarkMode } = useThemeStore();
 
   useEffect(() => {
     fetchLeaves();
@@ -23,47 +21,30 @@ const LeaveApprovalsPage = () => {
     setLoading(true);
     try {
       const res = await leaveService.getAllLeaves();
-      setLeaves(res.data);
+      // Show only HR-approved leaves — descending order (newest first)
+      const approved = (res.data || [])
+        .filter(l => l.status === 'Approved')
+        .sort((a, b) => dayjs(b.leaveDate).unix() - dayjs(a.leaveDate).unix());
+      setLeaves(approved);
     } catch (e) {
-      notification.error({ message: 'Error', description: 'Failed to fetch leave requests.' });
+      notification.error({ message: 'Error', description: 'Failed to fetch leave records.' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAction = async (id, status) => {
-    Modal.confirm({
-      title: `${status} Leave Request`,
-      content: `Are you sure you want to ${status.toLowerCase()} this leave request?`,
-      okText: 'Yes',
-      cancelText: 'No',
-      onOk: async () => {
-        setActionLoading(true);
-        try {
-          await leaveService.updateLeaveStatus(id, status);
-          notification.success({
-            message: `Request ${status}`,
-            description: `Leave request has been successfully ${status.toLowerCase()}.`
-          });
-          fetchLeaves();
-        } catch (e) {
-          notification.error({ message: 'Error', description: 'Failed to update leave status.' });
-        } finally {
-          setActionLoading(false);
-        }
-      }
-    });
-  };
-
   const columns = [
     {
-      title: 'Employee Name',
+      title: 'Employee',
       dataIndex: ['user', 'fullName'],
       key: 'employeeName',
       render: (name, record) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{name}</Text>
-          <Text type="secondary" style={{ fontSize: 11 }}>{record.user?.email}</Text>
+        <Space>
+          <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#10b981' }} size="small" />
+          <Space direction="vertical" size={0}>
+            <Text strong>{name || 'N/A'}</Text>
+            <Text type="secondary" style={{ fontSize: 11 }}>{record.user?.email}</Text>
+          </Space>
         </Space>
       )
     },
@@ -71,15 +52,17 @@ const LeaveApprovalsPage = () => {
       title: 'Leave Date',
       dataIndex: 'leaveDate',
       key: 'leaveDate',
-      render: (date) => dayjs(date).format('DD MMM YYYY (dddd)'),
+      defaultSortOrder: 'descend',
       sorter: (a, b) => dayjs(a.leaveDate).unix() - dayjs(b.leaveDate).unix(),
+      render: (date) => dayjs(date).format('DD MMM YYYY (dddd)'),
     },
     {
       title: 'Type',
       dataIndex: 'type',
       key: 'type',
+      width: 120,
       render: (type) => (
-        <Tag color={type === 'FullDay' ? 'indigo' : 'cyan'}>
+        <Tag color={type === 'FullDay' ? 'purple' : 'cyan'} style={{ borderRadius: 6 }}>
           {type === 'FullDay' ? 'Full Day' : 'Half Day'}
         </Tag>
       ),
@@ -91,110 +74,70 @@ const LeaveApprovalsPage = () => {
       render: (reason) => reason || <Text type="secondary">N/A</Text>,
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => {
-        let color = 'gold';
-        let icon = <ClockCircleOutlined />;
-        if (status === 'Approved') {
-          color = 'success';
-          icon = <CheckCircleOutlined />;
-        } else if (status === 'Rejected') {
-          color = 'error';
-          icon = <CloseCircleOutlined />;
-        }
-        return (
-          <Tag icon={icon} color={color} style={{ borderRadius: 6, padding: '2px 8px' }}>
-            {status}
-          </Tag>
-        );
-      },
-    },
-    {
       title: 'Applied On',
       dataIndex: 'createdAt',
       key: 'createdAt',
+      width: 190,
       render: (date) => dayjs(date).format('DD MMM YYYY, hh:mm A'),
     },
     {
-      title: 'Action',
-      key: 'action',
-      render: (_, record) => {
-        if (record.status !== 'Pending') return null;
-
-        return (
-          <Space>
-            <Button
-              type="primary"
-              size="small"
-              icon={<CheckCircleOutlined />}
-              onClick={() => handleAction(record.leaveId, 'Approved')}
-              loading={actionLoading}
-              style={{ background: '#10b981', borderColor: '#10b981' }}
-            >
-              Approve
-            </Button>
-            <Button
-              type="primary"
-              danger
-              size="small"
-              icon={<CloseCircleOutlined />}
-              onClick={() => handleAction(record.leaveId, 'Rejected')}
-              loading={actionLoading}
-            >
-              Reject
-            </Button>
-          </Space>
-        );
-      }
-    }
+      title: 'Status',
+      key: 'status',
+      width: 140,
+      render: () => (
+        <Tag icon={<CheckCircleOutlined />} color="success" style={{ borderRadius: 6 }}>
+          Approved by HR
+        </Tag>
+      ),
+    },
   ];
-
-  const pendingLeaves = leaves.filter(l => l.status === 'Pending');
-  const pastLeaves = leaves.filter(l => isAccounts ? l.status === 'Approved' : l.status !== 'Pending');
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 40 }}>
-      <PageHeader title="Leave Approvals" />
+      <PageHeader
+        title="Leave Approvals"
+        subTitle="View all HR-approved employee leaves for awareness and project planning."
+      />
 
-      <Space direction="vertical" size={24} style={{ width: '100%' }}>
-        {/* Pending Requests */}
-        {!isAccounts && (
-          <Card
-            title={
-              <Space>
-                <CalendarOutlined style={{ color: '#f59e0b' }} />
-                <span>Pending Leave Requests ({pendingLeaves.length})</span>
-              </Space>
-            }
-            style={{ borderRadius: 12, boxShadow: '0 4px 20px rgba(245, 158, 11, 0.03)' }}
-          >
-            <Table
-              columns={columns}
-              dataSource={pendingLeaves}
-              rowKey="leaveId"
-              loading={loading}
-              locale={{ emptyText: 'No pending leave requests found.' }}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12}>
+          <Card style={{ borderRadius: 12, border: isDarkMode ? '1px solid #3f3f46' : '1px solid #f0f0f0' }}>
+            <Statistic
+              title="Total HR-Approved Leaves"
+              value={leaves.length}
+              prefix={<CalendarOutlined style={{ color: '#10b981' }} />}
             />
           </Card>
-        )}
+        </Col>
+        <Col xs={24} sm={12}>
+          <Card style={{ borderRadius: 12, border: isDarkMode ? '1px solid #3f3f46' : '1px solid #f0f0f0' }}>
+            <Statistic
+              title="Unique Employees on Leave"
+              value={new Set(leaves.map(l => l.userId)).size}
+              prefix={<TeamOutlined style={{ color: '#6366f1' }} />}
+            />
+          </Card>
+        </Col>
+      </Row>
 
-        {/* Leave History Log */}
-        <Card
-          title={isAccounts ? "Approved Leaves Log" : "Past Leaves Log"}
-          style={{ borderRadius: 12, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.02)' }}
-        >
-          <Table
-            columns={columns.filter(col => col.key !== 'action')}
-            dataSource={pastLeaves}
-            rowKey="leaveId"
-            loading={loading}
-            pagination={{ pageSize: 8 }}
-            locale={{ emptyText: 'No history record available.' }}
-          />
-        </Card>
-      </Space>
+      <Card
+        title={
+          <Space>
+            <CheckCircleOutlined style={{ color: '#10b981' }} />
+            <span>HR-Approved Leaves ({leaves.length})</span>
+          </Space>
+        }
+        style={{ borderRadius: 12, boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)' }}
+      >
+        <Table
+          columns={columns}
+          dataSource={leaves}
+          rowKey="leaveId"
+          loading={loading}
+          pagination={{ pageSize: 10, showSizeChanger: true }}
+          locale={{ emptyText: 'No HR-approved leaves found.' }}
+        />
+      </Card>
     </div>
   );
 };
