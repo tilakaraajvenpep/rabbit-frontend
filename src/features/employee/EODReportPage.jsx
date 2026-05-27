@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Form, Input, InputNumber, Select, Button, Space, Typography,
-  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table, Badge, Tabs
+  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table, Badge, Tabs, DatePicker
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, SendOutlined, CheckCircleOutlined,
@@ -423,7 +423,8 @@ const EODReportPage = () => {
   const handleOpenApplyLeaveModal = (date) => {
     leaveForm.resetFields();
     leaveForm.setFieldsValue({
-      leaveDate: date,
+      fromDate: dayjs(date),
+      toDate: null,
       type: 'FullDay',
       reason: ''
     });
@@ -433,9 +434,11 @@ const EODReportPage = () => {
   const handleApplyLeaveSubmit = async (values) => {
     setLeaveApplying(true);
     try {
+      const fromStr = values.fromDate ? values.fromDate.format('YYYY-MM-DD') : selectedDate;
+      const toStr = values.toDate ? values.toDate.format('YYYY-MM-DD') : fromStr;
       await leaveService.applyLeave({
-        fromDate: values.leaveDate,
-        toDate: values.leaveDate,
+        fromDate: fromStr,
+        toDate: toStr,
         type: values.type,
         reason: values.reason || `Applied from EOD Weekly Work Report Page (${values.type})`
       });
@@ -445,7 +448,7 @@ const EODReportPage = () => {
         description: `Your ${typeLabel} request has been submitted and is pending HR approval.`
       });
       setIsLeaveModalOpen(false);
-      fetchReportForDate(values.leaveDate);
+      fetchReportForDate(selectedDate);
       fetchWeeklyStatus(weekDates);
     } catch (e) {
       notification.error({
@@ -1118,7 +1121,7 @@ const EODReportPage = () => {
         title={
           <Space>
             <CalendarOutlined style={{ color: '#10b981' }} />
-            <span>Apply Leave — {dayjs(selectedDate).format('DD MMMM YYYY')}</span>
+            <span>Apply Leave Request</span>
           </Space>
         }
         open={isLeaveModalOpen}
@@ -1129,7 +1132,25 @@ const EODReportPage = () => {
         destroyOnClose
       >
         <Form form={leaveForm} layout="vertical" onFinish={handleApplyLeaveSubmit}>
-          <Form.Item name="leaveDate" hidden><Input /></Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item
+                name="fromDate"
+                label="Start Date"
+                rules={[{ required: true, message: 'Please select start date' }]}
+              >
+                <DatePicker style={{ width: '100%' }} format="DD MMM YYYY" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="toDate"
+                label="End Date (Optional)"
+              >
+                <DatePicker style={{ width: '100%' }} format="DD MMM YYYY" placeholder="Optional" />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Form.Item
             name="type"

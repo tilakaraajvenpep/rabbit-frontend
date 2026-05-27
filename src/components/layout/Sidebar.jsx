@@ -116,8 +116,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/employee/kanban', icon: <DashboardOutlined />, label: 'Kanban Board' },
         { key: '/employee/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/employee/report', icon: <FileTextOutlined />, label: 'Daily Report' },
-        { key: '/employee/reports', icon: <BarChartOutlined />, label: 'Work Reports' },
-        { key: '/employee/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' }
+        { key: '/employee/reports', icon: <BarChartOutlined />, label: 'Work Reports' }
       );
     }
 
