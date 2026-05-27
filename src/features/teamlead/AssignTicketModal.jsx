@@ -4,10 +4,12 @@ import { UserOutlined } from '@ant-design/icons';
 import { ticketService } from '../../services/ticketService';
 import { adminService } from '../../services/adminService';
 import { mockUsers } from '../../mocks/mockUsers';
+import { useAuthStore } from '../../store/authStore';
 
 const { Text } = Typography;
 
 const AssignTicketModal = ({ open, onClose, ticket, onSuccess }) => {
+  const { currentUser, role } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState(ticket?.assignedTo);
   const [employees, setEmployees] = useState([]);
@@ -20,6 +22,19 @@ const AssignTicketModal = ({ open, onClose, ticket, onSuccess }) => {
   }, [open, ticket]);
 
   const fetchEmployees = async () => {
+    if (role === 'ProjectManager' || role === 'TenantAdmin') {
+      const pmId = currentUser?.userId || currentUser?.id;
+      const pmName = currentUser?.fullName || currentUser?.name || 'Project Manager';
+      const pmAvatar = currentUser?.avatar || '';
+      setEmployees([{
+        id: pmId,
+        name: pmName,
+        role: role,
+        avatar: pmAvatar
+      }]);
+      return;
+    }
+    
     try {
       const res = await adminService.getUsers();
       setEmployees(res.data.filter(u => u.role === 'Employee'));
