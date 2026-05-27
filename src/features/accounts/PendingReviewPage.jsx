@@ -77,7 +77,7 @@ const PendingReviewPage = () => {
       title: 'Project Code', 
       dataIndex: 'code', 
       key: 'code', 
-      width: '12%',
+      width: 130,
       render: (text) => (
         <Tag color="geekblue" style={{ borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700, padding: '4px 8px' }}>
           <CodeOutlined />
@@ -88,21 +88,49 @@ const PendingReviewPage = () => {
     { 
       title: 'Project Name', 
       dataIndex: 'name', 
-      key: 'name', 
-      width: '32%',
+      key: 'name',
       render: (text, record) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <Button 
-            type="link" 
-            style={{ padding: 0, fontWeight: 700, fontSize: '14.5px', textAlign: 'left', height: 'auto', color: '#6366f1' }} 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+          <span 
+            style={{ 
+              fontWeight: 700, 
+              fontSize: '14.5px', 
+              color: '#6366f1',
+              cursor: 'pointer',
+              textDecoration: 'none',
+              transition: 'all 0.2s',
+              display: 'inline-block',
+              whiteSpace: 'normal',
+              wordBreak: 'break-word',
+              lineHeight: 1.4
+            }} 
             onClick={() => navigate(`/accounts/projects/${record.id}/cost`)}
+            onMouseEnter={(e) => {
+              e.target.style.color = '#4f46e5';
+              e.target.style.textDecoration = 'underline';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.color = '#6366f1';
+              e.target.style.textDecoration = 'none';
+            }}
           >
             {text}
-          </Button>
+          </span>
           {record.comments && record.status.startsWith('Returned') && (
-            <Text type="danger" style={{ fontSize: '12px' }} ellipsis={{ tooltip: record.comments }}>
-              Reason: {record.comments}
-            </Text>
+            <div style={{ 
+              fontSize: '12.5px', 
+              color: '#ef4444', 
+              marginTop: 6, 
+              background: isDarkMode ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.04)', 
+              padding: '6px 10px', 
+              borderRadius: 6,
+              borderLeft: '3px solid #ef4444',
+              whiteSpace: 'normal',
+              wordBreak: 'break-word',
+              lineHeight: 1.4
+            }}>
+              <strong>Reason:</strong> {record.comments}
+            </div>
           )}
         </div>
       ) 
@@ -111,24 +139,32 @@ const PendingReviewPage = () => {
       title: 'Client Name', 
       dataIndex: 'client', 
       key: 'client',
-      width: '15%',
-      render: (text) => <Text style={{ fontWeight: 500 }}>{text}</Text>
+      width: 140,
+      render: (text) => <span style={{ fontWeight: 600, color: isDarkMode ? '#e4e4e7' : '#3f3f46' }}>{text}</span>
     },
     { 
       title: 'Project Category', 
       dataIndex: 'projectCategory', 
       key: 'projectCategory', 
-      width: '12%',
-      render: (text) => text ? <Tag color="blue" style={{ borderRadius: 4, fontWeight: 600 }}>{text}</Tag> : <Text type="secondary" italic>N/A</Text> 
+      width: 150,
+      render: (text) => text ? (
+        <Tag color="blue" style={{ borderRadius: 6, fontWeight: 600, padding: '2px 8px' }}>
+          {text}
+        </Tag>
+      ) : (
+        <Tag color="default" style={{ borderRadius: 6, fontWeight: 500, padding: '2px 8px', opacity: 0.6 }}>
+          N/A
+        </Tag>
+      )
     },
     { 
       title: 'Submitted Date', 
       dataIndex: 'createdAt', 
       key: 'createdAt', 
-      width: '13%',
+      width: 150,
       render: (date) => (
-        <Space size={6} style={{ color: '#64748b' }}>
-          <CalendarOutlined />
+        <Space size={6} style={{ color: isDarkMode ? '#a1a1aa' : '#71717a' }}>
+          <CalendarOutlined style={{ color: '#6366f1' }} />
           <span style={{ fontWeight: 500 }}>{dayjs(date).format('DD MMM YYYY')}</span>
         </Space>
       )
@@ -137,13 +173,14 @@ const PendingReviewPage = () => {
       title: 'Status', 
       dataIndex: 'status', 
       key: 'status', 
-      width: '10%',
+      width: 130,
       render: (status) => <StatusBadge status={status} /> 
     },
     {
       title: 'Actions',
       key: 'actions',
-      width: '16%',
+      width: 180,
+      align: 'right',
       render: (_, record) => {
         const isApproved = record.status === 'Approved';
         return (
@@ -151,7 +188,7 @@ const PendingReviewPage = () => {
             <Button 
               type={isApproved ? "default" : "primary"} 
               icon={<CalculatorOutlined />} 
-              style={{ borderRadius: 8 }}
+              style={{ borderRadius: 8, fontWeight: 600 }}
               onClick={() => navigate(`/accounts/projects/${record.id}/cost`)}
             >
               {isApproved ? 'Edit Cost' : 'Analyze'}
@@ -280,6 +317,7 @@ const PendingReviewPage = () => {
             rowKey="id" 
             pagination={{ pageSize: 8, showSizeChanger: false }}
             style={{ borderRadius: 12, overflow: 'hidden' }}
+            scroll={{ x: 1000 }}
           />
         ) : (
           <EmptyState message={`No projects found under "${tabItems.find(t => t.key === activeTab)?.label.split(' (')[0]}" status.`} />
