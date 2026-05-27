@@ -429,7 +429,7 @@ const CostAnalysisPage = () => {
           locale={{ emptyText: analysisMethod === 'extract' ? 'No budget items extracted. Click "Extract Budget & Milestones" above to parse the scope document.' : 'No budget items defined. Click "Add Item" to add manually (Optional).' }}
           columns={[
             {
-              title: 'Budget Section / Item Description',
+              title: 'Description',
               dataIndex: 'item',
               key: 'item',
               width: '50%',
@@ -442,7 +442,7 @@ const CostAnalysisPage = () => {
               )
             },
             {
-              title: 'Hours (h)',
+              title: 'Total Hours',
               dataIndex: 'hours',
               key: 'hours',
               width: '20%',
@@ -456,7 +456,7 @@ const CostAnalysisPage = () => {
               )
             },
             {
-              title: 'Cost (₹)',
+              title: 'Cost (INR)',
               dataIndex: 'cost',
               key: 'cost',
               width: '20%',
@@ -519,7 +519,7 @@ const CostAnalysisPage = () => {
           locale={{ emptyText: analysisMethod === 'extract' ? 'No milestones extracted. Click "Extract Budget & Milestones" above to populate.' : 'No milestones defined. Click "Add Milestone" to add manually (Optional).' }}
           columns={[
             {
-              title: 'Milestone Title',
+              title: 'Description',
               dataIndex: 'title',
               key: 'title',
               width: '30%',
@@ -545,7 +545,7 @@ const CostAnalysisPage = () => {
               )
             },
             {
-              title: 'Release Amount (₹)',
+              title: 'Release Amount',
               dataIndex: 'amount',
               key: 'amount',
               width: '20%',
