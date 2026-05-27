@@ -41,7 +41,8 @@ const ProjectDetailPage = () => {
 
       const docsRes = await projectService.getDocuments(id);
       if (docsRes.data && docsRes.data.length > 0) {
-        setLatestDoc(docsRes.data[0]);
+        const scopeDoc = docsRes.data.find(d => d.documentCategory === 'scope');
+        setLatestDoc(scopeDoc || null);
       }
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to load project details.' });
@@ -110,27 +111,17 @@ const ProjectDetailPage = () => {
       />
 
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={6}>
-          <Card>
-            <Statistic 
-              title="Approved Budget" 
-              value={project.approvedBudget} 
-              prefix={<DollarOutlined />} 
-              formatter={(value) => `₹ ${Number(value || 0).toLocaleString('en-IN')}`}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
+        <Col span={8}>
           <Card>
             <Statistic title="Approved Hours" value={project.approvedHours} prefix={<FieldTimeOutlined />} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={8}>
           <Card>
             <Statistic title="Consumed Hours" value={project.consumedHours} prefix={<FieldTimeOutlined />} valueStyle={{ color: '#cf1322' }} />
           </Card>
         </Col>
-        <Col span={6}>
+        <Col span={8}>
           <Card>
             <Statistic title="Remaining Hours" value={remainingHours} prefix={<FieldTimeOutlined />} valueStyle={{ color: '#3f9142' }} />
           </Card>
