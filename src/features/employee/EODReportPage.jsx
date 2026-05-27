@@ -437,13 +437,12 @@ const EODReportPage = () => {
         fromDate: values.leaveDate,
         toDate: values.leaveDate,
         type: values.type,
-        reason: values.reason || `Applied from EOD Weekly Work Report Page (${values.type})`,
-        autoApprove: true   // Auto-approve from EOD page — HR will be notified
+        reason: values.reason || `Applied from EOD Weekly Work Report Page (${values.type})`
       });
       const typeLabel = values.type === 'FullDay' ? 'Full Day Leave' : values.type === 'HalfDay' ? 'Half Day Leave' : 'Permission';
       notification.success({
-        message: 'Leave Approved',
-        description: `Your ${typeLabel} has been approved and HR has been notified.`
+        message: 'Leave Request Submitted',
+        description: `Your ${typeLabel} request has been submitted and is pending HR approval.`
       });
       setIsLeaveModalOpen(false);
       fetchReportForDate(values.leaveDate);
