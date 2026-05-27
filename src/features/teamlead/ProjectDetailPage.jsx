@@ -15,6 +15,7 @@ import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import PriorityBadge from '../../components/common/PriorityBadge';
 import HoursProgress from '../../components/common/HoursProgress';
+import dayjs from 'dayjs';
 
 const ProjectDetailPage = () => {
   const { id } = useParams();
