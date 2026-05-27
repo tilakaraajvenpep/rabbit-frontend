@@ -306,7 +306,7 @@ const HRApprovedLeavesPage = () => {
                 rowSelection={rowSelection}
                 dataSource={pendingLeaves}
                 columns={pendingColumns}
-                rowKey="id"
+                rowKey="leaveId"
                 pagination={{ pageSize: 10 }}
                 locale={{ emptyText: 'No pending leave requests found.' }}
               />
@@ -327,7 +327,7 @@ const HRApprovedLeavesPage = () => {
               <Table
                 dataSource={filteredProcessedLeaves}
                 columns={processedColumns}
-                rowKey="id"
+                rowKey="leaveId"
                 pagination={{ pageSize: 10 }}
                 locale={{ emptyText: 'No historical leave records found.' }}
               />
