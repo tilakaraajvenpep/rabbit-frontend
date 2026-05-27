@@ -219,3 +219,22 @@ body.dark-mode {
 .dark-mode .ant-layout-header {
   border-bottom: 1px solid rgba(63, 63, 70, 0.3) !important;
 }
+
+/* Fix Ant Design Tabs inside flexbox containers to enable proper child overflow scrolling */
+.ant-tabs {
+  min-height: 0;
+}
+.ant-tabs-content-holder {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ant-tabs-content {
+  height: 100%;
+}
+.ant-tabs-tabpane {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
