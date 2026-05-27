@@ -89,7 +89,7 @@ const CostAnalysisPage = () => {
         const docsRes = await projectService.getDocuments(id);
         if (docsRes.data && docsRes.data.length > 0) {
           const sortedDocs = [...docsRes.data].sort((a, b) => (b.documentId || b.id) - (a.documentId || a.id));
-          const budgetDoc = sortedDocs.find(d => d.documentCategory === 'budget_milestones') || sortedDocs[0];
+          const budgetDoc = sortedDocs.find(d => d.documentCategory === 'budget_milestones' || d.documentCategory === 'budget') || sortedDocs[0];
           setLatestDoc(budgetDoc);
         }
       } catch {
