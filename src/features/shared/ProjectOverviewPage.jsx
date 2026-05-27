@@ -128,16 +128,18 @@ const ProjectOverviewPage = () => {
 
         {/* Section 2: Progress Bars */}
         <Col xs={24} lg={16}>
-          <Card title="Project Progress" style={{ marginBottom: 16 }}>
-            <div style={{ marginBottom: 24 }}>
-              <Text strong>Hours Consumption</Text>
-              <HoursProgress consumed={project.consumedHours} total={project.approvedHours} />
-            </div>
-            <div>
-              <Text strong>Budget Utilization</Text>
-              <HoursProgress consumed={400000} total={project.approvedBudget} unit="₹" />
-            </div>
-          </Card>
+          {role !== 'ProjectManager' && (
+            <Card title="Project Progress" style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 24 }}>
+                <Text strong>Hours Consumption</Text>
+                <HoursProgress consumed={project.consumedHours} total={project.approvedHours} />
+              </div>
+              <div>
+                <Text strong>Budget Utilization</Text>
+                <HoursProgress consumed={400000} total={project.approvedBudget} unit="₹" />
+              </div>
+            </Card>
+          )}
 
           <Card title="Project Information" style={{ marginBottom: 16 }}>
             <Row gutter={[16, 16]}>
