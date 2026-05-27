@@ -115,7 +115,7 @@ const ProjectDetailPage = () => {
               title="Approved Budget" 
               value={project.approvedBudget} 
               prefix={<DollarOutlined />} 
-              formatter={(value) => `₹ ${value.toLocaleString('en-IN')}`}
+              formatter={(value) => `₹ ${Number(value || 0).toLocaleString('en-IN')}`}
             />
           </Card>
         </Col>
