@@ -195,7 +195,9 @@ const HourAllocationPage = () => {
     setLoading(true);
     try {
       const res = await adminService.getUsers();
-      const filtered = (res.data || []).filter(u => u.role === 'Employee');
+      const filtered = (res.data || []).filter(u =>
+        ['Employee', 'TeamLead', 'ProjectManager'].includes(u.role)
+      );
       setUsers(filtered);
     } catch (err) {
       notification.error({ message: 'Error', description: 'Failed to load users.' });
