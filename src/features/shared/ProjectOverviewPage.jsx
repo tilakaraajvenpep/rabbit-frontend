@@ -217,37 +217,39 @@ const ProjectOverviewPage = () => {
             />
           </Card>
 
-          <Card title="Cost Analysis Summary" style={{ marginBottom: 16 }}>
-            <Table 
-              size="small"
-              pagination={false}
-              dataSource={[
-                { key: '1', phase: 'Discovery', hours: 100, cost: 50000 },
-                { key: '2', phase: 'Design', hours: 200, cost: 150000 },
-                { key: '3', phase: 'Development', hours: 600, cost: 500000 },
-              ]}
-              columns={[
-                { title: 'Phase', dataIndex: 'phase', key: 'phase' },
-                { title: 'Hours', dataIndex: 'hours', key: 'hours' },
-                { title: 'Cost', dataIndex: 'cost', key: 'cost', render: c => `₹ ${c.toLocaleString('en-IN')}` }
-              ]}
-              summary={pageData => {
-                let totalHours = 0;
-                let totalCost = 0;
-                pageData.forEach(({ hours, cost }) => {
-                  totalHours += hours;
-                  totalCost += cost;
-                });
-                return (
-                  <Table.Summary.Row>
-                    <Table.Summary.Cell index={0}><Text strong>Total</Text></Table.Summary.Cell>
-                    <Table.Summary.Cell index={1}><Text strong>{totalHours}</Text></Table.Summary.Cell>
-                    <Table.Summary.Cell index={2}><Text strong>₹ {totalCost.toLocaleString('en-IN')}</Text></Table.Summary.Cell>
-                  </Table.Summary.Row>
-                );
-              }}
-            />
-          </Card>
+          {role !== 'ProjectManager' && (
+            <Card title="Cost Analysis Summary" style={{ marginBottom: 16 }}>
+              <Table 
+                size="small"
+                pagination={false}
+                dataSource={[
+                  { key: '1', phase: 'Discovery', hours: 100, cost: 50000 },
+                  { key: '2', phase: 'Design', hours: 200, cost: 150000 },
+                  { key: '3', phase: 'Development', hours: 600, cost: 500000 },
+                ]}
+                columns={[
+                  { title: 'Phase', dataIndex: 'phase', key: 'phase' },
+                  { title: 'Hours', dataIndex: 'hours', key: 'hours' },
+                  { title: 'Cost', dataIndex: 'cost', key: 'cost', render: c => `₹ ${c.toLocaleString('en-IN')}` }
+                ]}
+                summary={pageData => {
+                  let totalHours = 0;
+                  let totalCost = 0;
+                  pageData.forEach(({ hours, cost }) => {
+                    totalHours += hours;
+                    totalCost += cost;
+                  });
+                  return (
+                    <Table.Summary.Row>
+                      <Table.Summary.Cell index={0}><Text strong>Total</Text></Table.Summary.Cell>
+                      <Table.Summary.Cell index={1}><Text strong>{totalHours}</Text></Table.Summary.Cell>
+                      <Table.Summary.Cell index={2}><Text strong>₹ {totalCost.toLocaleString('en-IN')}</Text></Table.Summary.Cell>
+                    </Table.Summary.Row>
+                  );
+                }}
+              />
+            </Card>
+          )}
 
           {/* Section 6: Status Update (Conditional) */}
           {canUpdateStatus && (
