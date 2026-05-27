@@ -43,6 +43,12 @@ const HRTimerRequestsPage = () => {
       ),
     },
     {
+      title: 'Project',
+      dataIndex: 'projectName',
+      key: 'projectName',
+      render: (name) => <Text strong style={{ color: '#6366f1' }}>{name || '—'}</Text>
+    },
+    {
       title: 'Role',
       dataIndex: 'employeeRole',
       key: 'employeeRole',

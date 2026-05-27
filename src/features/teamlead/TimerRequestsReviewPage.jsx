@@ -97,6 +97,12 @@ const TimerRequestsReviewPage = () => {
       render: (name) => <Text strong>{name}</Text>
     },
     {
+      title: 'Project',
+      dataIndex: 'projectName',
+      key: 'projectName',
+      render: (name) => <Text strong style={{ color: '#6366f1' }}>{name || '—'}</Text>
+    },
+    {
       title: 'Ticket Code',
       dataIndex: 'ticketCode',
       key: 'ticketCode',

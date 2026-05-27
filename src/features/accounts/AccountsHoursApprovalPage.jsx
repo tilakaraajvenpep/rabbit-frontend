@@ -84,6 +84,12 @@ const AccountsHoursApprovalPage = () => {
       ),
     },
     {
+      title: 'Project',
+      dataIndex: 'projectName',
+      key: 'projectName',
+      render: (name) => <Text strong style={{ color: '#6366f1' }}>{name || '—'}</Text>
+    },
+    {
       title: 'Ticket',
       key: 'ticket',
       render: (_, r) => (
@@ -258,6 +264,9 @@ const AccountsHoursApprovalPage = () => {
           <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Request Details</Text>
           <Space direction="vertical" size={2} style={{ width: '100%' }}>
             <Text strong>{selectedRequest?.employeeName}</Text>
+            {selectedRequest?.projectName && (
+              <Text strong style={{ color: '#6366f1', fontSize: 12 }}>Project: {selectedRequest.projectName}</Text>
+            )}
             <Text style={{ fontSize: 12 }}>{selectedRequest?.ticketCode} — {selectedRequest?.ticketTitle}</Text>
             <div style={{ marginTop: 6 }}>
               <Tag color="purple" style={{ fontWeight: 700 }}>
