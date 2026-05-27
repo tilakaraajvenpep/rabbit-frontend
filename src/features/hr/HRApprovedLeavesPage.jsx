@@ -14,6 +14,72 @@ import { useThemeStore } from '../../store/themeStore';
 
 const { Text } = Typography;
 
+const combineContinuousLeaves = (leavesList) => {
+  if (!leavesList || leavesList.length === 0) return [];
+
+  // Group by userId, type, status, reason
+  const groups = {};
+  leavesList.forEach(l => {
+    const userId = l.userId || l.user?.id || '';
+    const key = `${userId}_${l.type}_${l.status}_${l.reason || ''}`;
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+    groups[key].push(l);
+  });
+
+  const combined = [];
+
+  Object.keys(groups).forEach(key => {
+    const list = groups[key];
+    // Sort by leaveDate ascending
+    list.sort((a, b) => dayjs(a.leaveDate).unix() - dayjs(b.leaveDate).unix());
+
+    let currentBlock = null;
+
+    list.forEach(item => {
+      const itemDate = dayjs(item.leaveDate);
+      
+      if (!currentBlock) {
+        currentBlock = {
+          ...item,
+          ids: [item.id || item.leaveId],
+          startDate: itemDate,
+          endDate: itemDate,
+          dates: [item.leaveDate]
+        };
+      } else {
+        // Check if itemDate is consecutive to currentBlock.endDate
+        const diff = itemDate.diff(currentBlock.endDate, 'day');
+        if (diff === 1) {
+          // Continuous!
+          currentBlock.endDate = itemDate;
+          if (item.id || item.leaveId) {
+            currentBlock.ids.push(item.id || item.leaveId);
+          }
+          currentBlock.dates.push(item.leaveDate);
+        } else {
+          // Not continuous. Push previous and start new block
+          combined.push(currentBlock);
+          currentBlock = {
+            ...item,
+            ids: [item.id || item.leaveId],
+            startDate: itemDate,
+            endDate: itemDate,
+            dates: [item.leaveDate]
+          };
+        }
+      }
+    });
+
+    if (currentBlock) {
+      combined.push(currentBlock);
+    }
+  });
+
+  return combined;
+};
+
 const HRApprovedLeavesPage = () => {
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -41,12 +107,15 @@ const HRApprovedLeavesPage = () => {
     }
   };
 
-  const handleStatusChange = async (id, newStatus) => {
+  const handleStatusChange = async (ids, newStatus) => {
     try {
-      await leaveService.updateLeaveStatus(id, newStatus);
+      const idArray = Array.isArray(ids) ? ids : [ids];
+      await Promise.all(
+        idArray.map(id => leaveService.updateLeaveStatus(id, newStatus))
+      );
       notification.success({
         message: 'Status Updated',
-        description: `Successfully marked leave as ${newStatus}.`
+        description: `Successfully marked ${idArray.length > 1 ? 'leaves' : 'leave'} as ${newStatus}.`
       });
       fetchLeaves();
     } catch (e) {
@@ -61,12 +130,25 @@ const HRApprovedLeavesPage = () => {
     if (selectedRowKeys.length === 0) return;
     setBulkLoading(true);
     try {
+      // Find all selected combined blocks
+      const combinedPending = combineContinuousLeaves(leaves.filter(l => l.status === 'Pending' || !l.status));
+      const selectedBlocks = combinedPending.filter(l => selectedRowKeys.includes(l.leaveId || l.id));
+      // Extract all database ids from these blocks
+      const allIds = [];
+      selectedBlocks.forEach(b => {
+        if (b.ids && b.ids.length > 0) {
+          allIds.push(...b.ids);
+        } else {
+          allIds.push(b.leaveId || b.id);
+        }
+      });
+
       await Promise.all(
-        selectedRowKeys.map(id => leaveService.updateLeaveStatus(id, 'Approved'))
+        allIds.map(id => leaveService.updateLeaveStatus(id, 'Approved'))
       );
       notification.success({
         message: 'Bulk Approval Complete',
-        description: `Successfully approved ${selectedRowKeys.length} leave requests.`
+        description: `Successfully approved selected leave requests.`
       });
       setSelectedRowKeys([]);
       fetchLeaves();
@@ -89,22 +171,24 @@ const HRApprovedLeavesPage = () => {
     onChange: onSelectChange,
   };
 
-  // Group leaves — sorted descending by leaveDate (newest first)
-  const pendingLeaves = leaves
+  // Group and combine continuous leaves
+  const combinedAllLeaves = combineContinuousLeaves(leaves);
+
+  // Group leaves — sorted descending by startDate (newest first)
+  const pendingLeaves = combinedAllLeaves
     .filter(l => l.status === 'Pending' || !l.status)
-    .sort((a, b) => dayjs(b.leaveDate).unix() - dayjs(a.leaveDate).unix());
-  const processedLeaves = leaves
+    .sort((a, b) => b.startDate.unix() - a.startDate.unix());
+  const processedLeaves = combinedAllLeaves
     .filter(l => l.status === 'Approved' || l.status === 'Rejected')
-    .sort((a, b) => dayjs(b.leaveDate).unix() - dayjs(a.leaveDate).unix());
+    .sort((a, b) => b.startDate.unix() - a.startDate.unix());
 
   // Filter by Date Range logic
   const filteredProcessedLeaves = processedLeaves.filter(l => {
     if (!filterRange || filterRange.length < 2 || !filterRange[0] || !filterRange[1]) return true;
-    const leaveDate = dayjs(l.leaveDate);
-    const startDate = filterRange[0].startOf('day');
-    const endDate = filterRange[1].endOf('day');
-    return (leaveDate.isAfter(startDate) || leaveDate.isSame(startDate, 'day')) &&
-           (leaveDate.isBefore(endDate) || leaveDate.isSame(endDate, 'day'));
+    const filterStart = filterRange[0].startOf('day');
+    const filterEnd = filterRange[1].endOf('day');
+    return (l.startDate.isAfter(filterStart) || l.startDate.isSame(filterStart, 'day')) &&
+           (l.endDate.isBefore(filterEnd) || l.endDate.isSame(filterEnd, 'day'));
   });
 
   const pendingColumns = [
@@ -124,11 +208,22 @@ const HRApprovedLeavesPage = () => {
     },
     {
       title: 'Leave Date',
-      dataIndex: 'leaveDate',
       key: 'leaveDate',
-      defaultSortOrder: 'descend',
-      render: (date) => dayjs(date).format('DD MMM YYYY (dddd)'),
-      sorter: (a, b) => dayjs(a.leaveDate).unix() - dayjs(b.leaveDate).unix(),
+      render: (_, record) => {
+        const startStr = record.startDate.format('DD MMM YYYY');
+        const endStr = record.endDate.format('DD MMM YYYY');
+        const count = record.dates.length;
+        if (count > 1) {
+          return (
+            <Space direction="vertical" size={0}>
+              <Text strong style={{ color: '#4f46e5' }}>{`${startStr} - ${endStr}`}</Text>
+              <Tag color="purple" style={{ margin: 0, width: 'fit-content' }}>{`${count} continuous days`}</Tag>
+            </Space>
+          );
+        }
+        return <Text>{record.startDate.format('DD MMM YYYY (dddd)')}</Text>;
+      },
+      sorter: (a, b) => a.startDate.unix() - b.startDate.unix(),
     },
     {
       title: 'Type',
@@ -157,15 +252,15 @@ const HRApprovedLeavesPage = () => {
               type="primary" 
               shape="circle" 
               icon={<CheckOutlined />} 
-              onClick={() => handleStatusChange(record.id || record.leaveId, 'Approved')}
+              onClick={() => handleStatusChange(record.ids || record.id || record.leaveId, 'Approved')}
               style={{ background: '#10b981', borderColor: '#10b981' }}
             />
           </Tooltip>
           <Tooltip title="Reject Request">
             <Popconfirm
               title="Reject Leave"
-              description="Are you sure you want to reject this leave request?"
-              onConfirm={() => handleStatusChange(record.id || record.leaveId, 'Rejected')}
+              description={`Are you sure you want to reject this leave request${record.dates.length > 1 ? ' for ' + record.dates.length + ' days' : ''}?`}
+              onConfirm={() => handleStatusChange(record.ids || record.id || record.leaveId, 'Rejected')}
               okText="Reject"
               cancelText="Cancel"
             >
@@ -199,11 +294,22 @@ const HRApprovedLeavesPage = () => {
     },
     {
       title: 'Leave Date',
-      dataIndex: 'leaveDate',
       key: 'leaveDate',
-      defaultSortOrder: 'descend',
-      render: (date) => dayjs(date).format('DD MMM YYYY (dddd)'),
-      sorter: (a, b) => dayjs(a.leaveDate).unix() - dayjs(b.leaveDate).unix(),
+      render: (_, record) => {
+        const startStr = record.startDate.format('DD MMM YYYY');
+        const endStr = record.endDate.format('DD MMM YYYY');
+        const count = record.dates.length;
+        if (count > 1) {
+          return (
+            <Space direction="vertical" size={0}>
+              <Text strong style={{ color: '#4f46e5' }}>{`${startStr} - ${endStr}`}</Text>
+              <Tag color="purple" style={{ margin: 0, width: 'fit-content' }}>{`${count} continuous days`}</Tag>
+            </Space>
+          );
+        }
+        return <Text>{record.startDate.format('DD MMM YYYY (dddd)')}</Text>;
+      },
+      sorter: (a, b) => a.startDate.unix() - b.startDate.unix(),
     },
     {
       title: 'Type',
