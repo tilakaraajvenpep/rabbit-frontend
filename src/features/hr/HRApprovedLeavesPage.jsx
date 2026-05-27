@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Table, Tag, Space, Typography, notification, Spin, 
-  Row, Col, Statistic, Select, Button, Tabs, Tooltip, Popconfirm
+  Row, Col, Statistic, Select, Button, Tabs, Tooltip, Popconfirm, Avatar
 } from 'antd';
 import { 
   CalendarOutlined, CheckCircleOutlined, InfoCircleOutlined, 
