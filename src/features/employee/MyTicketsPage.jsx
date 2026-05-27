@@ -123,16 +123,16 @@ const MyTicketsPage = () => {
       }
     },
     {
-      title: 'Total Time Consumed',
+      title: 'Total Hours',
       key: 'timer',
       width: 200,
       render: (_, record) => {
-        const seconds = record.timerAccumulatedSeconds || 0;
+        const hrs = Number(record.consumedHours || 0);
         return (
           <Space>
             <ClockCircleOutlined style={{ color: '#8c8c8c' }} />
             <Text strong style={{ fontSize: '13px' }}>
-              {formatTimer(seconds)}
+              {hrs.toFixed(2)} hrs
             </Text>
           </Space>
         );

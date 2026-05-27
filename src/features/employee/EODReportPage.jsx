@@ -458,37 +458,6 @@ const EODReportPage = () => {
   };
 
   const onSubmit = async (data) => {
-    // Double check all validations
-    for (const item of data.items) {
-      const ticket = myTickets.find(t => t.id === item.ticketId);
-      if (!ticket) continue;
-
-      const hasApprovedTimerRequest = myTimerRequests.some(r => 
-        r.request.ticketId === ticket.id && r.request.status === 'Approved'
-      );
-
-      // Missed Timer Validation
-      if ((ticket.timerAccumulatedSeconds || 0) === 0 && !hasApprovedTimerRequest) {
-        notification.error({
-          message: 'Submission Blocked',
-          description: `You did not run the Kanban timer on ticket "${ticket.ticketCode}". You must raise a Timer Missed request and receive PM approval before reporting.`,
-          duration: 6
-        });
-        return;
-      }
-
-      // Limit Exceeded Validation based on Available Hours
-      const availableHours = (Number(ticket.estimatedHours) || 0) - (Number(ticket.consumedHours) || 0);
-      if (item.hours > availableHours && !hasApprovedTimerRequest) {
-        notification.error({
-          message: 'Submission Blocked',
-          description: `You are trying to report ${item.hours}h on ticket "${ticket.ticketCode}" which has available limit of ${availableHours.toFixed(2)}h. Please submit an Exceeded Limit request to report additional hours.`,
-          duration: 6
-        });
-        return;
-      }
-    }
-
     const submittedTotal = data.items.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0);
     if (submittedTotal > REQUIRED_HOURS) {
       notification.error({
@@ -899,14 +868,7 @@ const EODReportPage = () => {
                         r.request.ticketId === ticketData.id && r.request.status === 'Approved'
                       );
 
-                      if ((ticketData.timerAccumulatedSeconds || 0) === 0 && !hasApprovedTimerRequest) {
-                        showTimerMissedWarning = true;
-                      }
 
-                      const currentInputVal = watchedItems?.[index]?.hours || 0;
-                      if (currentInputVal > availableHours && !hasApprovedTimerRequest) {
-                        showLimitExceededWarning = true;
-                      }
                     }
 
                     return {
@@ -916,11 +878,7 @@ const EODReportPage = () => {
                       children: (
                         <div style={{ padding: 16, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
                           
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {ticketData && <Tag color="cyan">Kanban Timer: {timerHours}h</Tag>}
-                            {ticketData && <Tag color="purple">Remaining Limit: {availableHours.toFixed(1)}h</Tag>}
-                            {hasApprovedTimerRequest && <Tag color="success">Lead Approved Exception</Tag>}
-                          </div>
+
 
                           <Row gutter={12}>
                             <Col span={12}>
@@ -1000,7 +958,7 @@ const EODReportPage = () => {
                                   render={({ field }) => (
                                     <InputNumber
                                       {...field}
-                                      disabled={isLocked || !currentItemTicketId || showTimerMissedWarning}
+                                      disabled={isLocked || !currentItemTicketId}
                                       style={{ width: '100%' }}
                                       min={0}
                                       step={0.5}
@@ -1027,38 +985,6 @@ const EODReportPage = () => {
                               )}
                             </Col>
                           </Row>
-
-                          {showTimerMissedWarning && (
-                            <Alert
-                              message={
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Text style={{ fontSize: 11, color: '#fa541c' }}><WarningOutlined /> Timer Missed. Request approval from TL:</Text>
-                                  <Button size="small" type="primary" danger icon={<RaiseIcon />} onClick={() => handleOpenRequestModal('TimerMissed', ticketData)} style={{ fontSize: 10, background: '#fa541c', borderColor: '#fa541c' }}>
-                                    Raise Issue
-                                  </Button>
-                                </div>
-                              }
-                              type="warning"
-                              showIcon={false}
-                              style={{ borderRadius: 8 }}
-                            />
-                          )}
-
-                          {showLimitExceededWarning && (
-                            <Alert
-                              message={
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <Text style={{ fontSize: 11, color: '#722ed1' }}><WarningOutlined /> Limit Exceeded. Request hours extension:</Text>
-                                  <Button size="small" type="primary" icon={<RaiseIcon />} onClick={() => handleOpenRequestModal('ExceededLimit', ticketData)} style={{ fontSize: 10, background: '#722ed1', borderColor: '#722ed1' }}>
-                                    Request Extension
-                                  </Button>
-                                </div>
-                              }
-                              type="warning"
-                              showIcon={false}
-                              style={{ borderRadius: 8 }}
-                            />
-                          )}
 
                           <Form.Item label="Work Done" required help={errors.items?.[index]?.workDone?.message} validateStatus={errors.items?.[index]?.workDone ? 'error' : ''}>
                             <Controller
