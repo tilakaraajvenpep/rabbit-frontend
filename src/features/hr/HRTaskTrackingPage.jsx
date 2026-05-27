@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Row, Col, Card, Typography, Space, 
+  Row, Col, Card, Typography, Space, Button, Popconfirm,
   Skeleton, notification, Tag, Select, Input, Table, Avatar
 } from 'antd';
 import { 
@@ -51,6 +51,38 @@ const HRTaskTrackingPage = () => {
     }
   };
 
+  const handleAcknowledge = async (ticketId) => {
+    try {
+      await ticketService.updateTicketStatus(ticketId, 'Done');
+      notification.success({
+        message: 'Task Acknowledged',
+        description: 'The backlog task has been acknowledged and marked as Done.'
+      });
+      fetchInitialData();
+    } catch (e) {
+      notification.error({
+        message: 'Action Failed',
+        description: 'Failed to acknowledge the backlog task.'
+      });
+    }
+  };
+
+  const handleDelete = async (ticketId) => {
+    try {
+      await ticketService.deleteTicket(ticketId);
+      notification.success({
+        message: 'Task Deleted',
+        description: 'The backlog task has been deleted successfully.'
+      });
+      fetchInitialData();
+    } catch (e) {
+      notification.error({
+        message: 'Action Failed',
+        description: 'Failed to delete the backlog task.'
+      });
+    }
+  };
+
   // Backlog criteria: dueDate is in the past (before today) and status !== 'Done'
   const backlogTickets = tickets.filter(t => {
     const isOverdue = t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && t.status !== 'Done';
@@ -69,7 +101,7 @@ const HRTaskTrackingPage = () => {
       title: 'Ticket Code',
       dataIndex: 'code',
       key: 'code',
-      width: 140,
+      width: 130,
       render: (code) => <Tag color="red" style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 13, padding: '4px 10px', borderRadius: 6 }}>{code}</Tag>
     },
     {
@@ -90,7 +122,7 @@ const HRTaskTrackingPage = () => {
     {
       title: 'Assignee',
       key: 'assignee',
-      width: 180,
+      width: 160,
       render: (_, record) => {
         const user = users.find(u => u.id === record.assignedToUserId);
         return (
@@ -105,27 +137,61 @@ const HRTaskTrackingPage = () => {
       title: 'Priority',
       dataIndex: 'priority',
       key: 'priority',
-      width: 110,
+      width: 100,
       render: (priority) => <PriorityBadge priority={priority} />
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      width: 120,
+      width: 100,
       render: (status) => <StatusBadge status={status} />
     },
     {
       title: 'Original Due Date',
       dataIndex: 'dueDate',
       key: 'dueDate',
-      width: 160,
+      width: 150,
       render: (date) => (
         <Space style={{ color: '#ef4444' }}>
           <CalendarOutlined />
           <Text style={{ color: '#ef4444', fontSize: '12px' }}>
             {dayjs(date).format('DD MMM YYYY')}
           </Text>
+        </Space>
+      )
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      width: 200,
+      render: (_, record) => (
+        <Space size="middle">
+          <Button 
+            type="primary" 
+            size="small" 
+            onClick={() => handleAcknowledge(record.id)}
+            style={{ background: '#10b981', borderColor: '#10b981', borderRadius: 6 }}
+          >
+            Acknowledge
+          </Button>
+          <Popconfirm
+            title="Delete Overdue Task"
+            description="Are you sure you want to delete this backlog task?"
+            onConfirm={() => handleDelete(record.id)}
+            okText="Delete"
+            cancelText="Cancel"
+            okButtonProps={{ danger: true }}
+          >
+            <Button 
+              danger 
+              type="primary" 
+              size="small"
+              style={{ borderRadius: 6 }}
+            >
+              Delete
+            </Button>
+          </Popconfirm>
         </Space>
       )
     }
