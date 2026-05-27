@@ -162,7 +162,7 @@ const EODReportPage = () => {
       const res = await ticketService.getTickets();
       let ticketsData = res.data || [];
       ticketsData = ticketsData.filter(t => t.status !== 'Done');
-      if (role === 'TeamLead') {
+      if (role === 'TeamLead' || role === 'ProjectManager' || role === 'TenantAdmin') {
         const myUserId = currentUser?.userId || currentUser?.id;
         ticketsData = ticketsData.filter(t => 
           (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
@@ -559,16 +559,20 @@ const EODReportPage = () => {
         requestType: values.requestType,
         requestedHours: values.requestedHours,
         reason: values.reason,
-        teamLeadId: role === 'TeamLead' ? undefined : values.teamLeadId
+        teamLeadId: (role === 'TeamLead' || role === 'ProjectManager' || role === 'TenantAdmin') ? undefined : values.teamLeadId
       });
       notification.success({ 
         message: 'Request Submitted', 
-        description: role === 'TeamLead' 
-          ? 'Your request has been forwarded to the Project Manager.' 
-          : 'Your request has been forwarded to your Team Lead. You will be notified once approved by the PM.' 
+        description: (role === 'ProjectManager' || role === 'TenantAdmin')
+          ? 'Your request has been auto-approved.'
+          : role === 'TeamLead' 
+            ? 'Your request has been forwarded to the Project Manager.' 
+            : 'Your request has been forwarded to your Team Lead. You will be notified once approved by the PM.' 
       });
       setIsRequestModalOpen(false);
       fetchTimerRequests();
+      // Refetch tickets to update timer values
+      fetchTickets();
     } catch (err) {
       notification.error({ message: 'Failed to submit request' });
     } finally {
@@ -1263,7 +1267,7 @@ const EODReportPage = () => {
             <Text strong>{activeRequestDetails?.ticket?.ticketCode} - {activeRequestDetails?.ticket?.title}</Text>
           </div>
 
-          {role !== 'TeamLead' && (
+          {role !== 'TeamLead' && role !== 'ProjectManager' && role !== 'TenantAdmin' && (
             <Form.Item
               name="teamLeadId"
               label="Select Team Lead"

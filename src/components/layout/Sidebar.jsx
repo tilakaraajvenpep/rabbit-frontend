@@ -61,6 +61,8 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       items.push(
         { key: '/pm/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
         { key: '/pm/board', icon: <CheckSquareOutlined />, label: 'Kanban Board' },
+        { key: '/pm/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
+        { key: '/pm/report', icon: <FileTextOutlined />, label: 'Daily Report' },
         { key: '/pm/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
         { key: '/pm/alerts', icon: <BellOutlined />, label: 'Alerts Feed' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },

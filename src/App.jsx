@@ -160,6 +160,8 @@ const App = () => {
                 {/* PM + TenantAdmin shared pages */}
                 <Route path="/pm/dashboard" element={<PMDashboardPage />} />
                 <Route path="/pm/board" element={<KanbanBoard />} />
+                <Route path="/pm/tickets" element={<MyTicketsPage />} />
+                <Route path="/pm/report" element={<EODReportPage />} />
                 <Route path="/pm/projects/:id" element={<ProjectOverviewPage />} />
                 <Route path="/pm/projects/:id/kanban" element={<KanbanBoard />} />
                 <Route path="/pm/analytics" element={<AnalyticsPage />} />
