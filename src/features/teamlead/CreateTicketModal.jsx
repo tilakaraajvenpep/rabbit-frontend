@@ -4,10 +4,12 @@ import { useForm, Controller } from 'react-hook-form';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { adminService } from '../../services/adminService';
+import { useAuthStore } from '../../store/authStore';
 
 const { TextArea } = Input;
 
 const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => {
+  const { currentUser: authUser, role: authRole } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     defaultValues: {
@@ -126,12 +128,25 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
               rules={{ required: 'Please assign an employee' }}
               render={({ field }) => {
                 const projectTLId = project?.assignedTeamLeadId;
-                const eligibleUsers = users.filter(u => {
-                  if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
-                  if (u.role === 'TeamLead' && u.id === projectTLId) return true;
-                  if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
-                  return false;
-                });
+                let eligibleUsers = [];
+                if (authRole === 'ProjectManager' || authRole === 'TenantAdmin') {
+                  const pmId = authUser?.userId || authUser?.id;
+                  const pmName = authUser?.fullName || authUser?.name || 'Project Manager';
+                  eligibleUsers = [{
+                    id: pmId,
+                    userId: pmId,
+                    name: pmName,
+                    fullName: pmName,
+                    role: authRole
+                  }];
+                } else {
+                  eligibleUsers = users.filter(u => {
+                    if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
+                    if (u.role === 'TeamLead' && u.id === projectTLId) return true;
+                    if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
+                    return false;
+                  });
+                }
                 return (
                   <Select {...field} style={{ width: '100%' }} placeholder="Select employee">
                     {eligibleUsers.map(u => (

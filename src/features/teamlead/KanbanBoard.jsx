@@ -680,6 +680,14 @@ const KanbanBoard = () => {
                 allowClear
                 placeholder="Unassigned"
                 options={(() => {
+                  if (authRole === 'ProjectManager' || authRole === 'TenantAdmin') {
+                    const pmId = authUser?.userId || authUser?.id;
+                    const pmName = authUser?.fullName || authUser?.name || 'Project Manager';
+                    return [{
+                      value: pmId,
+                      label: pmName
+                    }];
+                  }
                   const projectTLId = project?.assignedTeamLeadId;
                   const eligibleUsers = users.filter(u => {
                     if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
