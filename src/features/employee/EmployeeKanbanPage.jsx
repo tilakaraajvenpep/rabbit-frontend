@@ -39,7 +39,7 @@ const EmployeeKanbanPage = () => {
 
   useEffect(() => {
     fetchMyTickets();
-  }, [currentUser.id]);
+  }, [currentUser.userId || currentUser.id]);
 
   // Set up live ticking timer interval
   useEffect(() => {
@@ -63,7 +63,8 @@ const EmployeeKanbanPage = () => {
 
       // Filter only tickets assigned to the logged-in user for TL / PM roles
       if (currentUser && currentUser.role !== 'Employee') {
-        ticketsData = ticketsData.filter(t => t.assignedToUserId === currentUser.id);
+        const myUserId = currentUser.userId || currentUser.id;
+        ticketsData = ticketsData.filter(t => t.assignedToUserId === myUserId);
       }
 
       setTickets(ticketsData);
