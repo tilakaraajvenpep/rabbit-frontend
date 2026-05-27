@@ -1269,8 +1269,17 @@ const EODReportPage = () => {
           <Form.Item name="requestType" label="Request Type" hidden><Input /></Form.Item>
           
           <div style={{ marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-            <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>Ticket Name</Text>
-            <Text strong>{activeRequestDetails?.ticket?.ticketCode} - {activeRequestDetails?.ticket?.title}</Text>
+            {activeRequestDetails?.ticket?.projectId && (() => {
+              const proj = allProjects.find(p => String(p.id) === String(activeRequestDetails.ticket.projectId));
+              return proj ? (
+                <div style={{ marginBottom: 8 }}>
+                  <Text type="secondary" style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Project</Text>
+                  <Text strong style={{ fontSize: 14, color: '#6366f1' }}>{proj.name || proj.projectName}</Text>
+                </div>
+              ) : null;
+            })()}
+            <Text type="secondary" style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Ticket</Text>
+            <Text strong>{activeRequestDetails?.ticket?.ticketCode} — {activeRequestDetails?.ticket?.title}</Text>
           </div>
 
           {role !== 'TeamLead' && role !== 'ProjectManager' && role !== 'TenantAdmin' && (
@@ -1447,7 +1456,10 @@ const EODReportPage = () => {
                 // Pre-fill and open the existing timer-request form
                 const firstTicket = watchedItems?.find(i => i.ticketId);
                 const ticket = firstTicket ? myTickets.find(t => String(t.id) === String(firstTicket.ticketId)) : null;
-                setActiveRequestDetails({ type: 'ExceededLimit', ticket });
+                const project = firstTicket?.projectId
+                  ? allProjects.find(p => String(p.id) === String(firstTicket.projectId))
+                  : (ticket?.projectId ? allProjects.find(p => String(p.id) === String(ticket.projectId)) : null);
+                setActiveRequestDetails({ type: 'ExceededLimit', ticket: ticket ? { ...ticket, projectId: ticket.projectId || firstTicket?.projectId } : null, project });
                 requestForm.resetFields();
                 requestForm.setFieldsValue({
                   ticketId: ticket?.id || '',
