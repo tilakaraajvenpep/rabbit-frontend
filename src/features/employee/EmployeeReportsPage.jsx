@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, DatePicker, Select, Button, Table, 
-  Typography, Space, notification, Tag
+  Typography, Space, notification, Tag, Alert
 } from 'antd';
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { reportService } from '../../services/reportService';
 import { ticketService } from '../../services/ticketService';
+import { projectService } from '../../services/projectService';
 import { useAuthStore } from '../../store/authStore';
 import { adminService } from '../../services/adminService';
 import PageHeader from '../../components/common/PageHeader';
@@ -20,9 +21,11 @@ const EmployeeReportsPage = () => {
   const isManager = ['TeamLead', 'ProjectManager', 'TenantAdmin'].includes(role);
   const [loading, setLoading] = useState(false);
   const [tickets, setTickets] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   
   // Filters
+  const [selectedProject, setSelectedProject] = useState(null);
   const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs()]);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(isManager ? null : currentUser.id);
@@ -34,29 +37,33 @@ const EmployeeReportsPage = () => {
 
   const fetchInitialData = async () => {
     try {
-      const [ticketRes, userRes] = await Promise.all([
+      const [projectRes, ticketRes, userRes] = await Promise.all([
+        projectService.getProjects(),
         ticketService.getTickets(),
         isManager ? adminService.getUsers() : Promise.resolve({ data: [] })
       ]);
 
-      const loadedTickets = ticketRes.data;
+      const loadedProjects = projectRes.data || [];
+      const loadedTickets = ticketRes.data || [];
       const loadedEmployees = isManager 
         ? userRes.data.filter(u => u.role === 'Employee' || u.role === 'TeamLead') 
         : [];
 
+      setProjects(loadedProjects);
       setTickets(loadedTickets);
       if (isManager) {
         setEmployees(loadedEmployees);
       }
-
-      // Auto-trigger search with fetched data to immediately load reports on mount
-      await triggerSearch(loadedTickets, loadedEmployees);
     } catch (error) {
       notification.error({ message: 'Failed to load initial data' });
     }
   };
 
   const triggerSearch = async (currentTickets = tickets, currentEmployees = employees) => {
+    if (!selectedProject) {
+      notification.warning({ message: 'Project Required', description: 'Please select a project to generate reports.' });
+      return;
+    }
     setLoading(true);
     try {
       let start, end;
@@ -80,6 +87,10 @@ const EmployeeReportsPage = () => {
         return;
       }
 
+      // Filter tickets belonging to selected project
+      const projectTickets = (currentTickets || []).filter(t => String(t.projectId) === String(selectedProject));
+      const projectTicketIds = projectTickets.map(t => t.id);
+
       let reports = [];
       res.data.forEach(report => {
         if (!report || !report.items) return;
@@ -91,9 +102,12 @@ const EmployeeReportsPage = () => {
           : currentUser.name;
 
         report.items.forEach(item => {
+          // Project filter constraint
+          if (!projectTicketIds.includes(item.ticketId)) return;
+
           if (selectedTicket && item.ticketId !== selectedTicket) return;
           
-          const ticketInfo = (currentTickets || []).find(t => Number(t.id) === Number(item.ticketId));
+          const ticketInfo = projectTickets.find(t => Number(t.id) === Number(item.ticketId));
           reports.push({
             date: report.date || report.reportDate,
             employeeName: employeeName,
@@ -148,37 +162,73 @@ const EmployeeReportsPage = () => {
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
       <PageHeader title="Work Reports & Exports" />
 
-      <Card style={{ marginBottom: 24 }}>
+      {!selectedProject && (
+        <Alert
+          message="Project Selection Required"
+          description="Please select a project from the dropdown first to unlock date range, ticket, and employee filters."
+          type="info"
+          showIcon
+          style={{ marginBottom: 20, borderRadius: 8 }}
+        />
+      )}
+
+      <Card style={{ marginBottom: 24, borderRadius: 12 }}>
         <Row gutter={[16, 16]} align="bottom">
+          <Col xs={24} md={24}>
+            <Text strong style={{ color: '#4f46e5', fontSize: '14px' }}>Select Project (Compulsory) *</Text>
+            <Select
+              placeholder="-- Select Compulsory Project --"
+              style={{ width: '100%', marginTop: 8 }}
+              value={selectedProject}
+              onChange={(val) => {
+                setSelectedProject(val);
+                setSelectedTicket(null); // Reset ticket filter
+                setFilteredData([]); // Clear previous data
+              }}
+              size="large"
+            >
+              {projects.map(p => (
+                <Select.Option key={p.id} value={p.id}>{p.name || p.projectName}</Select.Option>
+              ))}
+            </Select>
+          </Col>
+
           <Col xs={24} md={8}>
-            <Text strong>Select Date Range</Text>
+            <Text strong type={!selectedProject ? "secondary" : undefined}>Select Date Range</Text>
             <RangePicker 
               style={{ width: '100%', marginTop: 8 }} 
               value={dateRange}
               onChange={(val) => setDateRange(val)}
+              disabled={!selectedProject}
             />
           </Col>
-          <Col xs={24} md={isManager ? 6 : 8}>
-            <Text strong>Filter by Ticket</Text>
+          
+          <Col xs={24} md={isManager ? 8 : 16}>
+            <Text strong type={!selectedProject ? "secondary" : undefined}>Filter by Ticket</Text>
             <Select
-              placeholder="All Tickets"
+              placeholder={!selectedProject ? "Select project first" : "All Tickets"}
               style={{ width: '100%', marginTop: 8 }}
               allowClear
+              value={selectedTicket}
               onChange={setSelectedTicket}
+              disabled={!selectedProject}
             >
-              {tickets.map(t => (
+              {tickets.filter(t => String(t.projectId) === String(selectedProject)).map(t => (
                 <Select.Option key={t.id} value={t.id}>{t.code}: {t.title}</Select.Option>
               ))}
             </Select>
           </Col>
+
           {isManager && (
-            <Col xs={24} md={6}>
-              <Text strong>Filter by Employee</Text>
+            <Col xs={24} md={8}>
+              <Text strong type={!selectedProject ? "secondary" : undefined}>Filter by Employee Name</Text>
               <Select
-                placeholder="All Employees"
+                placeholder={!selectedProject ? "Select project first" : "All Employees"}
                 style={{ width: '100%', marginTop: 8 }}
                 allowClear
+                value={selectedEmployee}
                 onChange={setSelectedEmployee}
+                disabled={!selectedProject}
               >
                 {employees.map(u => (
                   <Select.Option key={u.id} value={u.id}>{u.name}</Select.Option>
@@ -186,20 +236,26 @@ const EmployeeReportsPage = () => {
               </Select>
             </Col>
           )}
-          <Col xs={24} md={isManager ? 6 : 8}>
+
+          <Col xs={24} md={24} style={{ textAlign: 'right', marginTop: 8 }}>
             <Space>
               <Button 
                 type="primary" 
                 icon={<SearchOutlined />} 
                 onClick={handleSearch}
                 loading={loading}
+                disabled={!selectedProject}
+                size="large"
+                style={{ borderRadius: 8 }}
               >
-                Generate
+                Generate Report
               </Button>
               <Button 
                 icon={<DownloadOutlined />} 
                 onClick={handleExport}
                 disabled={filteredData.length === 0}
+                size="large"
+                style={{ borderRadius: 8 }}
               >
                 Export CSV
               </Button>
