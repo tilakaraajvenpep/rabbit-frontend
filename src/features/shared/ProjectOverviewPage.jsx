@@ -127,19 +127,17 @@ const ProjectOverviewPage = () => {
         </Col>
 
         {/* Section 2: Progress Bars */}
-        <Col xs={24} lg={16}>
-          {role !== 'ProjectManager' && (
-            <Card title="Project Progress" style={{ marginBottom: 16 }}>
-              <div style={{ marginBottom: 24 }}>
-                <Text strong>Hours Consumption</Text>
-                <HoursProgress consumed={project.consumedHours} total={project.approvedHours} />
-              </div>
-              <div>
-                <Text strong>Budget Utilization</Text>
-                <HoursProgress consumed={400000} total={project.approvedBudget} unit="₹" />
-              </div>
-            </Card>
-          )}
+        <Col xs={24} lg={role === 'ProjectManager' ? 24 : 16}>
+          <Card title="Project Progress" style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 24 }}>
+              <Text strong>Hours Consumption</Text>
+              <HoursProgress consumed={project.consumedHours} total={project.approvedHours} />
+            </div>
+            <div>
+              <Text strong>Budget Utilization</Text>
+              <HoursProgress consumed={400000} total={project.approvedBudget} unit="₹" />
+            </div>
+          </Card>
 
           <Card title="Project Information" style={{ marginBottom: 16 }}>
             <Row gutter={[16, 16]}>
@@ -280,19 +278,21 @@ const ProjectOverviewPage = () => {
         </Col>
 
         {/* Section 7: Activity Log */}
-        <Col xs={24} lg={8}>
-          <Card title={<Space><HistoryOutlined /> Activity Log</Space>}>
-            <Timeline mode="left">
-              {auditLog.map(log => (
-                <Timeline.Item key={log.id} label={dayjs(log.timestamp).format('DD MMM')}>
-                  <Text strong>{log.action}</Text>
-                  <div style={{ fontSize: '12px', color: '#8c8c8c' }}>by {log.user}</div>
-                </Timeline.Item>
-              ))}
-            </Timeline>
-            <Button type="link" block>Load More</Button>
-          </Card>
-        </Col>
+        {role !== 'ProjectManager' && (
+          <Col xs={24} lg={8}>
+            <Card title={<Space><HistoryOutlined /> Activity Log</Space>}>
+              <Timeline mode="left">
+                {auditLog.map(log => (
+                  <Timeline.Item key={log.id} label={dayjs(log.timestamp).format('DD MMM')}>
+                    <Text strong>{log.action}</Text>
+                    <div style={{ fontSize: '12px', color: '#8c8c8c' }}>by {log.user}</div>
+                  </Timeline.Item>
+                ))}
+              </Timeline>
+              <Button type="link" block>Load More</Button>
+            </Card>
+          </Col>
+        )}
       </Row>
     </div>
   );
