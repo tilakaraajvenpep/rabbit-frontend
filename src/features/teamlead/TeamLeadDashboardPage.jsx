@@ -45,8 +45,12 @@ const TeamLeadDashboardPage = () => {
     try {
       const docsRes = await projectService.getDocuments(projectId);
       if (docsRes.data && docsRes.data.length > 0) {
-        const latestDoc = docsRes.data[0];
-        await projectService.downloadDocument(projectId, latestDoc.documentId, latestDoc.fileName);
+        const scopeDoc = docsRes.data.find(d => d.documentCategory === 'scope');
+        if (scopeDoc) {
+          await projectService.downloadDocument(projectId, scopeDoc.documentId, scopeDoc.fileName);
+        } else {
+          notification.warning({ message: 'Not Found', description: 'No scope document found.' });
+        }
       } else {
         notification.warning({ message: 'Not Found', description: 'No scope document found.' });
       }
