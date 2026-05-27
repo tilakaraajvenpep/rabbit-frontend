@@ -14,7 +14,8 @@ import {
   DollarOutlined,
   CalendarOutlined,
   SwapOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  UserDeleteOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -126,7 +127,9 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
     if (role === 'HR') {
       items.push(
         { key: '/hr/team', icon: <TeamOutlined />, label: 'Team Details' },
-        { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Approved Leaves' },
+        { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' },
+        { key: '/hr/task-tracking', icon: <ClockCircleOutlined />, label: 'Task Tracking' },
+        { key: '/hr/offboarding', icon: <UserDeleteOutlined />, label: 'Offboarding' },
         { key: '/hr/report-access-approvals', icon: <CalendarOutlined />, label: 'Report Approvals' }
       );
     }
