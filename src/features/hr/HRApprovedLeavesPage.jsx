@@ -89,9 +89,13 @@ const HRApprovedLeavesPage = () => {
     onChange: onSelectChange,
   };
 
-  // Group leaves
-  const pendingLeaves = leaves.filter(l => l.status === 'Pending' || !l.status);
-  const processedLeaves = leaves.filter(l => l.status === 'Approved' || l.status === 'Rejected');
+  // Group leaves — sorted descending by leaveDate (newest first)
+  const pendingLeaves = leaves
+    .filter(l => l.status === 'Pending' || !l.status)
+    .sort((a, b) => dayjs(b.leaveDate).unix() - dayjs(a.leaveDate).unix());
+  const processedLeaves = leaves
+    .filter(l => l.status === 'Approved' || l.status === 'Rejected')
+    .sort((a, b) => dayjs(b.leaveDate).unix() - dayjs(a.leaveDate).unix());
 
   // Filter by Date Range logic
   const filteredProcessedLeaves = processedLeaves.filter(l => {
@@ -122,6 +126,7 @@ const HRApprovedLeavesPage = () => {
       title: 'Leave Date',
       dataIndex: 'leaveDate',
       key: 'leaveDate',
+      defaultSortOrder: 'descend',
       render: (date) => dayjs(date).format('DD MMM YYYY (dddd)'),
       sorter: (a, b) => dayjs(a.leaveDate).unix() - dayjs(b.leaveDate).unix(),
     },
@@ -196,6 +201,7 @@ const HRApprovedLeavesPage = () => {
       title: 'Leave Date',
       dataIndex: 'leaveDate',
       key: 'leaveDate',
+      defaultSortOrder: 'descend',
       render: (date) => dayjs(date).format('DD MMM YYYY (dddd)'),
       sorter: (a, b) => dayjs(a.leaveDate).unix() - dayjs(b.leaveDate).unix(),
     },
