@@ -626,22 +626,76 @@ const EODReportPage = () => {
           }}
           bodyStyle={{ padding: 12 }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <ClockCircleOutlined style={{ fontSize: 16, color: '#6366f1' }} />
             <Text strong style={{ fontSize: 13 }}>Weekly Overview</Text>
           </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+
+          {/* ── Allocated Hours Banner ───────────────────────────────── */}
+          <div style={{
+            background: totalHours >= REQUIRED_HOURS
+              ? 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.08))'
+              : 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.12))',
+            border: `1.5px solid ${totalHours >= REQUIRED_HOURS ? 'rgba(16,185,129,0.4)' : 'rgba(99,102,241,0.35)'}`,
+            borderRadius: 10,
+            padding: '10px 12px',
+            marginBottom: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#10b981' }}>{totalHours.toFixed(1)}h</div>
-              <Text type="secondary" style={{ fontSize: 9 }}>Logged Today</Text>
+              <div style={{ fontSize: 10, color: '#8c8c8c', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                Daily Quota (PM Assigned)
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                <span style={{ fontSize: 26, fontWeight: 900, lineHeight: 1, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>
+                  {REQUIRED_HOURS}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>hrs/day</span>
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#6366f1' }}>{loggedThisWeek.toFixed(1)}h</div>
-              <Text type="secondary" style={{ fontSize: 9 }}>This Week</Text>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: '#8c8c8c', marginBottom: 2 }}>Logged</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b' }}>
+                {totalHours.toFixed(1)}h
+              </div>
+              <div style={{
+                fontSize: 10, fontWeight: 700, marginTop: 2,
+                color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b',
+                background: totalHours >= REQUIRED_HOURS ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
+                borderRadius: 20, padding: '1px 7px', display: 'inline-block'
+              }}>
+                {totalHours >= REQUIRED_HOURS ? '✓ Goal Met' : `${Math.max(0, REQUIRED_HOURS - totalHours).toFixed(1)}h left`}
+              </div>
             </div>
           </div>
-          
+          {/* ──────────────────────────────────────────────────────────── */}
+
+          {/* Daily Progress Bar */}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text type="secondary" style={{ fontSize: 10 }}>Today's Progress</Text>
+              <Text style={{ fontSize: 10, fontWeight: 700, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>
+                {REQUIRED_HOURS > 0 ? Math.round(Math.min((totalHours / REQUIRED_HOURS) * 100, 100)) : 100}%
+              </Text>
+            </div>
+            <Progress
+              percent={REQUIRED_HOURS > 0 ? Math.round(Math.min((totalHours / REQUIRED_HOURS) * 100, 100)) : 100}
+              size="small"
+              showInfo={false}
+              strokeColor={totalHours >= REQUIRED_HOURS
+                ? { '0%': '#10b981', '100%': '#34d399' }
+                : { '0%': '#6366f1', '100%': '#8b5cf6' }}
+            />
+          </div>
+
+          {/* This-week stat */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text type="secondary" style={{ fontSize: 10 }}>This Week</Text>
+            <Text strong style={{ fontSize: 12, color: '#6366f1' }}>{loggedThisWeek.toFixed(1)}h</Text>
+          </div>
+
           <Progress
             percent={Math.round(Math.min((loggedThisWeek / weeklyAllocated) * 100, 100))}
             size="small"
@@ -649,6 +703,7 @@ const EODReportPage = () => {
             format={(p) => <span style={{ fontSize: 10, color: '#8c8c8c' }}>{p}% of Quota</span>}
           />
         </Card>
+
 
         {/* Vertical Calendar Timeline Card */}
         <Card 
