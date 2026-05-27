@@ -61,6 +61,11 @@ const EmployeeKanbanPage = () => {
         return !isBacklog;
       });
 
+      // Filter only tickets assigned to the logged-in user for TL / PM roles
+      if (currentUser && currentUser.role !== 'Employee') {
+        ticketsData = ticketsData.filter(t => t.assignedToUserId === currentUser.id);
+      }
+
       setTickets(ticketsData);
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to load tickets.' });
@@ -131,8 +136,8 @@ const EmployeeKanbanPage = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader 
-        title="My Work Kanban Board" 
-        subtitle="Movable Kanban Board. Drag-and-drop or use quick status actions to sync task updates."
+        title={currentUser?.role === 'Employee' ? "My Work Kanban Board" : "My Personal Kanban Board"} 
+        subTitle="Movable Kanban Board. Drag-and-drop or use quick status actions to sync task updates."
       />
 
       <Alert 

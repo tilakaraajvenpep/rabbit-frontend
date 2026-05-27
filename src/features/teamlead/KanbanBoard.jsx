@@ -152,6 +152,7 @@ const KanbanBoard = () => {
 
   const [allProjects, setAllProjects] = useState([]);
   const [allTickets, setAllTickets] = useState([]);  // local ticket state — drives board rendering
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState('all');
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -188,14 +189,20 @@ const KanbanBoard = () => {
     });
   }, [allTickets]);
 
-  // Local kanban columns derived from nonBacklogTickets + effectiveColumnList
+  // Filter tickets by selected assignee
+  const filteredTickets = useMemo(() => {
+    if (selectedAssigneeId === 'all') return nonBacklogTickets;
+    return nonBacklogTickets.filter(t => String(t.assignedToUserId) === String(selectedAssigneeId));
+  }, [nonBacklogTickets, selectedAssigneeId]);
+
+  // Local kanban columns derived from filteredTickets + effectiveColumnList
   const localColumns = useMemo(() => {
     const result = {};
     effectiveColumnList.forEach(({ key }) => {
-      result[key] = nonBacklogTickets.filter(t => t.status === key);
+      result[key] = filteredTickets.filter(t => t.status === key);
     });
     return result;
-  }, [nonBacklogTickets, effectiveColumnList]);
+  }, [filteredTickets, effectiveColumnList]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
@@ -207,6 +214,7 @@ const KanbanBoard = () => {
   useEffect(() => {
     if (projectId && !isNaN(Number(projectId))) {
       loadTickets(projectId);
+      setSelectedAssigneeId('all');
     }
   }, [projectId]);
 
@@ -429,6 +437,18 @@ const KanbanBoard = () => {
               onChange={handleProjectChange}
               options={allProjects.map(p => ({ label: p.name, value: String(p.id) }))}
             />
+            {projectId && (
+              <Select
+                placeholder="Filter by Team Member"
+                style={{ width: 230 }}
+                value={selectedAssigneeId}
+                onChange={setSelectedAssigneeId}
+                options={[
+                  { label: 'All Team Members', value: 'all' },
+                  ...users.map(u => ({ label: `${u.name || u.fullName} (${u.role})`, value: String(u.id || u.userId) }))
+                ]}
+              />
+            )}
             {projectId && (
               <Space>
                 {isManager && (

@@ -162,6 +162,7 @@ const App = () => {
                 {/* PM + TenantAdmin shared pages */}
                 <Route path="/pm/dashboard" element={<PMDashboardPage />} />
                 <Route path="/pm/board" element={<KanbanBoard />} />
+                <Route path="/pm/kanban" element={<EmployeeKanbanPage />} />
                 <Route path="/pm/tickets" element={<MyTicketsPage />} />
                 <Route path="/pm/report" element={<EODReportPage />} />
                 <Route path="/pm/projects/:id" element={<ProjectOverviewPage />} />
@@ -203,6 +204,7 @@ const App = () => {
                 <Route path="/teamlead/projects/:id" element={<ProjectDetailPage />} />
                 <Route path="/teamlead/projects/:id/kanban" element={<KanbanBoard />} />
                 <Route path="/teamlead/board" element={<KanbanBoard />} />
+                <Route path="/teamlead/kanban" element={<EmployeeKanbanPage />} />
                 <Route path="/teamlead/tickets" element={<MyTicketsPage />} />
                 <Route path="/teamlead/backlogs" element={<TicketBacklogsPage />} />
                 <Route path="/teamlead/report" element={<EODReportPage />} />
