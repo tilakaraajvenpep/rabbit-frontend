@@ -17,12 +17,24 @@ export const timerRequestService = {
     return await apiClient.get('/timer-requests/pm');
   },
 
+  getAccountsPendingRequests: async () => {
+    return await apiClient.get('/timer-requests/accounts');
+  },
+
   forwardToPM: async (id, data) => {
     return await apiClient.put(`/timer-requests/${id}/forward`, data);
   },
 
+  forwardToAccounts: async (id, data) => {
+    return await apiClient.put(`/timer-requests/${id}/forward-accounts`, data);
+  },
+
   respondToRequest: async (id, data) => {
     return await apiClient.put(`/timer-requests/${id}/respond`, data);
-  }
+  },
+
+  accountsRespondToRequest: async (id, data) => {
+    return await apiClient.put(`/timer-requests/${id}/accounts-respond`, data);
+  },
 };
 export default timerRequestService;

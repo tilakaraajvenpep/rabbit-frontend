@@ -34,6 +34,7 @@ const CostHistoryPage = React.lazy(() => import('./features/accounts/CostHistory
 const ProfitLossPage = React.lazy(() => import('./features/accounts/ProfitLossPage'));
 const AccountsUserManagementPage = React.lazy(() => import('./features/accounts/AccountsUserManagementPage'));
 const CostPerHourPage = React.lazy(() => import('./features/accounts/CostPerHourPage'));
+const AccountsHoursApprovalPage = React.lazy(() => import('./features/accounts/AccountsHoursApprovalPage'));
 
 // Team Lead
 const TeamLeadDashboardPage = React.lazy(() => import('./features/teamlead/TeamLeadDashboardPage'));
@@ -77,6 +78,7 @@ const HRApprovedLeavesPage = React.lazy(() => import('./features/hr/HRApprovedLe
 const HRTaskTrackingPage = React.lazy(() => import('./features/hr/HRTaskTrackingPage'));
 const HROffboardingPage = React.lazy(() => import('./features/hr/HROffboardingPage'));
 const HRProjectsPage = React.lazy(() => import('./features/hr/HRProjectsPage'));
+const HRHourAllocationPage = React.lazy(() => import('./features/hr/HRHourAllocationPage'));
 
 // Placeholder components for routes (to be implemented in later stages)
 const Placeholder = ({ title }) => <div><h1>{title}</h1><p>Stage 1 complete. This feature will be built in the next stage.</p></div>;
@@ -197,6 +199,7 @@ const App = () => {
                 <Route path="/accounts/profit-loss" element={<ProfitLossPage />} />
                 <Route path="/accounts/users" element={<AccountsUserManagementPage />} />
                 <Route path="/accounts/cost-per-hour" element={<CostPerHourPage />} />
+                <Route path="/accounts/hours-approval" element={<AccountsHoursApprovalPage />} />
               </Route>
 
               {/* TeamLead Routes */}
@@ -234,6 +237,7 @@ const App = () => {
                 <Route path="/hr/offboarding" element={<HROffboardingPage />} />
                 <Route path="/hr/projects" element={<HRProjectsPage />} />
                 <Route path="/hr/report-access-approvals" element={<ReportAccessApprovalPage />} />
+                <Route path="/hr/hours" element={<HRHourAllocationPage />} />
               </Route>
 
               {/* Shared Reports for Managers */}

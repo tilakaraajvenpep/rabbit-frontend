@@ -58,6 +58,9 @@ const EODReportPage = () => {
   const [activeRequestDetails, setActiveRequestDetails] = useState(null);
   const [teamLeads, setTeamLeads] = useState([]);
   const [selectedTeamLeadId, setSelectedTeamLeadId] = useState(null);
+  // Blocking modal when hours exceeded
+  const [isHoursBlockedModalOpen, setIsHoursBlockedModalOpen] = useState(false);
+  const [blockedSubmitTotal, setBlockedSubmitTotal] = useState(0);
 
   // Modal State for New Ticket
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
@@ -467,11 +470,9 @@ const EODReportPage = () => {
   const onSubmit = async (data) => {
     const submittedTotal = data.items.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0);
     if (submittedTotal > REQUIRED_HOURS) {
-      notification.error({
-        message: 'Hours Exceeded',
-        description: `You can only report up to ${REQUIRED_HOURS}h/day. You've entered ${submittedTotal.toFixed(1)}h. Please reduce your task hours.`,
-        duration: 5
-      });
+      // Block submission and show the dedicated additional-hours request modal
+      setBlockedSubmitTotal(submittedTotal);
+      setIsHoursBlockedModalOpen(true);
       return;
     }
 
@@ -1383,6 +1384,88 @@ const EODReportPage = () => {
           />
         </Form>
       </Modal>
+
+      {/* ── Hours Exceeded Blocking Modal ─────────────────────────────────── */}
+      <Modal
+        open={isHoursBlockedModalOpen}
+        footer={null}
+        onCancel={() => setIsHoursBlockedModalOpen(false)}
+        centered
+        width={480}
+        destroyOnClose
+      >
+        <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+          {/* Icon */}
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%',
+            background: 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(239,68,68,0.1))',
+            border: '2px solid rgba(245,158,11,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <ExclamationCircleFilled style={{ fontSize: 32, color: '#f59e0b' }} />
+          </div>
+
+          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>Hours Limit Exceeded</div>
+          <div style={{ color: '#8c8c8c', fontSize: 13, marginBottom: 20 }}>
+            You have entered <strong style={{ color: '#ef4444' }}>{blockedSubmitTotal.toFixed(1)}h</strong> but your
+            daily quota is <strong style={{ color: '#6366f1' }}>{REQUIRED_HOURS}h</strong>.
+          </div>
+
+          {/* Info box */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.06))',
+            border: '1px solid rgba(99,102,241,0.2)',
+            borderRadius: 12, padding: '14px 16px', marginBottom: 20, textAlign: 'left',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#6366f1' }}>
+              📋 To report beyond your allocated hours:
+            </div>
+            <div style={{ fontSize: 12, color: '#555', lineHeight: 1.7 }}>
+              <div>1️⃣ &nbsp;Raise an <strong>Additional Hours Request</strong> to your Team Leader</div>
+              <div>2️⃣ &nbsp;TL reviews &amp; forwards to <strong>Project Manager</strong></div>
+              <div>3️⃣ &nbsp;PM forwards to <strong>Accounts</strong> for budget clearance</div>
+              <div>4️⃣ &nbsp;Once Accounts approves, <strong>HR / PM</strong> will update your quota</div>
+              <div>5️⃣ &nbsp;You can then <strong>re-submit</strong> this EOD report</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <Button
+              size="large"
+              onClick={() => setIsHoursBlockedModalOpen(false)}
+              style={{ borderRadius: 8, minWidth: 110 }}
+            >
+              Go Back &amp; Edit
+            </Button>
+            <Button
+              type="primary"
+              size="large"
+              icon={<RaiseIcon />}
+              onClick={() => {
+                setIsHoursBlockedModalOpen(false);
+                // Pre-fill and open the existing timer-request form
+                const firstTicket = watchedItems?.find(i => i.ticketId);
+                const ticket = firstTicket ? myTickets.find(t => String(t.id) === String(firstTicket.ticketId)) : null;
+                setActiveRequestDetails({ type: 'ExceededLimit', ticket });
+                requestForm.resetFields();
+                requestForm.setFieldsValue({
+                  ticketId: ticket?.id || '',
+                  requestType: 'ExceededLimit',
+                  requestedHours: parseFloat((blockedSubmitTotal - REQUIRED_HOURS).toFixed(1)) || 0.5,
+                  teamLeadId: selectedTeamLeadId,
+                });
+                setIsRequestModalOpen(true);
+              }}
+              style={{ borderRadius: 8, background: '#6366f1', borderColor: '#6366f1', minWidth: 160 }}
+            >
+              Request Additional Hours
+            </Button>
+          </div>
+        </div>
+      </Modal>
+      {/* ──────────────────────────────────────────────────────────────────── */}
+
     </div>
   );
 };

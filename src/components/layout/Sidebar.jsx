@@ -92,6 +92,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/accounts/profit-loss', icon: <BarChartOutlined />, label: 'Project Profit & Loss' },
         { key: '/accounts/users', icon: <TeamOutlined />, label: 'User Management' },
         { key: '/accounts/cost-per-hour', icon: <ClockCircleOutlined />, label: 'Cost Per Hour' },
+        { key: '/accounts/hours-approval', icon: <ClockCircleOutlined />, label: 'Additional Hours Approval' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' }
       );
     }
@@ -128,6 +129,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' },
         { key: '/hr/projects', icon: <ProjectOutlined />, label: 'Project Allocations' },
         { key: '/hr/task-tracking', icon: <ClockCircleOutlined />, label: 'Task Tracking' },
+        { key: '/hr/hours', icon: <DollarOutlined />, label: 'Hour Allocation' },
         { key: '/hr/offboarding', icon: <UserDeleteOutlined />, label: 'Offboarding' }
       );
     }
