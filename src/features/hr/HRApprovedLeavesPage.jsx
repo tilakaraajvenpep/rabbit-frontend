@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Table, Tag, Space, Typography, notification, Spin, 
-  Row, Col, Statistic, Select, Button, Tabs, Tooltip, Popconfirm, Avatar
+  Row, Col, Statistic, Select, Button, Tabs, Tooltip, Popconfirm, Avatar, DatePicker
 } from 'antd';
 import { 
   CalendarOutlined, CheckCircleOutlined, InfoCircleOutlined, 
@@ -17,7 +17,7 @@ const { Text } = Typography;
 const HRApprovedLeavesPage = () => {
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState('all');
+  const [filterRange, setFilterRange] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [bulkLoading, setBulkLoading] = useState(false);
   const { isDarkMode } = useThemeStore();
@@ -93,18 +93,14 @@ const HRApprovedLeavesPage = () => {
   const pendingLeaves = leaves.filter(l => l.status === 'Pending' || !l.status);
   const processedLeaves = leaves.filter(l => l.status === 'Approved' || l.status === 'Rejected');
 
-  // Filter by Month logic
-  const months = [
-    { value: 'all', label: 'All Months' },
-    ...Array.from({ length: 12 }, (_, i) => {
-      const date = dayjs().month(i);
-      return { value: date.format('YYYY-MM'), label: date.format('MMMM YYYY') };
-    })
-  ];
-
+  // Filter by Date Range logic
   const filteredProcessedLeaves = processedLeaves.filter(l => {
-    if (selectedMonth === 'all') return true;
-    return dayjs(l.leaveDate).format('YYYY-MM') === selectedMonth;
+    if (!filterRange || filterRange.length < 2 || !filterRange[0] || !filterRange[1]) return true;
+    const leaveDate = dayjs(l.leaveDate);
+    const startDate = filterRange[0].startOf('day');
+    const endDate = filterRange[1].endOf('day');
+    return (leaveDate.isAfter(startDate) || leaveDate.isSame(startDate, 'day')) &&
+           (leaveDate.isBefore(endDate) || leaveDate.isSame(endDate, 'day'));
   });
 
   const pendingColumns = [
@@ -313,14 +309,13 @@ const HRApprovedLeavesPage = () => {
             </Tabs.TabPane>
             
             <Tabs.TabPane tab="Historical Leave Logs" key="processed">
-              <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text strong>Filter by Month:</Text>
-                <Select
-                  style={{ width: 220 }}
-                  placeholder="Select a month"
-                  value={selectedMonth}
-                  onChange={setSelectedMonth}
-                  options={months}
+              <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <Text strong>Filter by Date Range:</Text>
+                <DatePicker.RangePicker
+                  style={{ width: 280 }}
+                  value={filterRange}
+                  onChange={setFilterRange}
+                  allowClear
                 />
               </div>
 
