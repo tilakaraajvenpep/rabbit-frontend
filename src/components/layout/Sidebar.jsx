@@ -126,6 +126,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       items.push(
         { key: '/hr/team', icon: <TeamOutlined />, label: 'Team Details' },
         { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' },
+        { key: '/hr/projects', icon: <ProjectOutlined />, label: 'Project Allocations' },
         { key: '/hr/task-tracking', icon: <ClockCircleOutlined />, label: 'Task Tracking' },
         { key: '/hr/offboarding', icon: <UserDeleteOutlined />, label: 'Offboarding' }
       );
