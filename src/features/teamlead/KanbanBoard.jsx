@@ -114,6 +114,13 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
         <Title level={5} style={{ margin: '0 0 12px 0', fontSize: '13.5px', fontWeight: 600, lineHeight: 1.4 }} ellipsis={{ rows: 2 }}>
           {ticket.title}
         </Title>
+        {user?.role === 'ProjectManager' && (
+          <div style={{ marginBottom: 12 }}>
+            <Tag color="gold" style={{ fontSize: '11px', fontWeight: 600, borderRadius: 4 }}>
+              👑 Assigned to PM ({user?.name || user?.fullName})
+            </Tag>
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space size={8}>
             <Tooltip title={user?.name || 'Unassigned'}>
@@ -767,9 +774,22 @@ const KanbanBoard = () => {
                     if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
                     return false;
                   });
+
+                  // Ensure the currently assigned user (e.g. PM) is included in the options list for TL
+                  const currentAssigneeId = editingTicket?.assignedToUserId;
+                  if (currentAssigneeId) {
+                    const exists = eligibleUsers.some(u => (u.id || u.userId) === currentAssigneeId);
+                    if (!exists) {
+                      const assignedUserObj = users.find(u => (u.id || u.userId) === currentAssigneeId);
+                      if (assignedUserObj) {
+                        eligibleUsers.push(assignedUserObj);
+                      }
+                    }
+                  }
+
                   return eligibleUsers.map(u => ({
                     value: u.id || u.userId,
-                    label: u.name || u.fullName
+                    label: u.role === 'ProjectManager' ? `👑 ${u.name || u.fullName} (PM)` : (u.name || u.fullName)
                   }));
                 })()}
               />
