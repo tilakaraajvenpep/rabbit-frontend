@@ -104,8 +104,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/teamlead/report', icon: <FileTextOutlined />, label: 'Daily Report' },
         { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
-        { key: '/teamlead/cross-share', icon: <SwapOutlined />, label: 'Cross-Team Share' },
-        { key: '/teamlead/timer-requests', icon: <ClockCircleOutlined />, label: 'Timer Requests' }
+        { key: '/teamlead/cross-share', icon: <SwapOutlined />, label: 'Cross-Team Share' }
       );
     }
 
