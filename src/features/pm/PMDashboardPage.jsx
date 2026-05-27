@@ -65,10 +65,6 @@ const PMDashboardPage = () => {
   // Milestones drawer state
   const [isMilestoneDrawerVisible, setIsMilestoneDrawerVisible] = useState(false);
   const [selectedProjectForMilestones, setSelectedProjectForMilestones] = useState(null);
-  // Timer Requests State
-  const [pendingTimerRequests, setPendingTimerRequests] = useState([]);
-  const [isTimerPopupVisible, setIsTimerPopupVisible] = useState(false);
-  const [assignedTickets, setAssignedTickets] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -83,26 +79,6 @@ const PMDashboardPage = () => {
       ]);
       setProjects(projectsRes.data || []);
       setTeamLeads((usersRes.data || []).filter(u => u.role === 'TeamLead'));
-
-      // Fetch pending timer requests for popup
-      try {
-        const timerRes = await timerRequestService.getPMPendingRequests();
-        const pendingReqs = timerRes.data.data || [];
-        setPendingTimerRequests(pendingReqs);
-        if (pendingReqs.length > 0) {
-          setIsTimerPopupVisible(true);
-        }
-      } catch (err) {
-        console.error('Failed to fetch pending timer requests', err);
-      }
-
-      // Fetch all assigned tickets
-      try {
-        const ticketRes = await ticketService.getTickets();
-        setAssignedTickets(ticketRes.data || []);
-      } catch (err) {
-        console.error('Failed to fetch assigned tickets', err);
-      }
     } catch (error) {
       console.error('Failed to fetch PM dashboard data', error);
       notification.error({ message: 'Error', description: 'Failed to load projects and team leads.' });
@@ -110,7 +86,6 @@ const PMDashboardPage = () => {
       setLoading(false);
     }
   };
-
 
   const handleApproveProject = async (project) => {
     Modal.confirm({
@@ -778,28 +753,6 @@ const PMDashboardPage = () => {
         />
       </Card>
 
-      {/* Master Assigned Tickets List Card */}
-      <Card 
-        title={
-          <Space>
-            <ClockCircleOutlined style={{ color: '#52c41a' }} /> 
-            <span style={{ fontWeight: 600 }}>Master Assigned Tickets List</span>
-          </Space>
-        } 
-        style={{ marginTop: 24, borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}
-        bodyStyle={{ padding: 24 }}
-      >
-        <Table 
-          columns={ticketColumns} 
-          dataSource={assignedTickets} 
-          rowKey="id" 
-          pagination={{ pageSize: 5, showSizeChanger: true }}
-          locale={{ emptyText: 'No assigned tickets found.' }}
-          scroll={{ x: 'max-content' }}
-          className="pm-table"
-        />
-      </Card>
-
 
       {/* Return to Accounts Comments Modal */}
       <Modal
@@ -856,50 +809,6 @@ const PMDashboardPage = () => {
           <Alert message="No milestones defined for this project." type="info" showIcon />
         )}
       </Drawer>
-
-      {/* Pending Timer Requests Alert Popup */}
-      <Modal
-        title={
-          <Space>
-            <ClockCircleOutlined style={{ color: '#1890ff', fontSize: 20 }} />
-            <span style={{ fontSize: 16, fontWeight: 700 }}>Pending Hours & Timer Requests</span>
-          </Space>
-        }
-        open={isTimerPopupVisible}
-        onCancel={() => setIsTimerPopupVisible(false)}
-        footer={[
-          <Button key="close" onClick={() => setIsTimerPopupVisible(false)}>
-            Close
-          </Button>,
-          <Button 
-            key="review" 
-            type="primary" 
-            onClick={() => {
-              setIsTimerPopupVisible(false);
-              navigate('/pm/timer-requests');
-            }}
-          >
-            Go to Approvals Page
-          </Button>
-        ]}
-        destroyOnClose
-      >
-        <div style={{ textAlign: 'center', padding: '12px 0' }}>
-          <Progress 
-            type="dashboard" 
-            percent={100} 
-            status="active" 
-            format={() => `${pendingTimerRequests.length}`} 
-            strokeColor="#1890ff"
-          />
-          <Title level={4} style={{ marginTop: 16, marginBottom: 8 }}>
-            Action Required
-          </Title>
-          <Text type="secondary" style={{ display: 'block', fontSize: 14 }}>
-            There are <strong>{pendingTimerRequests.length}</strong> forwarded employee timer & hours extension requests waiting for your review.
-          </Text>
-        </div>
-      </Modal>
     </div>
   );
 };
