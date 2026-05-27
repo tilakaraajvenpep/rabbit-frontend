@@ -79,6 +79,7 @@ const HRTaskTrackingPage = React.lazy(() => import('./features/hr/HRTaskTracking
 const HROffboardingPage = React.lazy(() => import('./features/hr/HROffboardingPage'));
 const HRProjectsPage = React.lazy(() => import('./features/hr/HRProjectsPage'));
 const HRHourAllocationPage = React.lazy(() => import('./features/hr/HRHourAllocationPage'));
+const HRTimerRequestsPage = React.lazy(() => import('./features/hr/HRTimerRequestsPage'));
 
 // Placeholder components for routes (to be implemented in later stages)
 const Placeholder = ({ title }) => <div><h1>{title}</h1><p>Stage 1 complete. This feature will be built in the next stage.</p></div>;
@@ -238,6 +239,7 @@ const App = () => {
                 <Route path="/hr/projects" element={<HRProjectsPage />} />
                 <Route path="/hr/report-access-approvals" element={<ReportAccessApprovalPage />} />
                 <Route path="/hr/hours" element={<HRHourAllocationPage />} />
+                <Route path="/hr/timer-requests" element={<HRTimerRequestsPage />} />
               </Route>
 
               {/* Shared Reports for Managers */}

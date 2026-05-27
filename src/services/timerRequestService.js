@@ -36,5 +36,9 @@ export const timerRequestService = {
   accountsRespondToRequest: async (id, data) => {
     return await apiClient.put(`/timer-requests/${id}/accounts-respond`, data);
   },
+
+  getHRApprovedRequests: async () => {
+    return await apiClient.get('/timer-requests/hr');
+  },
 };
 export default timerRequestService;

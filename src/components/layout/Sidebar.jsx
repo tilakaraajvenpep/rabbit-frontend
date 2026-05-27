@@ -70,6 +70,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },
         { key: '/pm/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/pm/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
+        { key: '/pm/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Requests' },
         { key: '/pm/team', icon: <TeamOutlined />, label: 'TL & Employees' },
         { key: '/pm/cross-team', icon: <SwapOutlined />, label: 'Cross-Team Status' }
       );
@@ -107,6 +108,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/teamlead/report', icon: <FileTextOutlined />, label: 'Daily Report' },
         { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
+        { key: '/teamlead/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Requests' },
         { key: '/teamlead/cross-share', icon: <SwapOutlined />, label: 'Cross-Team Share' }
       );
     }
@@ -130,6 +132,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/hr/projects', icon: <ProjectOutlined />, label: 'Project Allocations' },
         { key: '/hr/task-tracking', icon: <ClockCircleOutlined />, label: 'Task Tracking' },
         { key: '/hr/hours', icon: <DollarOutlined />, label: 'Hour Allocation' },
+        { key: '/hr/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Approvals' },
         { key: '/hr/offboarding', icon: <UserDeleteOutlined />, label: 'Offboarding' }
       );
     }
