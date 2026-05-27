@@ -60,14 +60,17 @@ const getPriorityColor = (priority) => {
 };
 
 // Sortable Ticket Card
-const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDarkMode }) => {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: ticket.id });
+const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDarkMode, isDragDisabled }) => {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ 
+    id: ticket.id,
+    disabled: isDragDisabled
+  });
 
   const style = { 
     transform: CSS.Transform.toString(transform), 
     transition, 
     marginBottom: 12, 
-    cursor: 'pointer' 
+    cursor: isDragDisabled ? 'not-allowed' : 'pointer' 
   };
   const isOverdue = ticket.dueDate && new Date(ticket.dueDate) < new Date() && ticket.status !== 'Done';
 
@@ -155,7 +158,7 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
 };
 
 // Droppable Column Component — receives displayTitle directly
-const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, onEditTicket, isDarkMode, token, users, canEdit }) => {
+const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, onEditTicket, isDarkMode, token, users, canEdit, authRole }) => {
   const { setNodeRef } = useDroppable({ id: colId });
 
   const colColors = {
@@ -198,6 +201,7 @@ const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDel
         <div ref={setNodeRef} style={{ minHeight: 450, height: '100%', paddingBottom: 20 }}>
           {tickets.map(ticket => {
             const user = users.find(u => u.id === ticket.assignedToUserId) || mockUsers.find(u => u.id === ticket.assignedToUserId);
+            const isDragDisabled = user?.role === 'ProjectManager' && authRole === 'TeamLead';
             return (
               <SortableTicket 
                 key={ticket.id} 
@@ -208,6 +212,7 @@ const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDel
                 user={user} 
                 canEdit={canEdit}
                 isDarkMode={isDarkMode}
+                isDragDisabled={isDragDisabled}
               />
             );
           })}
@@ -333,6 +338,19 @@ const KanbanBoard = () => {
     if (!over) return;
 
     const ticketId = active.id;
+
+    // Block Team Lead from dragging tickets assigned to the PM
+    if (authRole === 'TeamLead') {
+      const activeTicket = allTickets.find(t => t.id === ticketId);
+      if (activeTicket) {
+        const assigneeObj = users.find(u => (u.id || u.userId) === activeTicket.assignedToUserId) || mockUsers.find(u => (u.id || u.userId) === activeTicket.assignedToUserId);
+        if (assigneeObj?.role === 'ProjectManager') {
+          message.error('Team Leads cannot move tickets assigned to the Project Manager.');
+          return;
+        }
+      }
+    }
+
     const overId = over.id;
     const allColKeys = effectiveColumnList.map(c => c.key);
 
@@ -585,7 +603,7 @@ const KanbanBoard = () => {
       {projectId ? (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
           <div style={{ display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16 }}>
-            {effectiveColumnList.map(({ key: colId, title }) => (
+             {effectiveColumnList.map(({ key: colId, title }) => (
               <DroppableColumn
                 key={colId}
                 colId={colId}
@@ -598,7 +616,7 @@ const KanbanBoard = () => {
                 token={token}
                 users={users}
                 canEdit={canEdit}
-
+                authRole={authRole}
               />
             ))}
           </div>
