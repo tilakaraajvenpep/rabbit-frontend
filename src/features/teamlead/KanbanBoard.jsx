@@ -60,10 +60,15 @@ const getPriorityColor = (priority) => {
 };
 
 // Sortable Ticket Card
-const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit }) => {
+const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDarkMode }) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: ticket.id });
 
-  const style = { transform: CSS.Transform.toString(transform), transition, marginBottom: 12, cursor: 'pointer' };
+  const style = { 
+    transform: CSS.Transform.toString(transform), 
+    transition, 
+    marginBottom: 12, 
+    cursor: 'pointer' 
+  };
   const isOverdue = ticket.dueDate && new Date(ticket.dueDate) < new Date() && ticket.status !== 'Done';
 
   return (
@@ -71,44 +76,70 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit }) =>
       <Card 
         size="small" 
         hoverable 
-        style={{ borderLeft: `4px solid ${getPriorityColor(ticket.priority)}` }}
+        style={{ 
+          borderLeft: `4px solid ${getPriorityColor(ticket.priority)}`,
+          borderRadius: 12,
+          boxShadow: isDarkMode 
+            ? '0 4px 12px rgba(0, 0, 0, 0.4)' 
+            : '0 4px 12px rgba(0, 0, 0, 0.03)',
+          background: isDarkMode ? '#1f1f23' : '#ffffff',
+          border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
+          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+        }}
+        bodyStyle={{ padding: '14px 16px' }}
         onClick={() => onClick(ticket)}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Text type="secondary" style={{ fontSize: '12px' }}><code>{ticket.ticketCode || ticket.code}</code></Text>
-          <Space size={4}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, alignItems: 'center' }}>
+          <Tag color={isDarkMode ? 'zinc' : 'default'} style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 11, borderRadius: 4, margin: 0 }}>
+            {ticket.ticketCode || ticket.code}
+          </Tag>
+          <Space size={6}>
             <PriorityBadge priority={ticket.priority} />
             {canEdit && (
-              <>
+              <Space size={2} onClick={e => e.stopPropagation()}>
                 <Button
                   size="small" type="text" icon={<EditOutlined />}
-                  style={{ padding: '0 4px', height: 'auto', color: '#1890ff' }}
-                  onClick={(e) => { e.stopPropagation(); onEdit(ticket); }}
+                  style={{ padding: '0 4px', height: 'auto', color: '#6366f1' }}
+                  onClick={() => onEdit(ticket)}
                 />
                 <Button
                   size="small" type="text" danger icon={<DeleteOutlined />}
                   style={{ padding: '0 4px', height: 'auto' }}
-                  onClick={(e) => { e.stopPropagation(); onDelete(ticket); }}
+                  onClick={() => onDelete(ticket)}
                 />
-              </>
+              </Space>
             )}
           </Space>
         </div>
-        <Title level={5} style={{ margin: '0 0 12px 0' }} ellipsis={{ rows: 2 }}>{ticket.title}</Title>
+        <Title level={5} style={{ margin: '0 0 12px 0', fontSize: '13.5px', fontWeight: 600, lineHeight: 1.4 }} ellipsis={{ rows: 2 }}>
+          {ticket.title}
+        </Title>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Space>
+          <Space size={8}>
             <Tooltip title={user?.name || 'Unassigned'}>
               <Avatar size="small" src={user?.avatar} icon={<UserOutlined />} />
             </Tooltip>
-            <Text type="secondary" style={{ fontSize: '12px' }}>{ticket.estimatedHours}h</Text>
+            <Tag color="purple" style={{ fontSize: '10px', borderRadius: 4, margin: 0, fontWeight: 500 }}>
+              {ticket.estimatedHours}h
+            </Tag>
           </Space>
           {ticket.dueDate && (
-            <Space>
-              <CalendarOutlined style={{ color: isOverdue ? '#ff4d4f' : '#8c8c8c' }} />
-              <Text style={{ fontSize: '11px', color: isOverdue ? '#ff4d4f' : '#8c8c8c' }}>
-                {dayjs(ticket.dueDate).format('DD MMM YYYY')}
-              </Text>
-            </Space>
+            <Tag 
+              color={isOverdue ? 'red' : 'default'} 
+              style={{ 
+                fontSize: '10px', 
+                borderRadius: 4, 
+                margin: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              <CalendarOutlined style={{ color: isOverdue ? '#ef4444' : '#8c8c8c' }} />
+              <span style={{ color: isOverdue ? '#ef4444' : '#64748b', fontWeight: 500 }}>
+                {dayjs(ticket.dueDate).format('DD MMM')}
+              </span>
+            </Tag>
           )}
         </div>
       </Card>
@@ -120,22 +151,58 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit }) =>
 const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, onEditTicket, isDarkMode, token, users, canEdit }) => {
   const { setNodeRef } = useDroppable({ id: colId });
 
+  const colColors = {
+    ToDo: '#64748b',
+    InProgress: '#6366f1',
+    InReview: '#f59e0b',
+    Done: '#10b981'
+  };
+  const borderTopColor = colColors[colId] || '#d9d9d9';
+
   return (
     <div style={{ 
       width: 300, minWidth: 300, 
-      background: isDarkMode ? '#18181b' : '#f5f5f5', 
-      borderRadius: 8, padding: 12,
-      border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'}`
+      background: isDarkMode ? '#131316' : '#f8fafc', 
+      borderRadius: 14, padding: 14,
+      border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'}`,
+      borderTop: `4px solid ${borderTopColor}`,
+      boxShadow: isDarkMode 
+        ? '0 10px 15px -3px rgba(0,0,0,0.3)' 
+        : '0 4px 6px -1px rgba(0,0,0,0.02)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 12
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
-        <Title level={5} style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>{displayTitle}</Title>
-        <Badge count={tickets.length} style={{ backgroundColor: isDarkMode ? '#3f3f46' : '#bfbfbf', color: isDarkMode ? '#f4f4f5' : undefined }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center', padding: '0 4px' }}>
+        <span style={{ fontSize: '14.5px', fontWeight: 700, color: isDarkMode ? '#f4f4f5' : '#1e293b' }}>
+          {displayTitle}
+        </span>
+        <Badge 
+          count={tickets.length} 
+          style={{ 
+            backgroundColor: borderTopColor, 
+            color: '#ffffff',
+            fontWeight: 'bold',
+            borderRadius: 8
+          }} 
+        />
       </div>
       <SortableContext id={colId} items={tickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} style={{ minHeight: 400, height: '100%', paddingBottom: 20 }}>
+        <div ref={setNodeRef} style={{ minHeight: 450, height: '100%', paddingBottom: 20 }}>
           {tickets.map(ticket => {
             const user = users.find(u => u.id === ticket.assignedToUserId) || mockUsers.find(u => u.id === ticket.assignedToUserId);
-            return <SortableTicket key={ticket.id} ticket={ticket} onClick={openTicketDetail} onDelete={onDeleteTicket} onEdit={onEditTicket} user={user} canEdit={canEdit} />;
+            return (
+              <SortableTicket 
+                key={ticket.id} 
+                ticket={ticket} 
+                onClick={openTicketDetail} 
+                onDelete={onDeleteTicket} 
+                onEdit={onEditTicket} 
+                user={user} 
+                canEdit={canEdit}
+                isDarkMode={isDarkMode}
+              />
+            );
           })}
         </div>
       </SortableContext>
@@ -443,39 +510,24 @@ const KanbanBoard = () => {
                 style={{ width: 230 }}
                 value={selectedAssigneeId}
                 onChange={setSelectedAssigneeId}
-                options={[
-                  { label: 'All Team Members', value: 'all' },
-                  ...users.map(u => ({ label: `${u.name || u.fullName} (${u.role})`, value: String(u.id || u.userId) }))
-                ]}
+                options={(() => {
+                  const myUserId = authUser?.id || authUser?.userId;
+                  let filteredUsers = users;
+                  if (authRole === 'TeamLead' || authUser?.role === 'TeamLead') {
+                    filteredUsers = users.filter(u => 
+                      (u.role === 'Employee' && String(u.teamLeadId) === String(myUserId)) ||
+                      String(u.id || u.userId) === String(myUserId)
+                    );
+                  }
+                  return [
+                    { label: 'All Team Members', value: 'all' },
+                    ...filteredUsers.map(u => ({ label: `${u.name || u.fullName} (${u.role})`, value: String(u.id || u.userId) }))
+                  ];
+                })()}
               />
             )}
             {projectId && (
               <Space>
-                {isManager && (
-                  <Button 
-                    danger 
-                    icon={<DeleteOutlined />} 
-                    onClick={async () => {
-                      Modal.confirm({
-                        title: 'Clean Stale Phase Tickets?',
-                        content: 'This will permanently remove the old budget/phase tickets (Phase 1, Phase 2, etc.) from the database. Milestone tickets will remain untouched.',
-                        okText: 'Yes, Clean Up',
-                        cancelText: 'No',
-                        onOk: async () => {
-                          try {
-                            const res = await ticketService.cleanupTaskTickets();
-                            message.success(`Cleanup complete! Removed ${res.data?.deleted || 0} stale tickets.`);
-                            loadTickets(projectId);
-                          } catch (err) {
-                            message.error('Failed to clean up stale tickets.');
-                          }
-                        }
-                      });
-                    }}
-                  >
-                    Clean Stale Tickets
-                  </Button>
-                )}
                 {canEdit && (
                   <Button icon={<EditOutlined />} onClick={handleOpenHeadingsModal}>
                     Edit Headings
