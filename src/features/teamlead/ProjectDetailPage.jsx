@@ -41,7 +41,8 @@ const ProjectDetailPage = () => {
 
       const docsRes = await projectService.getDocuments(id);
       if (docsRes.data && docsRes.data.length > 0) {
-        const scopeDoc = docsRes.data.find(d => d.documentCategory === 'scope');
+        const sortedDocs = [...docsRes.data].sort((a, b) => (b.documentId || b.id) - (a.documentId || a.id));
+        const scopeDoc = sortedDocs.find(d => d.documentCategory === 'scope');
         setLatestDoc(scopeDoc || null);
       }
     } catch (error) {

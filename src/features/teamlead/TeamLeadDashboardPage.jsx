@@ -45,7 +45,8 @@ const TeamLeadDashboardPage = () => {
     try {
       const docsRes = await projectService.getDocuments(projectId);
       if (docsRes.data && docsRes.data.length > 0) {
-        const scopeDoc = docsRes.data.find(d => d.documentCategory === 'scope');
+        const sortedDocs = [...docsRes.data].sort((a, b) => (b.documentId || b.id) - (a.documentId || a.id));
+        const scopeDoc = sortedDocs.find(d => d.documentCategory === 'scope');
         if (scopeDoc) {
           await projectService.downloadDocument(projectId, scopeDoc.documentId, scopeDoc.fileName);
         } else {
