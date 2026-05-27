@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Row, Col, Card, Typography, Button, Drawer, Space, 
   Skeleton, notification, FloatButton, Tag, Divider,
-  Alert
+  Alert, Select
 } from 'antd';
 import { 
   ClockCircleOutlined, SyncOutlined, PlayCircleOutlined,
@@ -11,6 +11,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
+import { projectService } from '../../services/projectService';
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
@@ -18,6 +19,19 @@ import PriorityBadge from '../../components/common/PriorityBadge';
 import HoursProgress from '../../components/common/HoursProgress';
 
 const { Title, Text, Paragraph } = Typography;
+
+const DEFAULT_COLUMNS = [
+  { key: 'ToDo', title: 'To Do' },
+  { key: 'InProgress', title: 'In Progress' },
+  { key: 'InReview', title: 'In Review' },
+  { key: 'Done', title: 'Done' },
+];
+
+const deriveColumnConfig = (kanbanColumns) => {
+  if (!kanbanColumns) return DEFAULT_COLUMNS;
+  if (Array.isArray(kanbanColumns)) return kanbanColumns;
+  return Object.entries(kanbanColumns).map(([key, title]) => ({ key, title }));
+};
 
 const EmployeeKanbanPage = () => {
   const navigate = useNavigate();
@@ -29,6 +43,10 @@ const EmployeeKanbanPage = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
+  // Project selector state
+  const [projects, setProjects] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState('all');
+  
   // Progress Reporting State
   const [progressState, setProgressState] = useState('');
   const [statusNotes, setStatusNotes] = useState('');
@@ -39,7 +57,17 @@ const EmployeeKanbanPage = () => {
 
   useEffect(() => {
     fetchMyTickets();
+    fetchProjects();
   }, [currentUser.userId || currentUser.id]);
+
+  const fetchProjects = async () => {
+    try {
+      const response = await projectService.getProjects();
+      setProjects(response.data || []);
+    } catch (err) {
+      console.error('Failed to load projects', err);
+    }
+  };
 
   // Set up live ticking timer interval
   useEffect(() => {
@@ -152,154 +180,165 @@ const EmployeeKanbanPage = () => {
         style={{ borderRadius: 8, padding: '10px 16px', marginBottom: 8 }}
       />
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <Text strong>Filter by Project:</Text>
+        <Select
+          style={{ width: 350 }}
+          value={selectedProjectId}
+          onChange={(val) => setSelectedProjectId(val)}
+          options={[
+            { value: 'all', label: '📂 All Projects (Default Columns)' },
+            ...projects.map(p => ({
+              value: String(p.id),
+              label: `📁 ${p.name} (${p.code})`
+            }))
+          ]}
+          placeholder="Select Project Name"
+        />
+      </div>
+
       {loading ? (
         <div style={{ textAlign: 'center', padding: '100px 0' }}>
           <Skeleton active />
         </div>
-      ) : tickets.length === 0 ? (
-        <Card style={{ borderRadius: 12, textAlign: 'center', padding: '60px 0' }}>
-          <Text type="secondary" style={{ fontSize: 16 }}>No tickets assigned to you yet.</Text>
-        </Card>
       ) : (
         /* KANBAN BOARD VIEW */
-        <Row gutter={16}>
-          {['ToDo', 'InProgress', 'InReview', 'Done'].map(columnStatus => {
-            const columnTickets = tickets.filter(t => t.status === columnStatus);
-            const colLabel = {
-              ToDo: 'To Do',
-              InProgress: 'In Progress',
-              InReview: 'In Review',
-              Done: 'Done'
-            }[columnStatus];
-            
-            const colColor = {
-              ToDo: '#8c8c8c',
-              InProgress: '#1890ff',
-              InReview: '#fa8c16',
-              Done: '#52c41a'
-            }[columnStatus];
+        (() => {
+          const filteredTickets = selectedProjectId === 'all'
+            ? tickets
+            : tickets.filter(t => String(t.projectId) === String(selectedProjectId));
 
-            return (
-              <Col xs={24} sm={12} lg={6} key={columnStatus}>
-                <Card 
-                  title={
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 15, fontWeight: 700 }}>{colLabel}</span>
-                      <Tag color={columnStatus === 'InProgress' ? 'processing' : 'default'} style={{ borderRadius: 10 }}>
-                        {columnTickets.length}
-                      </Tag>
-                    </div>
-                  }
-                  headStyle={{ borderTop: `4px solid ${colColor}`, borderRadius: '8px 8px 0 0' }}
-                  style={{ 
-                    borderRadius: 12, 
-                    background: isDarkMode ? '#1c1c1e' : '#f8fafc',
-                    minHeight: 520,
-                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-                    border: '1px dashed transparent',
-                    transition: 'all 0.2s'
-                  }}
-                  bodyStyle={{ padding: '12px' }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.style.borderColor = colColor;
-                    e.currentTarget.style.background = isDarkMode ? '#242427' : '#f1f5f9';
-                  }}
-                  onDragLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'transparent';
-                    e.currentTarget.style.background = isDarkMode ? '#1c1c1e' : '#f8fafc';
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.currentTarget.style.borderColor = 'transparent';
-                    e.currentTarget.style.background = isDarkMode ? '#1c1c1e' : '#f8fafc';
-                    const ticketId = Number(e.dataTransfer.getData('ticketId'));
-                    if (ticketId) {
-                      handleStatusChange(ticketId, columnStatus);
-                    }
-                  }}
-                >
-                  <Space direction="vertical" style={{ width: '100%' }} size={12}>
-                    {columnTickets.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
-                        Empty / Drop tasks here
-                      </div>
-                    ) : (
-                      columnTickets.map(ticket => {
-                        return (
-                          <Card 
-                            key={ticket.id}
-                            hoverable
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData('ticketId', String(ticket.id));
-                              e.dataTransfer.effectAllowed = 'move';
-                            }}
-                            style={{ 
-                              borderRadius: 10,
-                              background: isDarkMode ? '#2c2c2e' : '#ffffff',
-                              border: '1px solid rgba(0,0,0,0.06)',
-                              cursor: 'grab'
-                            }}
-                            bodyStyle={{ padding: '16px' }}
-                            onClick={() => openTicketDetail(ticket)}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                              <Text code strong>{ticket.code}</Text>
-                              <PriorityBadge priority={ticket.priority} />
-                            </div>
-                            
-                            <Title level={5} style={{ margin: '0 0 8px 0', fontSize: 14 }}>
-                              {ticket.title}
-                            </Title>
-                            
-                            <Text type="secondary" style={{ display: 'block', fontSize: 11, marginBottom: 12 }}>
-                              Project: {ticket.projectName || 'General'}
-                            </Text>
+          const selectedProject = projects.find(p => String(p.id) === String(selectedProjectId));
+          const activeColumns = selectedProject ? deriveColumnConfig(selectedProject.kanbanColumns) : DEFAULT_COLUMNS;
 
-                            <Divider style={{ margin: '10px 0' }} />
+          return (
+            <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16, width: '100%' }}>
+              {activeColumns.map((col, idx) => {
+                const columnStatus = col.key;
+                const columnTickets = filteredTickets.filter(t => t.status === columnStatus);
+                const colLabel = col.title;
+                
+                const colColors = {
+                  ToDo: '#8c8c8c',
+                  InProgress: '#1890ff',
+                  InReview: '#fa8c16',
+                  Done: '#52c41a'
+                };
+                const colColor = colColors[columnStatus] || `hsl(${(idx * 75) % 360}, 70%, 50%)`;
 
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <HoursProgress consumed={ticket.consumedHours} total={ticket.estimatedHours} />
-                            </div>
+                return (
+                  <div key={columnStatus} style={{ width: 300, minWidth: 300, display: 'flex', flexDirection: 'column' }}>
+                    <Card 
+                      title={
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 15, fontWeight: 700 }}>{colLabel}</span>
+                          <Tag color={columnStatus === 'InProgress' ? 'processing' : 'default'} style={{ borderRadius: 10 }}>
+                            {columnTickets.length}
+                          </Tag>
+                        </div>
+                      }
+                      headStyle={{ borderTop: `4px solid ${colColor}`, borderRadius: '8px 8px 0 0' }}
+                      style={{ 
+                        borderRadius: 12, 
+                        background: isDarkMode ? '#1c1c1e' : '#f8fafc',
+                        minHeight: 520,
+                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                        border: '1px dashed transparent',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        flexDirection: 'column'
+                      }}
+                      bodyStyle={{ padding: '12px', flex: 1, display: 'flex', flexDirection: 'column' }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.style.borderColor = colColor;
+                        e.currentTarget.style.background = isDarkMode ? '#242427' : '#f1f5f9';
+                      }}
+                      onDragLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'transparent';
+                        e.currentTarget.style.background = isDarkMode ? '#1c1c1e' : '#f8fafc';
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.style.borderColor = 'transparent';
+                        e.currentTarget.style.background = isDarkMode ? '#1c1c1e' : '#f8fafc';
+                        const ticketId = Number(e.dataTransfer.getData('ticketId'));
+                        if (ticketId) {
+                          handleStatusChange(ticketId, columnStatus);
+                        }
+                      }}
+                    >
+                      <Space direction="vertical" style={{ width: '100%', flex: 1 }} size={12}>
+                        {columnTickets.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
+                            Empty / Drop tasks here
+                          </div>
+                        ) : (
+                          columnTickets.map(ticket => {
+                            return (
+                              <Card 
+                                key={ticket.id}
+                                hoverable
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData('ticketId', String(ticket.id));
+                                  e.dataTransfer.effectAllowed = 'move';
+                                }}
+                                style={{ 
+                                  borderRadius: 10,
+                                  background: isDarkMode ? '#2c2c2e' : '#ffffff',
+                                  border: '1px solid rgba(0,0,0,0.06)',
+                                  cursor: 'grab'
+                                }}
+                                bodyStyle={{ padding: '16px' }}
+                                onClick={() => openTicketDetail(ticket)}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                                  <Text code strong>{ticket.code}</Text>
+                                  <PriorityBadge priority={ticket.priority} />
+                                </div>
+                                
+                                <Title level={5} style={{ margin: '0 0 8px 0', fontSize: 14 }}>
+                                  {ticket.title}
+                                </Title>
+                                
+                                <Text type="secondary" style={{ display: 'block', fontSize: 11, marginBottom: 12 }}>
+                                  Project: {ticket.projectName || 'General'}
+                                </Text>
 
-                            <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
-                              {columnStatus !== 'ToDo' && (
-                                <Button 
-                                  size="small"
-                                  onClick={() => handleStatusChange(ticket.id, 'ToDo')}
-                                >
-                                  To Do
-                                </Button>
-                              )}
-                              {columnStatus !== 'InProgress' && (
-                                <Button 
-                                  size="small"
-                                  type="primary"
-                                  onClick={() => handleStatusChange(ticket.id, 'InProgress')}
-                                >
-                                  In Progress
-                                </Button>
-                              )}
-                              {columnStatus !== 'InReview' && (
-                                <Button 
-                                  size="small"
-                                  onClick={() => handleStatusChange(ticket.id, 'InReview')}
-                                >
-                                  Review
-                                </Button>
-                              )}
-                            </div>
-                          </Card>
-                        );
-                      })
-                    )}
-                  </Space>
-                </Card>
-              </Col>
-            );
-          })}
-        </Row>
+                                <Divider style={{ margin: '10px 0' }} />
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <HoursProgress consumed={ticket.consumedHours} total={ticket.estimatedHours} />
+                                </div>
+
+                                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                                  {activeColumns.map(c => {
+                                    if (c.key === columnStatus) return null;
+                                    return (
+                                      <Button 
+                                        key={c.key}
+                                        size="small"
+                                        type={c.key === 'InProgress' ? 'primary' : 'default'}
+                                        onClick={() => handleStatusChange(ticket.id, c.key)}
+                                      >
+                                        {c.title}
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+                              </Card>
+                            );
+                          })
+                        )}
+                      </Space>
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()
       )}
 
       {/* Today's EOD Report Floating Action Button */}

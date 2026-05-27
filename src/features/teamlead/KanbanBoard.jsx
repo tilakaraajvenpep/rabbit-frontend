@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
@@ -57,6 +57,49 @@ const getPriorityColor = (priority) => {
     case 'Low': return '#52c41a';
     default: return '#d9d9d9';
   }
+};
+
+// Sortable Column Item component for Modifying Kanban Column Headings
+const SortableColumnItem = ({ col, idx, onTitleChange, onRemove, length }) => {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: col.key });
+  
+  const itemStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 12px',
+    background: 'rgba(128,128,128,0.05)',
+    border: '1px solid rgba(128,128,128,0.1)',
+    borderRadius: 8,
+    marginBottom: 8
+  };
+
+  return (
+    <div ref={setNodeRef} style={itemStyle}>
+      <div {...attributes} {...listeners} style={{ cursor: 'grab', padding: '4px 8px', display: 'flex', alignItems: 'center' }}>
+        <HolderOutlined style={{ color: '#8c8c8c', fontSize: 16 }} />
+      </div>
+      <Text style={{ minWidth: 90, flexShrink: 0, fontWeight: 500 }}>
+        Column {idx + 1}
+      </Text>
+      <Input
+        value={col.title}
+        onChange={(e) => onTitleChange(idx, e.target.value)}
+        placeholder={`Column ${idx + 1}`}
+        style={{ flex: 1 }}
+      />
+      <Button
+        type="text"
+        danger
+        icon={<MinusCircleOutlined />}
+        onClick={() => onRemove(idx)}
+        disabled={length <= 1}
+        title="Remove column"
+      />
+    </div>
+  );
 };
 
 // Sortable Ticket Card
@@ -475,6 +518,23 @@ const KanbanBoard = () => {
     }
   };
 
+  const handleHeadingsDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = columnList.findIndex(c => c.key === active.id);
+    const newIndex = columnList.findIndex(c => c.key === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      setColumnList(prev => {
+        const next = [...prev];
+        const [moved] = next.splice(oldIndex, 1);
+        next.splice(newIndex, 0, moved);
+        return next;
+      });
+    }
+  };
+
   // --- Edit Ticket ---
   const handleEditTicket = (ticket) => {
     setEditingTicket(ticket);
@@ -691,45 +751,38 @@ const KanbanBoard = () => {
         onOk={handleSaveHeadings}
         okText="Save Headings"
         confirmLoading={savingHeadings}
-        width={480}
+        width={500}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-          {columnList.map((col, idx) => (
-            <div key={col.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Text style={{ minWidth: 90, flexShrink: 0, fontWeight: 500 }}>
-                Column {idx + 1} Title
-              </Text>
-              <Input
-                value={col.title}
-                onChange={(e) => handleColumnTitleChange(idx, e.target.value)}
-                placeholder={`Column ${idx + 1}`}
-                style={{ flex: 1 }}
-              />
-              <Button
-                type="text"
-                danger
-                icon={<MinusCircleOutlined />}
-                onClick={() => handleRemoveColumn(idx)}
-                disabled={columnList.length <= 1}
-                title="Remove column"
-              />
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleHeadingsDragEnd}>
+          <SortableContext items={columnList.map(c => c.key)} strategy={verticalListSortingStrategy}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 12 }}>
+              {columnList.map((col, idx) => (
+                <SortableColumnItem
+                  key={col.key}
+                  col={col}
+                  idx={idx}
+                  onTitleChange={handleColumnTitleChange}
+                  onRemove={handleRemoveColumn}
+                  length={columnList.length}
+                />
+              ))}
             </div>
-          ))}
+          </SortableContext>
+        </DndContext>
 
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={handleAddColumn}
-            style={{ marginTop: 4 }}
-            block
-          >
-            Add Column
-          </Button>
+        <Button
+          type="dashed"
+          icon={<PlusOutlined />}
+          onClick={handleAddColumn}
+          style={{ marginTop: 8 }}
+          block
+        >
+          Add Column
+        </Button>
 
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            Note: Tickets in removed columns will retain their status but won't be visible on the board.
-          </Text>
-        </div>
+        <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 12 }}>
+          Note: Tickets in removed columns will retain their status but won't be visible on the board.
+        </Text>
       </Modal>
 
       {/* Edit Ticket Modal */}
