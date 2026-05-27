@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Row, Col, Card, Typography, Space, Button, Popconfirm,
+  Row, Col, Card, Typography, Space, Button, Popconfirm, Tabs,
   Skeleton, notification, Tag, Select, Input, Table, Avatar
 } from 'antd';
 import { 
@@ -85,11 +85,22 @@ const HRTaskTrackingPage = () => {
 
   // Backlog criteria: dueDate is in the past (before today) and status !== 'Done'
   const backlogTickets = tickets.filter(t => {
-    const isOverdue = t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && t.status !== 'Done';
-    return isOverdue;
+    return t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && t.status !== 'Done';
   });
 
-  const filteredTickets = backlogTickets.filter(t => {
+  // Acknowledged criteria: status === 'Done'
+  const acknowledgedTickets = tickets.filter(t => {
+    return t.status === 'Done';
+  });
+
+  const filteredBacklogTickets = backlogTickets.filter(t => {
+    const matchesSearch = (t.title || '').toLowerCase().includes(tableSearchText.toLowerCase()) || 
+                          (t.code || '').toLowerCase().includes(tableSearchText.toLowerCase());
+    const matchesProject = projectFilter === 'all' || String(t.projectId) === String(projectFilter);
+    return matchesSearch && matchesProject;
+  });
+
+  const filteredAcknowledgedTickets = acknowledgedTickets.filter(t => {
     const matchesSearch = (t.title || '').toLowerCase().includes(tableSearchText.toLowerCase()) || 
                           (t.code || '').toLowerCase().includes(tableSearchText.toLowerCase());
     const matchesProject = projectFilter === 'all' || String(t.projectId) === String(projectFilter);
@@ -197,6 +208,9 @@ const HRTaskTrackingPage = () => {
     }
   ];
 
+  // Acknowledged tickets shouldn't show actions (they are already completed/acknowledged)
+  const acknowledgedColumns = tableColumns.filter(c => c.key !== 'action');
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader 
@@ -245,22 +259,55 @@ const HRTaskTrackingPage = () => {
             </Row>
           </Card>
 
-          {/* Backlogs Table */}
+          {/* Backlogs & Acknowledged Tabs Card */}
           <Card 
             style={{ 
               borderRadius: 16, 
-              overflow: 'hidden', 
               boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)',
               background: isDarkMode ? '#1c1c1e' : '#ffffff'
             }}
           >
-            <Table 
-              columns={tableColumns} 
-              dataSource={filteredTickets} 
-              rowKey="id" 
-              pagination={{ pageSize: 8, showSizeChanger: true }}
-              locale={{ emptyText: 'No backlog tickets found.' }}
-            />
+            <Tabs defaultActiveKey="pending" type="line">
+              <Tabs.TabPane 
+                tab={
+                  <Space>
+                    <span>Pending Backlogs</span>
+                    <Tag color="red" style={{ borderRadius: '10px', fontSize: '11px', margin: 0 }}>
+                      {filteredBacklogTickets.length}
+                    </Tag>
+                  </Space>
+                } 
+                key="pending"
+              >
+                <Table 
+                  columns={tableColumns} 
+                  dataSource={filteredBacklogTickets} 
+                  rowKey="id" 
+                  pagination={{ pageSize: 8, showSizeChanger: true }}
+                  locale={{ emptyText: 'No pending backlog tickets found.' }}
+                />
+              </Tabs.TabPane>
+              
+              <Tabs.TabPane 
+                tab={
+                  <Space>
+                    <span>Acknowledged Tasks</span>
+                    <Tag color="green" style={{ borderRadius: '10px', fontSize: '11px', margin: 0 }}>
+                      {filteredAcknowledgedTickets.length}
+                    </Tag>
+                  </Space>
+                } 
+                key="acknowledged"
+              >
+                <Table 
+                  columns={acknowledgedColumns} 
+                  dataSource={filteredAcknowledgedTickets} 
+                  rowKey="id" 
+                  pagination={{ pageSize: 8, showSizeChanger: true }}
+                  locale={{ emptyText: 'No acknowledged tickets found.' }}
+                />
+              </Tabs.TabPane>
+            </Tabs>
           </Card>
         </div>
       )}
