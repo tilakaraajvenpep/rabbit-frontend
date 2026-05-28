@@ -490,8 +490,8 @@ const EODReportPage = () => {
       const reportData = {
         reportDate: selectedDate,
         items: data.items.map(item => ({
-          ticketId: item.ticketId,
-          hoursSpent: item.hours,
+          ticketId: Number(item.ticketId),
+          hoursSpent: Number(item.hours),
           workDone: item.workDone
         }))
       };
