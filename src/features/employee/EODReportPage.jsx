@@ -106,6 +106,40 @@ const EODReportPage = () => {
   };
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
+  const [taskHours, setTaskHours] = useState(0);
+  const [taskMinutes, setTaskMinutes] = useState(0);
+  const [taskWorkDone, setTaskWorkDone] = useState('');
+  const [selectedTicketId, setSelectedTicketId] = useState('');
+
+  const handleAddTask = () => {
+    if (!selectedTicketId) {
+      notification.warning({ message: 'Select Ticket', description: 'Please select a ticket or task category first.' });
+      return;
+    }
+    if (taskHours === 0 && taskMinutes === 0) {
+      notification.warning({ message: 'Input Hours', description: 'Please input hours or minutes spent.' });
+      return;
+    }
+    if (!taskWorkDone.trim()) {
+      notification.warning({ message: 'Enter Description', description: 'Please describe the work done.' });
+      return;
+    }
+
+    const activeProjectId = selectedTopProjectId || allProjects[0]?.id;
+    append({
+      projectId: activeProjectId,
+      ticketId: selectedTicketId,
+      hoursInput: taskHours,
+      minutesInput: taskMinutes,
+      workDone: taskWorkDone
+    });
+
+    setSelectedTicketId('');
+    setTaskHours(0);
+    setTaskMinutes(0);
+    setTaskWorkDone('');
+    notification.success({ message: 'Task Added', description: "Task added to today's log list." });
+  };
   const watchedItems = watch('items');
   const totalHours = watchedItems?.reduce((acc, curr) => {
     const hrs = Number(curr?.hoursInput) || 0;
@@ -1314,7 +1348,7 @@ const EODReportPage = () => {
             </div>
           </Col>
 
-          {/* ── RIGHT PANEL: Task Reporting List Workspace (Col 17) ──────────────────── */}
+                    {/* ── RIGHT PANEL: Task Reporting List Workspace (Col 17) ──────────────────── */}
           <Col xs={24} lg={17} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             
             {/* Conditional Notifications */}
@@ -1324,7 +1358,7 @@ const EODReportPage = () => {
                 description="Your required EOD quota has been reduced automatically."
                 type="warning"
                 showIcon
-                style={{ marginBottom: 20, borderRadius: 12 }}
+                style={{ marginBottom: 16, borderRadius: 12 }}
               />
             )}
             
@@ -1334,7 +1368,7 @@ const EODReportPage = () => {
                 description="You have already reported the entire weekly allotted hours. No further task logging is permitted for this week."
                 type="warning"
                 showIcon
-                style={{ marginBottom: 20, borderRadius: 12 }}
+                style={{ marginBottom: 16, borderRadius: 12 }}
               />
             )}
 
@@ -1442,418 +1476,492 @@ const EODReportPage = () => {
               </div>
             ) : (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-                <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8, display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 
-                {/* ── PREMIUM GLASSMORPHIC TASK CARDS LIST ──────────────────────────────── */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {fields.map((field, index) => {
-                    const proj = allProjects.find(p => String(p.id) === String(field.projectId));
-                    const projName = proj ? (proj.name || proj.projectName) : 'Unknown Project';
-                    const empHours = proj?.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
-                    
-                    // Available Hours Calculation
-                    let timeLeftText = '0 Hrs';
-                    let hasQuota = false;
-                    if (empHours !== undefined && empHours !== null) {
-                      hasQuota = true;
-                      const totalLoggedForProject = allMyTickets
-                        .filter(t => String(t.projectId) === String(field.projectId))
-                        .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
-                      
-                      const existingReportProjectHours = existingReport?.items?.reduce((sum, item) => {
-                        if (String(item.projectId) === String(field.projectId)) {
-                          return sum + (Number(item.hours) || 0);
-                        }
-                        return sum;
-                      }, 0) || 0;
-                      
-                      const currentProjectHoursInForm = watchedItems?.reduce((sum, item) => {
-                        if (String(item.projectId) === String(field.projectId)) {
-                          const h = Number(item.hoursInput) || 0;
-                          const m = Number(item.minutesInput) || 0;
-                          return sum + h + (m / 60);
-                        }
-                        return sum;
-                      }, 0) || 0;
-                      
-                      const previouslyLogged = Math.max(0, totalLoggedForProject - existingReportProjectHours);
-                      const timeLeft = Math.max(0, Number(empHours) - previouslyLogged - currentProjectHoursInForm);
-                      
-                      timeLeftText = formatHoursAndMinutes(timeLeft);
-                    } else if (proj?.totalHours) {
-                      timeLeftText = `${proj.totalHours} Hrs (Project Total)`;
-                    }
-
-                    // Check if this is the first row for this project
-                    const firstProjRowIdx = watchedItems?.findIndex(item => String(item.projectId) === String(field.projectId));
-                    const isFirstRow = index === firstProjRowIdx;
-
+                {/* ── STEP 1: INTERACTIVE HORIZONTAL PROJECT SELECTOR STRIP ─────────────────────── */}
+                <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: isDarkMode ? '#cbd5e1' : '#475569', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+                  Step 1: Select Active Project
+                </span>
+                <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 10, marginBottom: 16 }}>
+                  {allProjects.map(p => {
+                    const isSelected = String(p.id) === String(selectedTopProjectId || allProjects[0]?.id);
+                    const empHours = p.employeeAllocatedHours?.[currentUser.userId || currentUser.id] || 0;
                     return (
-                      <Card
-                        key={field.id}
-                        hoverable
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedTopProjectId(p.id)}
                         style={{
-                          borderRadius: 16,
-                          background: isDarkMode ? 'rgba(30, 41, 59, 0.45)' : '#ffffff',
-                          border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
-                          boxShadow: isDarkMode ? '0 8px 30px rgba(0,0,0,0.15)' : '0 4px 20px rgba(0,0,0,0.02)',
-                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                          minWidth: 170,
+                          borderRadius: 14,
+                          background: isSelected 
+                            ? (isDarkMode ? 'rgba(99, 102, 241, 0.15)' : '#f5f7ff') 
+                            : (isDarkMode ? 'rgba(30, 41, 59, 0.45)' : '#ffffff'),
+                          border: isSelected 
+                            ? '2px solid #6366f1' 
+                            : `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
+                          padding: '12px 16px',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          boxShadow: isSelected ? '0 4px 20px rgba(99, 102, 241, 0.15)' : '0 2px 8px rgba(0,0,0,0.01)',
                         }}
-                        bodyStyle={{ padding: 24 }}
                       >
-                        {/* Task Card Header Section */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <Tag color="geekblue" style={{ fontSize: 13, fontWeight: 800, padding: '4px 12px', borderRadius: 8 }}>
-                              {projName}
-                            </Tag>
-                            <Tag color="red" style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6 }}>
-                              Available: {timeLeftText}
-                            </Tag>
+                        <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <ProjectOutlined style={{ color: isSelected ? '#6366f1' : '#94a3b8', fontSize: 18 }} />
+                            {isSelected && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366f1' }} />}
                           </div>
-
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            {isFirstRow ? (
-                              <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                disabled={isLocked || viewOnly}
-                                onClick={() => {
-                                  append({
-                                    projectId: field.projectId,
-                                    ticketId: '',
-                                    hoursInput: 0,
-                                    minutesInput: 0,
-                                    workDone: ''
-                                  });
-                                }}
-                                style={{ background: '#10b981', borderColor: '#10b981', borderRadius: 8, height: 32, fontSize: 12, fontWeight: 700 }}
-                              >
-                                Add task
-                              </Button>
-                            ) : (
-                              <Button
-                                type="primary"
-                                danger
-                                icon={<DeleteOutlined />}
-                                disabled={isLocked || viewOnly}
-                                onClick={() => remove(index)}
-                                style={{ borderRadius: 8, height: 32, width: 32, padding: 0 }}
-                              />
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Input Row Grid */}
-                        <Row gutter={[16, 16]}>
-                          
-                          {/* Ticket Selection Dropdown */}
-                          <Col xs={24} md={12}>
-                            <Form.Item label={<Text strong style={{ fontSize: 12 }}>Task Category / Ticket</Text>} style={{ marginBottom: 0 }}>
-                              <Controller
-                                name={`items.${index}.ticketId`}
-                                control={control}
-                                render={({ field: inputField }) => (
-                                  <Select
-                                    {...inputField}
-                                    disabled={isLocked || viewOnly}
-                                    placeholder="Select Task Ticket"
-                                    style={{ width: '100%' }}
-                                    onChange={(val) => {
-                                      inputField.onChange(val);
-                                      // Auto populate hours/minutes if ticket has timer values
-                                      const ticket = myTickets.find(t => t.id === val);
-                                      if (ticket && ticket.timerAccumulatedSeconds) {
-                                        const decimalHrs = (ticket.timerAccumulatedSeconds || 0) / 3600;
-                                        const hVal = Math.floor(decimalHrs);
-                                        const mVal = Math.round((decimalHrs - hVal) * 60);
-                                        setValue(`items.${index}.hoursInput`, hVal);
-                                        setValue(`items.${index}.minutesInput`, mVal);
-                                      }
-                                    }}
-                                  >
-                                    {myTickets
-                                      .filter(t => String(t.projectId) === String(field.projectId))
-                                      .map(t => (
-                                        <Select.Option key={t.id} value={t.id}>
-                                          {t.code} — {t.title}
-                                        </Select.Option>
-                                      ))}
-                                  </Select>
-                                )}
-                              />
-                            </Form.Item>
-                            {!viewOnly && !isLocked && (
-                              <Button 
-                                type="link" 
-                                size="small" 
-                                icon={<PlusOutlined />} 
-                                onClick={() => {
-                                  setActiveTicketRowIndex(index);
-                                  setIsTicketModalOpen(true);
-                                }}
-                                style={{ padding: 0, fontSize: 11, height: 'auto', marginTop: 6, fontWeight: 600 }}
-                              >
-                                Raise a ticket
-                              </Button>
-                            )}
-                          </Col>
-
-                          {/* Hours Input */}
-                          <Col xs={12} md={6}>
-                            <Form.Item label={<Text strong style={{ fontSize: 12 }}>Hours</Text>} style={{ marginBottom: 0 }}>
-                              <Controller
-                                name={`items.${index}.hoursInput`}
-                                control={control}
-                                render={({ field: inputField }) => (
-                                  <InputNumber
-                                    {...inputField}
-                                    disabled={isLocked || viewOnly}
-                                    min={0}
-                                    max={24}
-                                    placeholder="Hours"
-                                    style={{ width: '100%', borderRadius: 8 }}
-                                  />
-                                )}
-                              />
-                            </Form.Item>
-                          </Col>
-
-                          {/* Minutes Input */}
-                          <Col xs={12} md={6}>
-                            <Form.Item label={<Text strong style={{ fontSize: 12 }}>Minutes</Text>} style={{ marginBottom: 0 }}>
-                              <Controller
-                                name={`items.${index}.minutesInput`}
-                                control={control}
-                                render={({ field: inputField }) => (
-                                  <InputNumber
-                                    {...inputField}
-                                    disabled={isLocked || viewOnly}
-                                    min={0}
-                                    max={59}
-                                    placeholder="Mins"
-                                    style={{ width: '100%', borderRadius: 8 }}
-                                  />
-                                )}
-                              />
-                            </Form.Item>
-                          </Col>
-
-                          {/* Work Done Message */}
-                          <Col span={24}>
-                            <Form.Item label={<Text strong style={{ fontSize: 12 }}>Work Done Description</Text>} style={{ marginBottom: 0 }}>
-                              <Controller
-                                name={`items.${index}.workDone`}
-                                control={control}
-                                render={({ field: inputField }) => (
-                                  <Input
-                                    {...inputField}
-                                    disabled={isLocked || viewOnly}
-                                    placeholder="Explain work done on this task..."
-                                    style={{ width: '100%', borderRadius: 8, height: 38 }}
-                                  />
-                                )}
-                              />
-                            </Form.Item>
-                          </Col>
-
-                        </Row>
-                      </Card>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: isDarkMode ? '#f8fafc' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                            {p.name || p.projectName}
+                          </span>
+                          <span style={{ fontSize: 11, color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
+                            Quota: {empHours} hrs
+                          </span>
+                        </Space>
+                      </div>
                     );
                   })}
                 </div>
 
-                {/* ── BLOCKERS & CRITICAL ALERTS ───────────────────────────────────────── */}
-                <div style={{
-                  padding: '24px',
-                  background: isDarkMode ? 'rgba(30, 41, 59, 0.45)' : '#ffffff',
-                  border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
-                  borderRadius: 16,
-                  boxShadow: '0 8px 30px rgba(0,0,0,0.02)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 20
-                }}>
-                  <Row gutter={[24, 24]}>
-                    <Col xs={24} md={12}>
-                      <Form.Item label={<Text strong style={{ fontSize: 13, color: isDarkMode ? '#cbd5e1' : '#475569' }}>Blockers Faced Today</Text>} style={{ marginBottom: 0 }}>
-                        <Controller
-                          name="blockers"
-                          control={control}
-                          render={({ field }) => (
-                            <TextArea
-                              {...field}
-                              disabled={isLocked || viewOnly}
-                              rows={4}
-                              placeholder="Type here if you were blocked by anyone or anything..."
-                              style={{ borderRadius: 10 }}
-                            />
-                          )}
-                        />
-                      </Form.Item>
-                    </Col>
+                {/* Scrollable Container for Tasks Logger, Form, Blockers, and Logs */}
+                <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8, display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  
+                  {(() => {
+                    const activeProjectId = selectedTopProjectId || allProjects[0]?.id;
+                    const proj = allProjects.find(p => String(p.id) === String(activeProjectId));
+                    const empHours = proj?.employeeAllocatedHours?.[currentUser.userId || currentUser.id] || 0;
                     
-                    <Col xs={24} md={12}>
-                      <Card
-                        title={
-                          <Space>
-                            <AlertOutlined style={{ color: '#ef4444' }} />
-                            <span style={{ fontSize: 13, fontWeight: 800 }}>Raise Critical Project Alert?</span>
-                          </Space>
-                        }
-                        size="small"
-                        style={{
-                          borderRadius: 12,
-                          background: isDarkMode ? 'rgba(239, 68, 68, 0.04)' : '#fffafb',
-                          border: `1px solid ${watch('isAlertIssue') ? '#ef4444' : isDarkMode ? 'rgba(239, 68, 68, 0.15)' : '#ffe4e6'}`,
-                          boxShadow: watch('isAlertIssue') ? '0 0 15px rgba(239, 68, 68, 0.1)' : 'none',
-                          transition: 'all 0.3s ease'
-                        }}
-                        bodyStyle={{ padding: 16 }}
-                      >
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    // Available Hours Calculation
+                    const totalLoggedForProject = allMyTickets
+                      .filter(t => String(t.projectId) === String(activeProjectId))
+                      .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+                    
+                    const existingReportProjectHours = existingReport?.items?.reduce((sum, item) => {
+                      if (String(item.projectId) === String(activeProjectId)) {
+                        return sum + (Number(item.hours) || 0);
+                      }
+                      return sum;
+                    }, 0) || 0;
+                    
+                    const currentProjectHoursInForm = watchedItems?.reduce((sum, item) => {
+                      if (String(item.projectId) === String(activeProjectId)) {
+                        const h = Number(item.hoursInput) || 0;
+                        const m = Number(item.minutesInput) || 0;
+                        return sum + h + (m / 60);
+                      }
+                      return sum;
+                    }, 0) || 0;
+                    
+                    const previouslyLogged = Math.max(0, totalLoggedForProject - existingReportProjectHours);
+                    const timeLeft = Math.max(0, Number(empHours) - previouslyLogged - currentProjectHoursInForm);
+                    const timeLeftText = formatHoursAndMinutes(timeLeft);
+
+                    const projectTasks = fields.map((field, index) => ({
+                      field,
+                      index,
+                      item: watchedItems?.[index]
+                    })).filter(w => String(w.item?.projectId) === String(activeProjectId));
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        
+                        {/* ── STEP 2: DISPLAY PROJECT AVAILABLE HOURS DETAILS ──────────────────────── */}
+                        <Card
+                          style={{
+                            borderRadius: 16,
+                            background: isDarkMode ? 'rgba(30, 41, 59, 0.45)' : '#ffffff',
+                            border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
+                            boxShadow: '0 8px 30px rgba(0,0,0,0.02)'
+                          }}
+                          bodyStyle={{ padding: 20 }}
+                        >
+                          <Row gutter={16} align="middle">
+                            <Col xs={24} md={16}>
+                              <Space direction="vertical" size={2}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '1.2px' }}>
+                                  Step 2: Available Project Quota
+                                </span>
+                                <span style={{ fontSize: 18, fontWeight: 900, color: isDarkMode ? '#f8fafc' : '#0f172a' }}>
+                                  {proj?.name || proj?.projectName || 'No Project Selected'}
+                                </span>
+                                <Text type="secondary" style={{ fontSize: 13 }}>
+                                  Please log task entries under the dynamic project quota below.
+                                </Text>
+                              </Space>
+                            </Col>
+                            
+                            <Col xs={24} md={8} style={{ textAlign: 'right' }}>
+                              <div style={{
+                                display: 'inline-block',
+                                background: isDarkMode ? 'rgba(16, 185, 129, 0.08)' : '#ecfdf5',
+                                border: '1px solid #10b981',
+                                borderRadius: 14,
+                                padding: '10px 18px',
+                                textAlign: 'center'
+                              }}>
+                                <span style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                  Hours Remaining
+                                </span>
+                                <span style={{ fontSize: 20, fontWeight: 950, color: '#10b981', fontFamily: 'Outfit, sans-serif' }}>
+                                  {timeLeftText}
+                                </span>
+                              </div>
+                            </Col>
+                          </Row>
+                        </Card>
+
+                        {/* ── STEP 3: SELECT TICKET AND REPORT TASK ───────────────────────────────── */}
+                        <Card
+                          title={
+                            <span style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                              Step 3: Log Task for {proj?.name || proj?.projectName}
+                            </span>
+                          }
+                          style={{
+                            borderRadius: 16,
+                            background: isDarkMode ? 'rgba(30, 41, 59, 0.45)' : '#ffffff',
+                            border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
+                            boxShadow: '0 8px 30px rgba(0,0,0,0.02)'
+                          }}
+                          bodyStyle={{ padding: 24 }}
+                        >
+                          <Row gutter={[16, 16]}>
+                            <Col span={24}>
+                              <Form.Item label={<Text strong style={{ fontSize: 12 }}>Task Category / Ticket</Text>} style={{ marginBottom: 0 }}>
+                                <Select
+                                  disabled={isLocked || viewOnly}
+                                  placeholder="Select Project Ticket to Report"
+                                  style={{ width: '100%' }}
+                                  value={selectedTicketId || undefined}
+                                  onChange={(val) => {
+                                    setSelectedTicketId(val);
+                                    const ticket = myTickets.find(t => t.id === val);
+                                    if (ticket && ticket.timerAccumulatedSeconds) {
+                                      const decimalHrs = (ticket.timerAccumulatedSeconds || 0) / 3600;
+                                      const hVal = Math.floor(decimalHrs);
+                                      const mVal = Math.round((decimalHrs - hVal) * 60);
+                                      setTaskHours(hVal);
+                                      setTaskMinutes(mVal);
+                                    }
+                                  }}
+                                >
+                                  {myTickets
+                                    .filter(t => String(t.projectId) === String(activeProjectId))
+                                    .map(t => (
+                                      <Select.Option key={t.id} value={t.id}>
+                                        {t.code} — {t.title}
+                                      </Select.Option>
+                                    ))}
+                                </Select>
+                              </Form.Item>
+                              {!viewOnly && !isLocked && (
+                                <Button 
+                                  type="link" 
+                                  size="small" 
+                                  icon={<PlusOutlined />} 
+                                  onClick={() => {
+                                    setActiveTicketRowIndex(null); 
+                                    setIsTicketModalOpen(true);
+                                  }}
+                                  style={{ padding: 0, fontSize: 11, height: 'auto', marginTop: 6, fontWeight: 600 }}
+                                >
+                                  Create New Ticket for this Project
+                                </Button>
+                              )}
+                            </Col>
+
+                            <Col xs={12} md={12}>
+                              <Form.Item label={<Text strong style={{ fontSize: 12 }}>Hours Spent</Text>} style={{ marginBottom: 0 }}>
+                                <InputNumber
+                                  disabled={isLocked || viewOnly}
+                                  min={0}
+                                  max={24}
+                                  placeholder="Hours"
+                                  value={taskHours}
+                                  onChange={setTaskHours}
+                                  style={{ width: '100%', borderRadius: 8 }}
+                                />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={12} md={12}>
+                              <Form.Item label={<Text strong style={{ fontSize: 12 }}>Minutes Spent</Text>} style={{ marginBottom: 0 }}>
+                                <InputNumber
+                                  disabled={isLocked || viewOnly}
+                                  min={0}
+                                  max={59}
+                                  placeholder="Mins"
+                                  value={taskMinutes}
+                                  onChange={setTaskMinutes}
+                                  style={{ width: '100%', borderRadius: 8 }}
+                                />
+                              </Form.Item>
+                            </Col>
+
+                            <Col span={24}>
+                              <Form.Item label={<Text strong style={{ fontSize: 12 }}>Work Done Description</Text>} style={{ marginBottom: 0 }}>
+                                <Input
+                                  disabled={isLocked || viewOnly}
+                                  placeholder="What did you work on? (e.g., Developed API endpoint, tested layout...)"
+                                  value={taskWorkDone}
+                                  onChange={(e) => setTaskWorkDone(e.target.value)}
+                                  style={{ width: '100%', borderRadius: 8, height: 38 }}
+                                />
+                              </Form.Item>
+                            </Col>
+
+                            {!viewOnly && !isLocked && (
+                              <Col span={24} style={{ textAlign: 'right', marginTop: 8 }}>
+                                <Button
+                                  type="primary"
+                                  icon={<PlusOutlined />}
+                                  onClick={handleAddTask}
+                                  style={{ background: '#10b981', borderColor: '#10b981', borderRadius: 8, height: 38, fontWeight: 700 }}
+                                >
+                                  Add Task to Report
+                                </Button>
+                              </Col>
+                            )}
+
+                          </Row>
+                        </Card>
+
+                        {/* ── TODAY'S TASK LOG LIST FOR SELECTED PROJECT ───────────────────────── */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: isDarkMode ? '#cbd5e1' : '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Today's Task Log ({projectTasks.length})
+                          </span>
+
+                          {projectTasks.length === 0 ? (
+                            <div style={{
+                              textAlign: 'center',
+                              padding: '36px 20px',
+                              background: isDarkMode ? 'rgba(30, 41, 59, 0.25)' : '#f8fafc',
+                              border: `1px dashed ${isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+                              borderRadius: 16
+                            }}>
+                              <ClockCircleOutlined style={{ fontSize: 32, color: isDarkMode ? '#475569' : '#cbd5e1', marginBottom: 12 }} />
+                              <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isDarkMode ? '#94a3b8' : '#64748b' }}>
+                                No tasks logged for this project today
+                              </span>
+                              <Text type="secondary" style={{ fontSize: 11 }}>
+                                Select a ticket above, fill in the effort, and click 'Add Task' to include it.
+                              </Text>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {projectTasks.map(({ field, index, item }) => {
+                                const ticket = myTickets.find(t => t.id === item?.ticketId);
+                                const ticketTitle = ticket ? `${ticket.code} — ${ticket.title}` : 'General Log / Administrative';
+                                return (
+                                  <Card
+                                    key={field.id}
+                                    style={{
+                                      borderRadius: 12,
+                                      background: isDarkMode ? 'rgba(30, 41, 59, 0.35)' : '#ffffff',
+                                      border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'}`,
+                                      boxShadow: '0 2px 8px rgba(0,0,0,0.01)'
+                                    }}
+                                    bodyStyle={{ padding: '16px 20px' }}
+                                  >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                          <Tag color="blue" style={{ borderRadius: 6, fontWeight: 700 }}>
+                                            {item?.hoursInput}h {item?.minutesInput}m
+                                          </Tag>
+                                          <span style={{ fontWeight: 800, fontSize: 13, color: isDarkMode ? '#f8fafc' : '#1e293b' }}>
+                                            {ticketTitle}
+                                          </span>
+                                        </div>
+                                        <span style={{ fontSize: 12, color: isDarkMode ? '#94a3b8' : '#64748b', marginTop: 4 }}>
+                                          {item?.workDone || 'No description provided'}
+                                        </span>
+                                      </div>
+
+                                      {!viewOnly && !isLocked && (
+                                        <Button
+                                          type="primary"
+                                          danger
+                                          icon={<DeleteOutlined />}
+                                          onClick={() => remove(index)}
+                                          style={{ borderRadius: 8, height: 32, width: 32, padding: 0 }}
+                                        />
+                                      )}
+                                    </div>
+                                  </Card>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                        </div>
+
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── BLOCKERS & CRITICAL ALERTS ───────────────────────────────────────── */}
+                  <div style={{
+                    padding: '24px',
+                    background: isDarkMode ? 'rgba(30, 41, 59, 0.45)' : '#ffffff',
+                    border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
+                    borderRadius: 16,
+                    boxShadow: '0 8px 30px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 20
+                  }}>
+                    <Row gutter={[24, 24]}>
+                      <Col xs={24} md={12}>
+                        <Form.Item label={<Text strong style={{ fontSize: 13, color: isDarkMode ? '#cbd5e1' : '#475569' }}>Blockers Faced Today</Text>} style={{ marginBottom: 0 }}>
                           <Controller
-                            name="isAlertIssue"
+                            name="blockers"
                             control={control}
-                            render={({ field: checkField }) => (
-                              <Radio.Group
-                                {...checkField}
+                            render={({ field }) => (
+                              <TextArea
+                                {...field}
                                 disabled={isLocked || viewOnly}
-                                onChange={(e) => {
-                                  checkField.onChange(e.target.value);
-                                  if (!e.target.value) {
-                                    setValue('alertMessage', '');
-                                  }
-                                }}
-                              >
-                                <Space>
-                                  <Radio value={false}>No Alert</Radio>
-                                  <Radio value={true} style={{ color: '#ef4444', fontWeight: 700 }}>Raise Alert</Radio>
-                                </Space>
-                              </Radio.Group>
+                                rows={4}
+                                placeholder="Type here if you were blocked by anyone or anything..."
+                                style={{ borderRadius: 10 }}
+                              />
                             )}
                           />
-                          
-                          {watch('isAlertIssue') && (
+                        </Form.Item>
+                      </Col>
+                      
+                      <Col xs={24} md={12}>
+                        <Card
+                          title={
+                            <Space>
+                              <AlertOutlined style={{ color: '#ef4444' }} />
+                              <span style={{ fontSize: 13, fontWeight: 800 }}>Raise Critical Project Alert?</span>
+                            </Space>
+                          }
+                          size="small"
+                          style={{
+                            borderRadius: 12,
+                            background: isDarkMode ? 'rgba(239, 68, 68, 0.04)' : '#fffafb',
+                            border: `1px solid ${watch('isAlertIssue') ? '#ef4444' : isDarkMode ? 'rgba(239, 68, 68, 0.15)' : '#ffe4e6'}`,
+                            boxShadow: watch('isAlertIssue') ? '0 0 15px rgba(239, 68, 68, 0.1)' : 'none',
+                            transition: 'all 0.3s ease'
+                          }}
+                          bodyStyle={{ padding: 16 }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             <Controller
-                              name="alertMessage"
+                              name="isAlertIssue"
                               control={control}
-                              render={({ field: msgField }) => (
-                                <TextArea
-                                  {...msgField}
+                              render={({ field: checkField }) => (
+                                <Radio.Group
+                                  {...checkField}
                                   disabled={isLocked || viewOnly}
-                                  rows={2}
-                                  placeholder="Describe the critical blocker/issue to notify Project Manager & TL..."
-                                  style={{ marginTop: 6, borderRadius: 8 }}
-                                />
+                                  onChange={(e) => {
+                                    checkField.onChange(e.target.value);
+                                    if (!e.target.value) {
+                                      setValue('alertMessage', '');
+                                    }
+                                  }}
+                                >
+                                  <Space>
+                                    <Radio value={false}>No Alert</Radio>
+                                    <Radio value={true} style={{ color: '#ef4444', fontWeight: 700 }}>Raise Alert</Radio>
+                                  </Space>
+                                </Radio.Group>
                               )}
                             />
-                          )}
-                        </div>
-                      </Card>
-                    </Col>
-                  </Row>
+                            
+                            {watch('isAlertIssue') && (
+                              <Controller
+                                name="alertMessage"
+                                control={control}
+                                render={({ field: msgField }) => (
+                                  <TextArea
+                                    {...msgField}
+                                    disabled={isLocked || viewOnly}
+                                    rows={2}
+                                    placeholder="Describe the critical blocker/issue to notify Project Manager & TL..."
+                                    style={{ marginTop: 6, borderRadius: 8 }}
+                                  />
+                                )}
+                              />
+                            )}
+                          </div>
+                        </Card>
+                      </Col>
+                    </Row>
 
-                  {/* Submit / Cancel Buttons Block */}
-                  {!viewOnly && (
-                    <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', borderTop: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#f1f5f9'}`, paddingTop: 18 }}>
-                      <Button
-                        onClick={() => {
-                          const defaultItems = [];
-                          const userId = currentUser.userId || currentUser.id;
-                          allProjects.forEach(p => {
-                            const empHours = p.employeeAllocatedHours?.[userId];
-                            if (empHours !== undefined && Number(empHours) > 0) {
-                              defaultItems.push({
-                                projectId: p.id,
-                                ticketId: '',
-                                hoursInput: 0,
-                                minutesInput: 0,
-                                workDone: ''
-                              });
-                            }
-                          });
-                          if (defaultItems.length === 0) {
-                            allProjects.forEach(p => {
-                              defaultItems.push({
-                                projectId: p.id,
-                                ticketId: '',
-                                hoursInput: 0,
-                                minutesInput: 0,
-                                workDone: ''
-                              });
-                            });
-                          }
-                          reset({ items: defaultItems, blockers: '', isAlertIssue: false, alertMessage: '' });
-                        }}
-                        style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
-                      >
-                        Reset Form
-                      </Button>
-                      
-                      <Button
-                        type="primary"
-                        htmlType="submit"
-                        loading={submitting}
-                        style={{ background: '#6366f1', borderColor: '#6366f1', borderRadius: 10, height: 42, padding: '0 28px', fontWeight: 700 }}
-                      >
-                        Submit Report
-                      </Button>
-
-                      {existingReport && (
+                    {/* Submit / Cancel Buttons Block */}
+                    {!viewOnly && (
+                      <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', borderTop: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#f1f5f9'}`, paddingTop: 18 }}>
                         <Button
                           onClick={() => {
-                            setViewOnly(true);
-                            reset(existingReport);
+                            reset({ items: [], blockers: '', isAlertIssue: false, alertMessage: '' });
                           }}
                           style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
                         >
-                          Cancel
+                          Reset Form
                         </Button>
-                      )}
-                    </div>
+                        
+                        <Button
+                          type="primary"
+                          htmlType="submit"
+                          loading={submitting}
+                          style={{ background: '#6366f1', borderColor: '#6366f1', borderRadius: 10, height: 42, padding: '0 28px', fontWeight: 700 }}
+                        >
+                          Submit Report
+                        </Button>
+
+                        {existingReport && (
+                          <Button
+                            onClick={() => {
+                              setViewOnly(true);
+                              reset(existingReport);
+                            }}
+                            style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
+                    )}
+
+                  </div>
+
+                  {/* Request Logs list */}
+                  {myTimerRequests.length > 0 && (
+                    <Collapse 
+                      ghost
+                      style={{
+                        background: isDarkMode ? '#111827' : '#ffffff',
+                        borderRadius: 12,
+                        border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+                        marginTop: 10
+                      }}
+                      expandIconPosition="end"
+                      items={[{
+                        key: 'history',
+                        label: <span style={{ fontWeight: 700, color: '#ec4899', fontSize: 12 }}>Additional Hours Request History Logs ({myTimerRequests.length})</span>,
+                        children: (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 4 }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                              <Button size="small" onClick={fetchTimerRequests} type="link">Refresh Logs</Button>
+                            </div>
+                            <Table
+                              dataSource={myTimerRequests}
+                              columns={requestColumns}
+                              rowKey={(record) => record.id || record.request?.id}
+                              size="small"
+                              pagination={{ pageSize: 4 }}
+                            />
+                          </div>
+                        )
+                      }]}
+                    />
                   )}
 
                 </div>
-
-                {/* Request Logs list */}
-                {myTimerRequests.length > 0 && (
-                  <Collapse 
-                    ghost
-                    style={{
-                      background: isDarkMode ? '#111827' : '#ffffff',
-                      borderRadius: 12,
-                      border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
-                      marginTop: 10
-                    }}
-                    expandIconPosition="end"
-                    items={[{
-                      key: 'history',
-                      label: <span style={{ fontWeight: 700, color: '#ec4899', fontSize: 12 }}>Additional Hours Request History Logs ({myTimerRequests.length})</span>,
-                      children: (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 4 }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <Button size="small" onClick={fetchTimerRequests} type="link">Refresh Logs</Button>
-                          </div>
-                          <Table
-                            dataSource={myTimerRequests}
-                            columns={requestColumns}
-                            rowKey={(record) => record.id || record.request?.id}
-                            size="small"
-                            pagination={{ pageSize: 4 }}
-                          />
-                        </div>
-                      )
-                    }]}
-                  />
-                )}
-
-                  </div>
-                </div>
               </div>
             )}
-            
             <div style={{
               display: 'flex',
               justifyContent: 'center',
