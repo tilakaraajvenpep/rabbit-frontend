@@ -135,7 +135,7 @@ const EODReportPage = () => {
   const selectedTicketIds = watchedItems?.map(item => item.ticketId).filter(id => !!id) || [];
 
   useEffect(() => {
-    if (allocatedHoursPerDay > 0 && REQUIRED_HOURS > 0) {
+    if (!viewOnly && allocatedHoursPerDay > 0 && REQUIRED_HOURS > 0) {
       if (totalHours > REQUIRED_HOURS) {
         if (!hasWarnedExceeded) {
           setBlockedSubmitTotal(totalHours);
@@ -146,7 +146,7 @@ const EODReportPage = () => {
         setHasWarnedExceeded(false);
       }
     }
-  }, [totalHours, REQUIRED_HOURS, allocatedHoursPerDay, hasWarnedExceeded]);
+  }, [totalHours, REQUIRED_HOURS, allocatedHoursPerDay, hasWarnedExceeded, viewOnly]);
 
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
@@ -341,9 +341,10 @@ const EODReportPage = () => {
     }
   };
 
-  const fetchReportForDate = async (date) => {
-    setLoading(true);
-    try {
+   const fetchReportForDate = async (date) => {
+     setLoading(true);
+     setHasWarnedExceeded(false);
+     try {
       let leaveOnDate = null;
       try {
         const leavesRes = await leaveService.getMyLeaves();
@@ -1275,7 +1276,7 @@ const EODReportPage = () => {
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 16px', background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc', borderTop: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#eef2f6'}` }}>
               <Space>
                 <Button size="small" onClick={() => navigate(-1)}>Back</Button>
-                {isLocked && existingReport && (
+                {viewOnly && !isLocked && existingReport && (
                   <Button size="small" type="default" onClick={() => setViewOnly(false)}>
                     Edit Tasks
                   </Button>
