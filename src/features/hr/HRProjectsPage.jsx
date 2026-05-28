@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Avatar, Badge, Spin, Typography, Space, notification, Tooltip, Drawer, InputNumber, Divider, Timeline, Descriptions, Button, Empty } from 'antd';
+import { Card, Table, Avatar, Badge, Spin, Typography, Space, notification, Tooltip, Drawer, InputNumber, Divider, Timeline, Descriptions, Button, Empty, Tag } from 'antd';
 import { UserOutlined, ClockCircleOutlined, CalendarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { projectService } from '../../services/projectService';
@@ -8,7 +8,7 @@ import { adminService } from '../../services/adminService';
 import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 const HRProjectsPage = () => {
   const [loading, setLoading] = useState(true);
