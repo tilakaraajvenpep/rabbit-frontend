@@ -955,9 +955,9 @@ const EODReportPage = () => {
                         type="primary"
                         icon={<CalendarOutlined />}
                         onClick={() => {
-                          accessRequestForm.resetFields();
-                          accessRequestForm.setFieldsValue({ targetDate: selectedDate });
-                          setIsAccessRequestModalOpen(true);
+                           accessRequestForm.resetFields();
+                           accessRequestForm.setFieldsValue({ targetDate: dayjs(selectedDate) });
+                           setIsAccessRequestModalOpen(true);
                         }}
                       >
                         Request Access
