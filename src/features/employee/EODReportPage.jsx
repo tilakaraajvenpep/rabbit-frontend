@@ -897,7 +897,16 @@ const EODReportPage = () => {
 
   // Render the Tabbed EOD dashboard
   return (
-    <div style={{ padding: '24px', background: isDarkMode ? '#0b0f19' : '#f4f6fa', minHeight: 'calc(100vh - 80px)', overflowY: 'auto' }}>
+    <div style={{
+      padding: '20px 24px',
+      background: isDarkMode ? '#0b0f19' : '#f4f6fa',
+      height: 'calc(100vh - 64px)',
+      maxHeight: 'calc(100vh - 64px)',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      boxSizing: 'border-box'
+    }}>
       
       {/* ── HEADER BANNER: Premium Glassmorphic Layout ──────────────────────────────── */}
       <div style={{
@@ -1150,11 +1159,11 @@ const EODReportPage = () => {
         </div>
       </div>
 
-            <Form onFinish={handleSubmit(onSubmit)} layout="vertical">
-        <Row gutter={24}>
+            <Form onFinish={handleSubmit(onSubmit)} layout="vertical" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <Row gutter={24} style={{ flex: 1, minHeight: 0, display: 'flex', flexWrap: 'nowrap' }}>
           
           {/* ── LEFT PANEL: Sleek Metrics & Progress Widgets (Col 7) ─────────────────── */}
-          <Col xs={24} lg={7}>
+          <Col xs={24} lg={7} style={{ height: '100%', overflowY: 'auto', paddingBottom: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 20 }}>
               
               {/* Card 1: Today's Quota Progress Circular Gauge */}
@@ -1306,7 +1315,7 @@ const EODReportPage = () => {
           </Col>
 
           {/* ── RIGHT PANEL: Task Reporting List Workspace (Col 17) ──────────────────── */}
-          <Col xs={24} lg={17}>
+          <Col xs={24} lg={17} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             
             {/* Conditional Notifications */}
             {currentLeave && (
@@ -1432,7 +1441,9 @@ const EODReportPage = () => {
                 <Result icon={<CheckCircleOutlined style={{ color: '#818cf8', fontSize: 54 }} />} title="Approved Full Day Leave" subTitle="No EOD report is required today." />
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8, display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 
                 {/* ── PREMIUM GLASSMORPHIC TASK CARDS LIST ──────────────────────────────── */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1838,6 +1849,8 @@ const EODReportPage = () => {
                   />
                 )}
 
+                  </div>
+                </div>
               </div>
             )}
             
