@@ -1253,27 +1253,90 @@ const EODReportPage = () => {
             ) : (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
                 
-                {/* ── STEP 1: INTERACTIVE PROJECT DROPDOWN SELECTOR & QUOTA ───────────────────── */}
-                <div style={{ background: isDarkMode ? 'rgba(30, 41, 59, 0.35)' : '#ffffff', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}`, padding: '16px 20px', borderRadius: 16, marginBottom: 16 }}>
-                  <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>
-                    Step 1: Choose Active Project
-                  </span>
-                  <Select
-                    disabled={isLocked || viewOnly}
-                    placeholder="Select a Project to Log Task"
-                    style={{ width: '100%', height: 42 }}
-                    value={selectedTopProjectId || allProjects[0]?.id || undefined}
-                    onChange={(val) => {
-                      setSelectedTopProjectId(val);
-                      setSelectedTicketId('');
-                    }}
-                  >
-                    {allProjects.map(p => (
-                      <Select.Option key={p.id} value={p.id}>
-                        {p.name || p.projectName} (Quota: {p.employeeAllocatedHours?.[currentUser.userId || currentUser.id] || 0} hrs)
-                      </Select.Option>
-                    ))}
-                  </Select>
+                {/* ── COMBINED SLIM STEP 1 & STEP 2 PANEL ────────────────────────────────────── */}
+                <div style={{ background: isDarkMode ? 'rgba(30, 41, 59, 0.35)' : '#ffffff', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}`, padding: '12px 18px', borderRadius: 16, marginBottom: 14 }}>
+                  <Row gutter={16}>
+                    <Col xs={24} md={14}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                          Step 1: Choose Active Project
+                        </span>
+                        <Select
+                          disabled={isLocked || viewOnly}
+                          placeholder="Select a Project to Log Task"
+                          style={{ width: '100%', height: 40 }}
+                          value={selectedTopProjectId || allProjects[0]?.id || undefined}
+                          onChange={(val) => {
+                            setSelectedTopProjectId(val);
+                            setSelectedTicketId('');
+                          }}
+                        >
+                          {allProjects.map(p => (
+                            <Select.Option key={p.id} value={p.id}>
+                              {p.name || p.projectName} (Quota: {p.employeeAllocatedHours?.[currentUser.userId || currentUser.id] || 0} hrs)
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      </div>
+                    </Col>
+                    
+                    <Col xs={24} md={10}>
+                      {(() => {
+                        const activeProjectId = selectedTopProjectId || allProjects[0]?.id;
+                        const proj = allProjects.find(p => String(p.id) === String(activeProjectId));
+                        const empHours = proj?.employeeAllocatedHours?.[currentUser.userId || currentUser.id] || 0;
+                        
+                        const totalLoggedForProject = allMyTickets
+                          .filter(t => String(t.projectId) === String(activeProjectId))
+                          .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+                        
+                        const existingReportProjectHours = existingReport?.items?.reduce((sum, item) => {
+                          if (String(item.projectId) === String(activeProjectId)) {
+                            return sum + (Number(item.hours) || 0);
+                          }
+                          return sum;
+                        }, 0) || 0;
+                        
+                        const currentProjectHoursInForm = watchedItems?.reduce((sum, item) => {
+                          if (String(item.projectId) === String(activeProjectId)) {
+                            const h = Number(item.hoursInput) || 0;
+                            const m = Number(item.minutesInput) || 0;
+                            return sum + h + (m / 60);
+                          }
+                          return sum;
+                        }, 0) || 0;
+                        
+                        const previouslyLogged = Math.max(0, totalLoggedForProject - existingReportProjectHours);
+                        const timeLeft = Math.max(0, Number(empHours) - previouslyLogged - currentProjectHoursInForm);
+                        const timeLeftText = formatHoursAndMinutes(timeLeft);
+
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                              Step 2: Project Quota Left
+                            </span>
+                            <div style={{
+                              height: 40,
+                              background: isDarkMode ? 'rgba(16, 185, 129, 0.08)' : '#ecfdf5',
+                              border: '1px solid #10b981',
+                              borderRadius: 10,
+                              padding: '0 16px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between'
+                            }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: isDarkMode ? '#a7f3d0' : '#047857' }}>
+                                Remaining
+                              </span>
+                              <span style={{ fontSize: 16, fontWeight: 950, color: '#10b981', fontFamily: 'Outfit, sans-serif' }}>
+                                {timeLeftText}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </Col>
+                  </Row>
                 </div>
                 
                 {/* }
@@ -1363,49 +1426,9 @@ const EODReportPage = () => {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                         
                         {/* ── STEP 2: DISPLAY PROJECT AVAILABLE HOURS DETAILS ──────────────────────── */}
-                        <Card
-                          style={{
-                            borderRadius: 16,
-                            background: isDarkMode ? 'rgba(30, 41, 59, 0.45)' : '#ffffff',
-                            border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
-                            boxShadow: '0 8px 30px rgba(0,0,0,0.02)'
-                          }}
-                          bodyStyle={{ padding: 20 }}
-                        >
-                          <Row gutter={16} align="middle">
-                            <Col xs={24} md={16}>
-                              <Space direction="vertical" size={2}>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '1.2px' }}>
-                                  Step 2: Available Project Quota
-                                </span>
-                                <span style={{ fontSize: 18, fontWeight: 900, color: isDarkMode ? '#f8fafc' : '#0f172a' }}>
-                                  {proj?.name || proj?.projectName || 'No Project Selected'}
-                                </span>
-                                <Text type="secondary" style={{ fontSize: 13 }}>
-                                  Please log task entries under the dynamic project quota below.
-                                </Text>
-                              </Space>
-                            </Col>
-                            
-                            <Col xs={24} md={8} style={{ textAlign: 'right' }}>
-                              <div style={{
-                                display: 'inline-block',
-                                background: isDarkMode ? 'rgba(16, 185, 129, 0.08)' : '#ecfdf5',
-                                border: '1px solid #10b981',
-                                borderRadius: 14,
-                                padding: '10px 18px',
-                                textAlign: 'center'
-                              }}>
-                                <span style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                  Hours Remaining
-                                </span>
-                                <span style={{ fontSize: 20, fontWeight: 950, color: '#10b981', fontFamily: 'Outfit, sans-serif' }}>
-                                  {timeLeftText}
-                                </span>
-                              </div>
-                            </Col>
-                          </Row>
-                        </Card>
+                        
+                        {/* Slim Step 1 & 2 combined above outside scroll view */}
+
 
                         {/* ── STEP 3: SELECT TICKET AND REPORT TASK ───────────────────────────────── */}
                         <Card
