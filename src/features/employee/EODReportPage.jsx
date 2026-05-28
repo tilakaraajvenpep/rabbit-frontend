@@ -825,7 +825,58 @@ const EODReportPage = () => {
     return [hStr, mStr].filter(Boolean).join(' ');
   };
 
+  const getStatusColorAndLabel = (dateObj, status, hours) => {
+    const today = dayjs();
+    const isPast = dateObj.isBefore(today, 'day');
 
+    if (status === 'holiday') {
+      return { bg: '#e5e7eb', text: '#4b5563', label: 'Holiday' };
+    }
+    if (status === 'leave') {
+      return { bg: '#3b82f6', text: '#ffffff', label: 'Fullday Leave' };
+    }
+    if (status === 'half_leave') {
+      return { bg: '#38bdf8', text: '#ffffff', label: 'Halfday Leave' };
+    }
+    if (status === 'permission') {
+      return { bg: '#facc15', text: '#854d0e', label: 'Permission' };
+    }
+    if (status === 'restricted') {
+      return { bg: '#f3f4f6', text: '#9ca3af', label: 'Reporting Restricted' };
+    }
+    if (status === 'optional') {
+      return { bg: '#722ed1', text: '#ffffff', label: 'Optional Workday' };
+    }
+
+    const hasReport = status === 'submitted' || hours > 0;
+    if (hasReport) {
+      if (hours >= REQUIRED_HOURS) {
+        return { bg: '#00b493', text: '#ffffff', label: 'Completed' };
+      } else {
+        return { bg: '#f97316', text: '#ffffff', label: 'Partially Complete' };
+      }
+    }
+
+    if (status === 'incomplete' || (isPast && !hasReport)) {
+      return { bg: '#ff5b60', text: '#ffffff', label: 'Incomplete' };
+    }
+
+    // Default/Pending
+    return { bg: '#ff5b60', text: '#ffffff', label: 'Incomplete' };
+  };
+
+  const formatHourStrip = (hoursDecimal) => {
+    const h = Math.floor(hoursDecimal);
+    const m = Math.round((hoursDecimal - h) * 60);
+    if (h === 0 && m === 0) return '0 hrs';
+    if (m === 0) return `${h} hrs`;
+    return `${h}h ${m}m`;
+  };
+
+  const showRestrictionResult = isOutsideCurrentWeek && !existingReport && !hasAccessForDate;
+  const hasAccessPending = myAccessRequests.find(r => r.targetDate === selectedDate);
+  const isSunday = dayjs(selectedDate).day() === 0;
+  const isFullDayLeave = currentLeave && currentLeave.type === 'FullDay';
 
   // Render the Tabbed EOD dashboard
   return (
