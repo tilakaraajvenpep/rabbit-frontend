@@ -1288,7 +1288,7 @@ const EODReportPage = () => {
           <Form.Item name="ticketId" label="Ticket" hidden><Input /></Form.Item>
           <Form.Item name="requestType" label="Request Type" hidden><Input /></Form.Item>
           
-          <div style={{ marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 8 }}>
+          <div style={{ marginBottom: 16, background: isDarkMode ? '#141414' : '#f8fafc', border: `1px solid ${isDarkMode ? '#303030' : '#e2e8f0'}`, padding: 12, borderRadius: 8 }}>
             {activeRequestDetails?.ticket?.projectId && (() => {
               const proj = allProjects.find(p => String(p.id) === String(activeRequestDetails.ticket.projectId));
               return proj ? (

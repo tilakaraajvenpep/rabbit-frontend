@@ -92,10 +92,11 @@ const AccountsHoursApprovalPage = () => {
   };
 
   const handleSubmit = async () => {
-    if (!selectedRequest) return;
+    const requestId = selectedRequest?.request?.requestId;
+    if (!requestId) return;
     setSubmitting(true);
     try {
-      await timerRequestService.accountsRespondToRequest(selectedRequest.request.requestId, { approved: isApproval, comments: comment });
+      await timerRequestService.accountsRespondToRequest(requestId, { approved: isApproval, comments: comment });
       message.success(isApproval
         ? 'Approved! HR and PM have been notified to reassign the employee\'s daily quota.'
         : 'Rejected. Employee has been notified.');
@@ -106,8 +107,8 @@ const AccountsHoursApprovalPage = () => {
     finally { setSubmitting(false); }
   };
 
-  const totalHours = requests.reduce((s, r) => s + Number(r.request?.requestedHours || 0), 0);
-  const exceeded   = requests.filter(r => r.request?.requestType === 'HoursExceeded').length;
+  const totalHours = Array.isArray(requests) ? requests.reduce((s, r) => s + Number(r?.request?.requestedHours || 0), 0) : 0;
+  const exceeded   = Array.isArray(requests) ? requests.filter(r => r?.request?.requestType === 'HoursExceeded').length : 0;
 
   const cardBase = { borderRadius: 16, overflow: 'hidden', background: isDarkMode ? '#18181b' : '#fff', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.07)' : '#f1f5f9'}` };
 
@@ -141,30 +142,34 @@ const AccountsHoursApprovalPage = () => {
     },
     {
       title: 'Type',
-      dataIndex: ['request', 'requestType'],
       key: 'requestType',
       width: 140,
-      render: (t) => (
-        <Tag style={{
-          borderRadius: 20, fontWeight: 600, fontSize: 11, padding: '3px 12px', border: 'none',
-          background: t === 'TimerMissed' ? '#fff7ed' : '#f5f3ff',
-          color: t === 'TimerMissed' ? '#c2410c' : '#7c3aed',
-        }}>
-          {t === 'TimerMissed' ? '⏱ Timer Missed' : '⚡ Extra Hours'}
-        </Tag>
-      ),
+      render: (_, r) => {
+        const t = r.request?.requestType;
+        return (
+          <Tag style={{
+            borderRadius: 20, fontWeight: 600, fontSize: 11, padding: '3px 12px', border: 'none',
+            background: t === 'TimerMissed' ? '#fff7ed' : '#f5f3ff',
+            color: t === 'TimerMissed' ? '#c2410c' : '#7c3aed',
+          }}>
+            {t === 'TimerMissed' ? '⏱ Timer Missed' : '⚡ Extra Hours'}
+          </Tag>
+        );
+      },
     },
     {
       title: 'Extra Hours',
-      dataIndex: ['request', 'requestedHours'],
       key: 'requestedHours',
       width: 110,
       align: 'center',
-      render: (h) => (
-        <div style={{ background: 'rgba(16,185,129,0.1)', color: '#059669', borderRadius: 10, padding: '4px 12px', fontWeight: 800, fontSize: 15, display: 'inline-block' }}>
-          +{h}h
-        </div>
-      ),
+      render: (_, r) => {
+        const h = r.request?.requestedHours || 0;
+        return (
+          <div style={{ background: 'rgba(16,185,129,0.1)', color: '#059669', borderRadius: 10, padding: '4px 12px', fontWeight: 800, fontSize: 15, display: 'inline-block' }}>
+            +{h}h
+          </div>
+        );
+      },
     },
     {
       title: 'Reason & Notes',
@@ -174,7 +179,7 @@ const AccountsHoursApprovalPage = () => {
           <div style={{ fontSize: 12, color: '#475569' }}>{r.request?.reason}</div>
           {r.request?.comments && (
             <div style={{ marginTop: 4, fontSize: 11, color: '#d97706', fontStyle: 'italic', background: '#fffbeb', padding: '2px 8px', borderRadius: 6, display: 'inline-block' }}>
-              Chain: {r.request.comments}
+              Chain: {r.request?.comments}
             </div>
           )}
         </div>
@@ -235,17 +240,19 @@ const AccountsHoursApprovalPage = () => {
     },
     {
       title: 'Requested',
-      dataIndex: ['request', 'requestedHours'],
       key: 'requestedHours',
       width: 120,
-      render: (h) => <Tag color="purple" style={{ fontWeight: 700, borderRadius: 6 }}>+{h}h</Tag>,
+      render: (_, r) => {
+        const h = r.request?.requestedHours || 0;
+        return <Tag color="purple" style={{ fontWeight: 700, borderRadius: 6 }}>+{h}h</Tag>;
+      },
     },
     {
       title: 'Status',
-      dataIndex: ['request', 'status'],
       key: 'status',
       width: 140,
-      render: (status) => {
+      render: (_, r) => {
+        const status = r.request?.status;
         const conf = {
           PendingTL: { color: 'gold', label: 'Pending TL' },
           PendingPM: { color: 'blue', label: 'Pending PM' },
@@ -253,7 +260,7 @@ const AccountsHoursApprovalPage = () => {
           AccountsApproved: { color: 'cyan', label: 'Accounts Approved' },
           Approved: { color: 'green', label: 'Fully Approved' },
           Rejected: { color: 'red', label: 'Rejected' },
-        }[status] || { color: 'default', label: status };
+        }[status] || { color: 'default', label: status || 'Unknown' };
         return <Badge status={conf.color === 'green' ? 'success' : conf.color === 'red' ? 'error' : 'processing'} text={conf.label} />;
       }
     },
@@ -364,7 +371,7 @@ const AccountsHoursApprovalPage = () => {
                 <Table
                   columns={columns}
                   dataSource={requests}
-                  rowKey={(r) => r.request.requestId}
+                  rowKey={(r) => r.request?.requestId || Math.random()}
                   pagination={{ pageSize: 10, style: { padding: '0 20px 16px' } }}
                   style={{ borderRadius: 16 }}
                 />
