@@ -101,7 +101,7 @@ const EODReportPage = () => {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const watchedItems = watch('items');
-  const totalHours = watchedItems?.reduce((acc, curr) => acc + (curr.hours || 0), 0) || 0;
+  const totalHours = watchedItems?.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0) || 0;
   
   // Dynamic quota based on half-day/full-day/permission leave
   const baseRequiredHours = allocatedHoursPerDay;
@@ -517,6 +517,7 @@ const EODReportPage = () => {
       notification.success({ message: 'Success', description: `Report submitted.` });
       setViewOnly(true);
       fetchWeeklyStatus(weekDates);
+      await fetchReportForDate(selectedDate);
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to submit report.' });
     } finally {
