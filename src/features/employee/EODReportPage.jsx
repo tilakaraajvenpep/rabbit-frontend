@@ -994,97 +994,68 @@ const EODReportPage = () => {
           })()}
         </div>
 
-        {/* Middle Section: Horizontal Date Strip */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        {/* Middle Section: Inline Date Picker & Week Navigation */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Button
             shape="circle"
             icon={<LeftOutlined />}
-            onClick={handlePrevWeek}
+            onClick={() => {
+              const prevDate = dayjs(selectedDate).subtract(1, 'day');
+              setSelectedDate(prevDate.format('YYYY-MM-DD'));
+              setBaseDate(prevDate.startOf('week').add(1, 'day'));
+            }}
             style={{ 
               background: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0', 
               border: 'none', 
               color: isDarkMode ? '#cbd5e1' : '#4b5563', 
-              width: 40, 
-              height: 40,
-              boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
+              width: 36, 
+              height: 36,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
             }}
           />
           
-          <div style={{ display: 'flex', gap: 10 }}>
-            {weekDates.map(date => {
-              const isSelected = selectedDate === date.format('YYYY-MM-DD');
-              const dateStr = date.format('YYYY-MM-DD');
-              const status = weeklyStatus[dateStr];
-              
-              const reportForDate = weeklyReports.find(r => r.date === dateStr);
-              const hours = reportForDate ? Number(reportForDate.totalHours) : 0;
-              const displayHours = isSelected ? totalHours : hours;
-
-              const { bg, text } = getStatusColorAndLabel(date, status, displayHours);
-
-              const boxStyle = isSelected 
-                ? {
-                    background: '#6366f1',
-                    border: '1px solid transparent',
-                    color: '#ffffff',
-                    boxShadow: '0 8px 20px rgba(99, 102, 241, 0.35)',
-                    transform: 'translateY(-2px)'
-                  }
-                : {
-                    background: bg,
-                    border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'}`,
-                    color: text
-                  };
-
-              const isDateNextWeek = date.isAfter(dayjs().endOf('week'));
-
-              return (
-                <div
-                  key={dateStr}
-                  onClick={() => {
-                    if (status !== 'restricted' || isDateNextWeek) {
-                      setSelectedDate(dateStr);
-                      setAdminUnlocked(false);
-                    }
-                  }}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '10px 18px',
-                    borderRadius: 12,
-                    cursor: (status === 'restricted' && !isDateNextWeek) ? 'not-allowed' : 'pointer',
-                    minWidth: 78,
-                    textAlign: 'center',
-                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                    opacity: (status === 'restricted' && !isDateNextWeek) ? 0.35 : 1,
-                    ...boxStyle
-                  }}
-                >
-                  <span style={{ fontSize: 19, fontWeight: 900 }}>{date.format('D')}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', opacity: 0.85, letterSpacing: '0.5px', marginTop: 2 }}>{date.format('ddd')}</span>
-                  <span style={{ fontSize: 10, fontWeight: 800, marginTop: 6, opacity: 0.9 }}>{formatHourStrip(displayHours)}</span>
-                </div>
-              );
-            })}
-          </div>
+          <DatePicker
+            value={dayjs(selectedDate)}
+            onChange={(date) => {
+              if (date) {
+                const dateStr = date.format('YYYY-MM-DD');
+                setSelectedDate(dateStr);
+                setBaseDate(date.startOf('week').add(1, 'day'));
+              }
+            }}
+            allowClear={false}
+            picker="date"
+            style={{
+              borderRadius: 12,
+              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}`,
+              background: isDarkMode ? 'rgba(30, 41, 59, 0.65)' : '#ffffff',
+              color: isDarkMode ? '#cbd5e1' : '#0f172a',
+              height: 40,
+              width: 170,
+              fontSize: 14,
+              fontWeight: 700
+            }}
+          />
 
           <Button
             shape="circle"
             icon={<RightOutlined />}
-            onClick={handleNextWeek}
+            onClick={() => {
+              const nextDate = dayjs(selectedDate).add(1, 'day');
+              setSelectedDate(nextDate.format('YYYY-MM-DD'));
+              setBaseDate(nextDate.startOf('week').add(1, 'day'));
+            }}
             style={{ 
               background: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0', 
               border: 'none', 
               color: isDarkMode ? '#cbd5e1' : '#4b5563', 
-              width: 40, 
-              height: 40,
-              boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
+              width: 36, 
+              height: 36,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
             }}
           />
         </div>
-
+        
         {/* Right Section: Action Buttons */}
         <div style={{ display: 'flex', gap: 12, minWidth: 220, justifyContent: 'flex-end', alignItems: 'center' }}>
           <Button
@@ -1093,107 +1064,61 @@ const EODReportPage = () => {
             style={{ 
               borderRadius: 10, 
               height: 42, 
-              borderColor: '#10b981', 
-              color: '#10b981', 
+              borderColor: '#ec4899', 
+              color: '#ec4899', 
               background: 'transparent',
               fontWeight: 700,
-              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.05)'
+              boxShadow: '0 2px 8px rgba(236, 72, 153, 0.05)'
             }}
           >
             Apply Leave
           </Button>
-          {viewOnly && existingReport && (
-            <Button
-              type="primary"
-              icon={<EditOutlined />}
-              onClick={() => setViewOnly(false)}
-              style={{ 
-                background: '#f59e0b', 
-                borderColor: '#f59e0b', 
-                borderRadius: 10, 
-                height: 42, 
-                fontWeight: 700,
-                boxShadow: '0 4px 12px rgba(245, 158, 11, 0.2)'
-              }}
-            >
-              Edit Report
-            </Button>
-          )}
 
-          {viewOnly ? (
-            <>
-              {!isLocked && (
-                <Button
-                  type="primary"
-                  onClick={() => setViewOnly(false)}
-                  style={{ 
-                    background: '#6366f1', 
-                    borderColor: '#6366f1', 
-                    borderRadius: 10, 
-                    height: 42, 
-                    fontWeight: 700,
-                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
-                  }}
-                >
-                  Edit Tasks
-                </Button>
-              )}
-              <Button
-                onClick={() => navigate(-1)}
-                style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
-              >
-                Back
-              </Button>
-            </>
-          ) : (
-            <>
+          {existingReport && (
+            viewOnly ? (
               <Button
                 type="primary"
-                onClick={() => {
-                  const defaultItems = [];
-                  const userId = currentUser.userId || currentUser.id;
-                  allProjects.forEach(p => {
-                    const empHours = p.employeeAllocatedHours?.[userId];
-                    if (empHours !== undefined && Number(empHours) > 0) {
-                      defaultItems.push({
-                        projectId: p.id,
-                        ticketId: '',
-                        hoursInput: 0,
-                        minutesInput: 0,
-                        workDone: ''
-                      });
-                    }
-                  });
-                  if (defaultItems.length === 0) {
-                    allProjects.forEach(p => {
-                      defaultItems.push({
-                        projectId: p.id,
-                        ticketId: '',
-                        hoursInput: 0,
-                        minutesInput: 0,
-                        workDone: ''
-                      });
-                    });
-                  }
-                  reset({ items: defaultItems, blockers: '', isAlertIssue: false, alertMessage: '' });
-                }}
+                icon={<EditOutlined />}
+                onClick={() => setViewOnly(false)}
                 style={{ 
-                  background: '#ef4444', 
-                  borderColor: '#ef4444', 
+                  background: '#6366f1', 
+                  borderColor: '#6366f1', 
                   borderRadius: 10, 
                   height: 42, 
                   fontWeight: 700,
-                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.15)'
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)'
                 }}
               >
-                Reset
+                Edit Report
               </Button>
-            </>
+            ) : (
+              <Button
+                icon={<LeftOutlined />}
+                onClick={() => {
+                  setViewOnly(true);
+                  reset(existingReport);
+                }}
+                style={{ 
+                  borderRadius: 10, 
+                  height: 42, 
+                  fontWeight: 700
+                }}
+              >
+                Cancel Edit
+              </Button>
+            )
           )}
+
+          <Button
+            onClick={handleGoToToday}
+            style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
+          >
+            Today
+          </Button>
         </div>
       </div>
-
-            <Form onFinish={handleSubmit(onSubmit)} layout="vertical" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+      
+      <Form onFinish={handleSubmit(onSubmit)} layout="vertical" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
         <Row gutter={24} style={{ flex: 1, minHeight: 0, display: 'flex', flexWrap: 'nowrap' }}>
           
           {/* ── LEFT PANEL: Sleek Metrics & Progress Widgets (Col 7) ─────────────────── */}
@@ -1477,7 +1402,30 @@ const EODReportPage = () => {
             ) : (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
                 
-                {/* ── STEP 1: INTERACTIVE HORIZONTAL PROJECT SELECTOR STRIP ─────────────────────── */}
+                {/* ── STEP 1: INTERACTIVE PROJECT DROPDOWN SELECTOR & QUOTA ───────────────────── */}
+                <div style={{ background: isDarkMode ? 'rgba(30, 41, 59, 0.35)' : '#ffffff', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}`, padding: '16px 20px', borderRadius: 16, marginBottom: 16 }}>
+                  <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>
+                    Step 1: Choose Active Project
+                  </span>
+                  <Select
+                    disabled={isLocked || viewOnly}
+                    placeholder="Select a Project to Log Task"
+                    style={{ width: '100%', height: 42 }}
+                    value={selectedTopProjectId || allProjects[0]?.id || undefined}
+                    onChange={(val) => {
+                      setSelectedTopProjectId(val);
+                      setSelectedTicketId('');
+                    }}
+                  >
+                    {allProjects.map(p => (
+                      <Select.Option key={p.id} value={p.id}>
+                        {p.name || p.projectName} (Quota: {p.employeeAllocatedHours?.[currentUser.userId || currentUser.id] || 0} hrs)
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </div>
+                
+                {/* }
                 <span style={{ display: 'block', fontSize: 12, fontWeight: 700, color: isDarkMode ? '#cbd5e1' : '#475569', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
                   Step 1: Select Active Project
                 </span>
