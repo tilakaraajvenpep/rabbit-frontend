@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, DatePicker, Button, Space, Typography, notification, Upload, Modal, Alert, Descriptions, Divider } from 'antd';
-import { ArrowLeftOutlined, InboxOutlined, EyeOutlined, SendOutlined, FileTextOutlined } from '@ant-design/icons';
+import { Card, Form, Input, DatePicker, Button, Space, Typography, notification, Upload, Modal, Alert, Tag } from 'antd';
+import { ArrowLeftOutlined, InboxOutlined, EyeOutlined, SendOutlined, FileTextOutlined, CalendarOutlined, UserOutlined, TagOutlined, AlignLeftOutlined, FilePdfOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -8,15 +8,81 @@ import { projectService } from '../../services/projectService';
 import PageHeader from '../../components/common/PageHeader';
 
 const { TextArea } = Input;
-const { Title } = Typography;
+const { Text } = Typography;
+
+// ── Reusable sub-components for the premium Review modal ──
+
+const InfoRow = ({ icon, label, value, accent = '#6366f1', span = false }) => (
+  <div style={{
+    display: 'flex',
+    gap: 14,
+    alignItems: 'flex-start',
+    padding: '14px 18px',
+    borderRadius: 12,
+    background: '#f8fafc',
+    border: '1px solid #f1f5f9',
+    ...(span ? { gridColumn: '1 / -1' } : {}),
+  }}>
+    <div style={{
+      width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+      background: `${accent}18`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: 16, color: accent,
+    }}>
+      {icon}
+    </div>
+    <div style={{ minWidth: 0, flex: 1 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 500, color: '#1e293b', lineHeight: 1.55, wordBreak: 'break-word' }}>
+        {value || <Text type="secondary" italic>—</Text>}
+      </div>
+    </div>
+  </div>
+);
+
+const DocCard = ({ file, label, icon, color }) => (
+  <div style={{
+    display: 'flex', gap: 14, alignItems: 'center',
+    padding: '14px 18px', borderRadius: 12,
+    background: file ? `${color}08` : '#f8fafc',
+    border: `1px solid ${file ? `${color}28` : '#f1f5f9'}`,
+  }}>
+    <div style={{
+      width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+      background: file ? `${color}18` : '#f1f5f9',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: 20, color: file ? color : '#94a3b8',
+    }}>
+      {icon}
+    </div>
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 }}>
+        {label}
+      </div>
+      {file ? (
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+          <Text strong style={{ fontSize: 13, color: '#1e293b', wordBreak: 'break-all' }}>{file.name}</Text>
+          <Tag style={{ borderRadius: 6, fontSize: 11, border: 'none', background: `${color}18`, color, margin: 0 }}>
+            {(file.size / 1024 / 1024).toFixed(2)} MB
+          </Tag>
+        </div>
+      ) : (
+        <Text type="secondary" italic style={{ fontSize: 13 }}>No new document uploaded in this session</Text>
+      )}
+    </div>
+    {file && <CheckCircleOutlined style={{ color, fontSize: 18, flexShrink: 0 }} />}
+  </div>
+);
+
+// ── Main Page Component ──
 
 const CreateProjectPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [project, setProject] = useState(null);
-  
-  // Review/Preview state
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
   const [previewData, setPreviewData] = useState(null);
 
@@ -32,7 +98,6 @@ const CreateProjectPage = () => {
     }
   });
 
-  // Load project details if editing
   useEffect(() => {
     if (id) {
       const fetchProject = async () => {
@@ -44,9 +109,7 @@ const CreateProjectPage = () => {
           setValue('name', p.name);
           setValue('client', p.client);
           setValue('projectCategory', p.projectCategory || '');
-          if (p.startDate) {
-            setValue('expectedStart', dayjs(p.startDate));
-          }
+          if (p.startDate) setValue('expectedStart', dayjs(p.startDate));
           setValue('description', p.description);
         } catch (error) {
           console.error(error);
@@ -63,15 +126,14 @@ const CreateProjectPage = () => {
     setLoading(true);
     try {
       const { scopeFile, budgetFile, ...projectData } = data;
-
       const formattedData = {
         name: projectData.name,
         client: projectData.client,
         projectCategory: projectData.projectCategory,
         expectedStart: projectData.expectedStart ? projectData.expectedStart.toISOString() : null,
         description: projectData.description,
-        budgetTable: null, // Budget is inside the scope document
-        milestones: null,  // Milestones are inside the scope document
+        budgetTable: null,
+        milestones: null,
         status: submitStatus
       };
 
@@ -81,29 +143,15 @@ const CreateProjectPage = () => {
       } else {
         response = await projectService.createProject(formattedData);
       }
-      
+
       const targetProjectId = id || response.data.id;
+      if (scopeFile) await projectService.uploadDocument(targetProjectId, scopeFile, 'scope');
+      if (budgetFile) await projectService.uploadDocument(targetProjectId, budgetFile, 'budget_milestones');
 
-      // Handle file uploads if present
-      if (scopeFile) {
-        await projectService.uploadDocument(targetProjectId, scopeFile, 'scope');
-      }
-      if (budgetFile) {
-        await projectService.uploadDocument(targetProjectId, budgetFile, 'budget_milestones');
-      }
-
-      if (scopeFile || budgetFile) {
-        notification.success({
-          message: id ? 'Project Updated & Documents Uploaded' : 'Project Created & Documents Uploaded',
-          description: `Successfully processed project and uploaded files.`
-        });
-      } else {
-        notification.success({
-          message: id ? 'Project Updated' : 'Project Created',
-          description: `Project details updated successfully.`
-        });
-      }
-      
+      notification.success({
+        message: id ? 'Project Updated' : 'Project Created',
+        description: 'Successfully processed project and uploaded files.'
+      });
       navigate(`/sales/projects/${targetProjectId}/scope`);
     } catch (error) {
       console.error(error);
@@ -125,8 +173,8 @@ const CreateProjectPage = () => {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', paddingBottom: 60 }}>
-      <PageHeader 
-        title={id ? "Revise Project Details" : "Create New Project"} 
+      <PageHeader
+        title={id ? 'Revise Project Details' : 'Create New Project'}
         breadcrumbs={[
           { label: 'My Projects', path: '/sales/projects' },
           { label: id ? 'Revise' : 'Create' }
@@ -138,19 +186,18 @@ const CreateProjectPage = () => {
         }
       />
 
-      {/* Show comments if returned for revision */}
       {project?.status === 'ReturnedForRevision' && (
         <Alert
           message="Revision Required by Accounts"
           description={
             <div>
-              <p>Please address the following comments from the accounts team before resubmission:</p>
-              <div style={{ 
-                background: 'rgba(239, 68, 68, 0.05)', 
-                padding: '12px 16px', 
-                borderRadius: 6, 
-                borderLeft: '4px solid #ef4444', 
-                margin: '8px 0', 
+              <p>Please address the following comments before resubmission:</p>
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.05)',
+                padding: '12px 16px',
+                borderRadius: 6,
+                borderLeft: '4px solid #ef4444',
+                margin: '8px 0',
                 color: '#b91c1c',
                 fontWeight: 600,
                 whiteSpace: 'pre-wrap'
@@ -167,77 +214,42 @@ const CreateProjectPage = () => {
 
       <Form layout="vertical">
         <Card title="Project Details & Scope Document" style={{ marginBottom: 24 }}>
-          <Form.Item 
-            label="Project Name" 
-            required
-            validateStatus={errors.name ? 'error' : ''} 
-            help={errors.name?.message}
-          >
+          <Form.Item label="Project Name" required validateStatus={errors.name ? 'error' : ''} help={errors.name?.message}>
             <Controller
               name="name"
               control={control}
-              rules={{ 
-                required: 'Project name is required',
-                maxLength: { value: 500, message: 'Maximum 500 characters' }
-              }}
-              render={({ field }) => (
-                <Input {...field} placeholder="Enter project name" showCount maxLength={500} size="large" />
-              )}
+              rules={{ required: 'Project name is required', maxLength: { value: 500, message: 'Maximum 500 characters' } }}
+              render={({ field }) => <Input {...field} placeholder="Enter project name" showCount maxLength={500} size="large" />}
             />
           </Form.Item>
 
-          <Form.Item 
-            label="Client Name" 
-            required
-            validateStatus={errors.client ? 'error' : ''} 
-            help={errors.client?.message}
-          >
+          <Form.Item label="Client Name" required validateStatus={errors.client ? 'error' : ''} help={errors.client?.message}>
             <Controller
               name="client"
               control={control}
-              rules={{ 
-                required: 'Client name is required',
-                maxLength: { value: 300, message: 'Maximum 300 characters' }
-              }}
-              render={({ field }) => (
-                <Input {...field} placeholder="Enter client name" showCount maxLength={300} size="large" />
-              )}
+              rules={{ required: 'Client name is required', maxLength: { value: 300, message: 'Maximum 300 characters' } }}
+              render={({ field }) => <Input {...field} placeholder="Enter client name" showCount maxLength={300} size="large" />}
             />
           </Form.Item>
 
-          <Form.Item 
-            label="Project Category" 
-            required
-            validateStatus={errors.projectCategory ? 'error' : ''} 
-            help={errors.projectCategory?.message}
-          >
+          <Form.Item label="Project Category" required validateStatus={errors.projectCategory ? 'error' : ''} help={errors.projectCategory?.message}>
             <Controller
               name="projectCategory"
               control={control}
-              rules={{ 
-                required: 'Project category is required',
-                maxLength: { value: 255, message: 'Maximum 255 characters' }
-              }}
-              render={({ field }) => (
-                <Input {...field} placeholder="e.g. Web App, Mobile App, Consultancy" size="large" />
-              )}
+              rules={{ required: 'Project category is required', maxLength: { value: 255, message: 'Maximum 255 characters' } }}
+              render={({ field }) => <Input {...field} placeholder="e.g. Web App, Mobile App, Consultancy" size="large" />}
             />
           </Form.Item>
 
-          <Form.Item 
-            label="Expected Start Date" 
-            required
-            validateStatus={errors.expectedStart ? 'error' : ''} 
-            help={errors.expectedStart?.message}
-          >
+          <Form.Item label="Expected Start Date" required validateStatus={errors.expectedStart ? 'error' : ''} help={errors.expectedStart?.message}>
             <Controller
               name="expectedStart"
               control={control}
               rules={{ required: 'Expected start date is required' }}
               render={({ field }) => (
-                <DatePicker 
-                  {...field} 
-                  style={{ width: '100%' }} 
+                <DatePicker
+                  {...field}
+                  style={{ width: '100%' }}
                   disabledDate={(current) => current && current < dayjs().startOf('day')}
                   size="large"
                 />
@@ -245,46 +257,23 @@ const CreateProjectPage = () => {
             />
           </Form.Item>
 
-          <Form.Item 
-            label="Project Description"
-            validateStatus={errors.description ? 'error' : ''} 
-            help={errors.description?.message}
-          >
+          <Form.Item label="Project Description" validateStatus={errors.description ? 'error' : ''} help={errors.description?.message}>
             <Controller
               name="description"
               control={control}
               rules={{ maxLength: { value: 2000, message: 'Maximum 2000 characters' } }}
-              render={({ field }) => (
-                <TextArea {...field} rows={4} placeholder="Enter project description" showCount maxLength={2000} />
-              )}
+              render={({ field }) => <TextArea {...field} rows={4} placeholder="Enter project description" showCount maxLength={2000} />}
             />
           </Form.Item>
 
-          <Form.Item 
-            label="Upload Project Scope Document"
-            required={!id}
-            validateStatus={errors.scopeFile ? 'error' : ''}
-            help={errors.scopeFile?.message}
-          >
+          <Form.Item label="Upload Project Scope Document" required={!id} validateStatus={errors.scopeFile ? 'error' : ''} help={errors.scopeFile?.message}>
             <Controller
               name="scopeFile"
               control={control}
               rules={id ? {} : { required: 'Scope document is required to submit the project' }}
               render={({ field: { value, onChange } }) => (
-                <Upload.Dragger
-                  name="file"
-                  multiple={false}
-                  maxCount={1}
-                  beforeUpload={(file) => {
-                    onChange(file);
-                    return false; // Prevent auto-upload
-                  }}
-                  onRemove={() => onChange(null)}
-                  fileList={value ? [value] : []}
-                >
-                  <p className="ant-upload-drag-icon">
-                    <InboxOutlined />
-                  </p>
+                <Upload.Dragger name="file" multiple={false} maxCount={1} beforeUpload={(file) => { onChange(file); return false; }} onRemove={() => onChange(null)} fileList={value ? [value] : []}>
+                  <p className="ant-upload-drag-icon"><InboxOutlined /></p>
                   <p className="ant-upload-text">Click or drag scope document to this area to upload</p>
                   <p className="ant-upload-hint">Upload the PDF or DOCX file containing the technical requirements and project scope details.</p>
                 </Upload.Dragger>
@@ -292,31 +281,14 @@ const CreateProjectPage = () => {
             />
           </Form.Item>
 
-          <Form.Item 
-            label="Upload Budget and Milestones Document"
-            required={!id}
-            validateStatus={errors.budgetFile ? 'error' : ''}
-            help={errors.budgetFile?.message}
-          >
+          <Form.Item label="Upload Budget and Milestones Document" required={!id} validateStatus={errors.budgetFile ? 'error' : ''} help={errors.budgetFile?.message}>
             <Controller
               name="budgetFile"
               control={control}
               rules={id ? {} : { required: 'Budget and milestones document is required to submit the project' }}
               render={({ field: { value, onChange } }) => (
-                <Upload.Dragger
-                  name="file"
-                  multiple={false}
-                  maxCount={1}
-                  beforeUpload={(file) => {
-                    onChange(file);
-                    return false; // Prevent auto-upload
-                  }}
-                  onRemove={() => onChange(null)}
-                  fileList={value ? [value] : []}
-                >
-                  <p className="ant-upload-drag-icon">
-                    <InboxOutlined />
-                  </p>
+                <Upload.Dragger name="file" multiple={false} maxCount={1} beforeUpload={(file) => { onChange(file); return false; }} onRemove={() => onChange(null)} fileList={value ? [value] : []}>
+                  <p className="ant-upload-drag-icon"><InboxOutlined /></p>
                   <p className="ant-upload-text">Click or drag budget & milestones document to this area to upload</p>
                   <p className="ant-upload-hint">Upload the PDF or DOCX file containing the itemized budget table and milestones breakdown.</p>
                 </Upload.Dragger>
@@ -328,26 +300,12 @@ const CreateProjectPage = () => {
         {/* Action Panel */}
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Button size="large" onClick={() => navigate('/sales/projects')}>
-              Cancel
-            </Button>
+            <Button size="large" onClick={() => navigate('/sales/projects')}>Cancel</Button>
             <Space size="middle">
-              <Button 
-                type="default" 
-                size="large" 
-                icon={<EyeOutlined />}
-                onClick={handleReviewClick}
-                loading={loading}
-              >
+              <Button type="default" size="large" icon={<EyeOutlined />} onClick={handleReviewClick} loading={loading}>
                 Review and Submit to Accounts
               </Button>
-              <Button 
-                type="primary" 
-                size="large" 
-                icon={<SendOutlined />}
-                onClick={handleSubmit((data) => onSubmit(data, 'PendingReview'))}
-                loading={loading}
-              >
+              <Button type="primary" size="large" icon={<SendOutlined />} onClick={handleSubmit((data) => onSubmit(data, 'PendingReview'))} loading={loading}>
                 Directly Submit to Accounts
               </Button>
             </Space>
@@ -355,9 +313,9 @@ const CreateProjectPage = () => {
         </Card>
       </Form>
 
-      {/* Review and Submit Modal */}
+      {/* ── Premium Review Modal ── */}
       <Modal
-        title={<Title level={4} style={{ margin: 0 }}>Review Project Details</Title>}
+        title={null}
         open={isPreviewVisible}
         onOk={() => {
           setIsPreviewVisible(false);
@@ -366,49 +324,105 @@ const CreateProjectPage = () => {
         onCancel={() => setIsPreviewVisible(false)}
         okText="Confirm & Submit to Accounts"
         cancelText="Go Back & Edit"
-        width={700}
+        width={680}
         confirmLoading={loading}
+        okButtonProps={{
+          size: 'large',
+          style: {
+            background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+            border: 'none',
+            height: 44,
+            borderRadius: 10,
+            fontWeight: 700,
+            fontSize: 14,
+          }
+        }}
+        cancelButtonProps={{ size: 'large', style: { height: 44, borderRadius: 10 } }}
+        styles={{ body: { padding: 0 } }}
       >
-        <Divider style={{ margin: '12px 0' }} />
-        {previewData && (
-          <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <Descriptions title="Project Information" bordered column={2}>
-              <Descriptions.Item label="Project Name" span={2}>{previewData.name}</Descriptions.Item>
-              <Descriptions.Item label="Client Name">{previewData.client}</Descriptions.Item>
-              <Descriptions.Item label="Project Category">{previewData.projectCategory}</Descriptions.Item>
-              <Descriptions.Item label="Expected Start Date">
-                {previewData.expectedStart ? previewData.expectedStart.format('DD MMM YYYY') : '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Description" span={2}>{previewData.description || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Project Scope Document" span={2}>
-                {previewData.scopeFile ? (
-                  <span>
-                    <FileTextOutlined style={{ marginRight: 8, color: '#1890ff' }} />
-                    {previewData.scopeFile.name} ({(previewData.scopeFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </span>
-                ) : (
-                  <span style={{ color: '#aaa', fontStyle: 'italic' }}>No new document uploaded in this session</span>
-                )}
-              </Descriptions.Item>
-              <Descriptions.Item label="Budget & Milestones Document" span={2}>
-                {previewData.budgetFile ? (
-                  <span>
-                    <FileTextOutlined style={{ marginRight: 8, color: '#52c41a' }} />
-                    {previewData.budgetFile.name} ({(previewData.budgetFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </span>
-                ) : (
-                  <span style={{ color: '#aaa', fontStyle: 'italic' }}>No new document uploaded in this session</span>
-                )}
-              </Descriptions.Item>
-            </Descriptions>
+        {/* Gradient Header Banner */}
+        <div style={{
+          background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+          borderRadius: '8px 8px 0 0',
+          padding: '22px 28px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{
+              width: 46, height: 46, borderRadius: 12,
+              background: 'rgba(255,255,255,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 22, color: '#fff',
+            }}>
+              <EyeOutlined />
+            </div>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', lineHeight: 1.25 }}>
+                Review Project Details
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', marginTop: 4 }}>
+                Please verify all information before submitting to Accounts
+              </div>
+            </div>
+          </div>
+        </div>
 
-            <Alert
-              message="Documents Verification"
-              description="The project details, scope, budget tables, and milestones are contained within the attached documents. Accounts will review the Budget & Milestones, while PMs and TLs can view the Project Scope."
-              type="info"
-              showIcon
-            />
-          </Space>
+        {previewData && (
+          <div style={{ padding: '20px 24px 16px' }}>
+
+            {/* Section: Project Info */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              Project Information
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 22 }}>
+              <InfoRow icon={<FileTextOutlined />} label="Project Name" value={previewData.name} accent="#6366f1" span />
+              <InfoRow icon={<UserOutlined />} label="Client Name" value={previewData.client} accent="#0ea5e9" />
+              <InfoRow
+                icon={<TagOutlined />}
+                label="Project Category"
+                value={
+                  <Tag style={{ borderRadius: 6, fontWeight: 600, border: 'none', background: '#eff6ff', color: '#2563eb', fontSize: 13 }}>
+                    {previewData.projectCategory}
+                  </Tag>
+                }
+                accent="#0ea5e9"
+              />
+              <InfoRow
+                icon={<CalendarOutlined />}
+                label="Expected Start Date"
+                value={previewData.expectedStart ? previewData.expectedStart.format('DD MMMM YYYY') : '—'}
+                accent="#10b981"
+                span
+              />
+              <InfoRow icon={<AlignLeftOutlined />} label="Project Description" value={previewData.description || '—'} accent="#f59e0b" span />
+            </div>
+
+            {/* Section: Documents */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>
+              Attached Documents
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+              <DocCard file={previewData.scopeFile} label="Project Scope Document" icon={<FilePdfOutlined />} color="#6366f1" />
+              <DocCard file={previewData.budgetFile} label="Budget & Milestones Document" icon={<FilePdfOutlined />} color="#10b981" />
+            </div>
+
+            {/* Ready Notice */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.06), rgba(79,70,229,0.02))',
+              border: '1px solid rgba(99,102,241,0.15)',
+              borderRadius: 12,
+              padding: '14px 18px',
+              display: 'flex',
+              gap: 12,
+              alignItems: 'flex-start',
+            }}>
+              <CheckCircleOutlined style={{ color: '#6366f1', fontSize: 18, marginTop: 1, flexShrink: 0 }} />
+              <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
+                <strong style={{ color: '#1e293b' }}>Ready for Submission. </strong>
+                The scope, budget tables, and milestones are contained within the attached documents.
+                Accounts will review Budget & Milestones; PMs and TLs will access the Project Scope.
+              </div>
+            </div>
+          </div>
         )}
       </Modal>
     </div>
