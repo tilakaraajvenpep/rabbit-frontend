@@ -948,22 +948,22 @@ const EODReportPage = () => {
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
-        padding: '24px 32px',
+        padding: '10px 18px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderRadius: 20,
-        boxShadow: isDarkMode ? '0 12px 40px rgba(0, 0, 0, 0.25)' : '0 8px 30px rgba(0, 0, 0, 0.03)',
-        marginBottom: 24,
+        borderRadius: 14,
+        boxShadow: isDarkMode ? '0 12px 40px rgba(0, 0, 0, 0.2)' : '0 8px 30px rgba(0, 0, 0, 0.02)',
+        marginBottom: 14,
         flexWrap: 'wrap',
-        gap: 20
+        gap: 12
       }}>
         {/* Left Section: Selected Date & Status Pill */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 160 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#6366f1' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 150 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.2px', color: '#6366f1' }}>
             Work Report Date
           </span>
-          <span style={{ fontSize: 26, fontWeight: 900, color: isDarkMode ? '#f8fafc' : '#0f172a', fontFamily: 'Outfit, Inter, sans-serif' }}>
+          <span style={{ fontSize: 18, fontWeight: 900, color: isDarkMode ? '#f8fafc' : '#0f172a', fontFamily: 'Outfit, Inter, sans-serif' }}>
             {dayjs(selectedDate).format('DD MMMM YYYY')}
           </span>
           {(() => {
@@ -977,23 +977,20 @@ const EODReportPage = () => {
               <span style={{
                 background: bg,
                 color: text,
-                padding: '5px 16px',
-                borderRadius: 30,
-                fontSize: 11,
+                padding: '2px 10px',
+                borderRadius: 20,
+                fontSize: 10,
                 fontWeight: 800,
                 display: 'inline-block',
                 width: 'fit-content',
-                textAlign: 'center',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
+                marginTop: 4
               }}>
                 {label}
               </span>
             );
           })()}
         </div>
-
+        
         {/* Middle Section: Inline Date Picker & Week Navigation */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Button
@@ -1057,18 +1054,37 @@ const EODReportPage = () => {
         </div>
         
         {/* Right Section: Action Buttons */}
-        <div style={{ display: 'flex', gap: 12, minWidth: 220, justifyContent: 'flex-end', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, minWidth: 220, justifyContent: 'flex-end', alignItems: 'center' }}>
+          {!viewOnly && (
+            <Button
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              onClick={handleSubmit(onSubmit)}
+              loading={submitting}
+              style={{ 
+                background: '#10b981', 
+                borderColor: '#10b981', 
+                borderRadius: 8, 
+                height: 34, 
+                fontWeight: 700,
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
+              }}
+            >
+              Submit Report
+            </Button>
+          )}
+
           <Button
             icon={<CalendarOutlined />}
             onClick={() => handleOpenApplyLeaveModal(selectedDate)}
             style={{ 
-              borderRadius: 10, 
-              height: 42, 
+              borderRadius: 8, 
+              height: 34, 
               borderColor: '#ec4899', 
               color: '#ec4899', 
               background: 'transparent',
               fontWeight: 700,
-              boxShadow: '0 2px 8px rgba(236, 72, 153, 0.05)'
+              fontSize: 12
             }}
           >
             Apply Leave
@@ -1083,10 +1099,11 @@ const EODReportPage = () => {
                 style={{ 
                   background: '#6366f1', 
                   borderColor: '#6366f1', 
-                  borderRadius: 10, 
-                  height: 42, 
+                  borderRadius: 8, 
+                  height: 34, 
                   fontWeight: 700,
-                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)'
+                  fontSize: 12,
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.15)'
                 }}
               >
                 Edit Report
@@ -1099,9 +1116,10 @@ const EODReportPage = () => {
                   reset(existingReport);
                 }}
                 style={{ 
-                  borderRadius: 10, 
-                  height: 42, 
-                  fontWeight: 700
+                  borderRadius: 8, 
+                  height: 34, 
+                  fontWeight: 700,
+                  fontSize: 12
                 }}
               >
                 Cancel Edit
@@ -1111,7 +1129,7 @@ const EODReportPage = () => {
 
           <Button
             onClick={handleGoToToday}
-            style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
+            style={{ borderRadius: 8, height: 34, fontWeight: 600, fontSize: 12 }}
           >
             Today
           </Button>
