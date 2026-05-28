@@ -98,7 +98,7 @@ const ProjectOverviewPage = () => {
         {/* Section 1: Key Metrics */}
         <Col span={24}>
           <Row gutter={16}>
-            {role !== 'TeamLead' && (
+            {!['TeamLead', 'ProjectManager'].includes(role) && (
               <Col xs={24} sm={12} lg={6}>
                 <Card size="small">
                   <Statistic 
@@ -110,17 +110,17 @@ const ProjectOverviewPage = () => {
                 </Card>
               </Col>
             )}
-            <Col xs={24} sm={12} lg={role === 'TeamLead' ? 8 : 6}>
+            <Col xs={24} sm={12} lg={['TeamLead', 'ProjectManager'].includes(role) ? 8 : 6}>
               <Card size="small">
                 <Statistic title="Approved Hours" value={project.approvedHours} prefix={<FieldTimeOutlined />} />
               </Card>
             </Col>
-            <Col xs={24} sm={12} lg={role === 'TeamLead' ? 8 : 6}>
+            <Col xs={24} sm={12} lg={['TeamLead', 'ProjectManager'].includes(role) ? 8 : 6}>
               <Card size="small">
                 <Statistic title="Consumed Hours" value={project.consumedHours} prefix={<FieldTimeOutlined />} valueStyle={{ color: '#cf1322' }} />
               </Card>
             </Col>
-            <Col xs={24} sm={12} lg={role === 'TeamLead' ? 8 : 6}>
+            <Col xs={24} sm={12} lg={['TeamLead', 'ProjectManager'].includes(role) ? 8 : 6}>
               <Card size="small">
                 <Statistic title="Days Remaining" value={remainingDays} prefix={<CalendarOutlined />} valueStyle={{ color: remainingDays < 7 ? '#cf1322' : '#3f9142' }} />
               </Card>
@@ -131,11 +131,11 @@ const ProjectOverviewPage = () => {
         {/* Section 2: Progress Bars */}
         <Col xs={24} lg={role === 'ProjectManager' ? 24 : 16}>
           <Card title="Project Progress" style={{ marginBottom: 16 }}>
-            <div style={{ marginBottom: role === 'TeamLead' ? 0 : 24 }}>
+            <div style={{ marginBottom: ['TeamLead', 'ProjectManager'].includes(role) ? 0 : 24 }}>
               <Text strong>Hours Consumption</Text>
               <HoursProgress consumed={project.consumedHours} total={project.approvedHours} />
             </div>
-            {role !== 'TeamLead' && (
+            {!['TeamLead', 'ProjectManager'].includes(role) && (
               <div>
                 <Text strong>Budget Utilization</Text>
                 <HoursProgress consumed={400000} total={project.approvedBudget} unit="₹" />
