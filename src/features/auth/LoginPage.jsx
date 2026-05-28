@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { authService } from '../../services/authService';
 import { logger } from '../../utils/logger';
-import { useThemeStore } from '../../store/themeStore';
 
 const { Title, Text } = Typography;
 
@@ -15,9 +14,7 @@ const LoginPage = () => {
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const navigate = useNavigate();
   const { login, tenantCode: currentTenantCode } = useAuthStore();
-  const { isDarkMode } = useThemeStore();
   const [newTenantCode, setNewTenantCode] = useState(currentTenantCode);
-  
   const { control, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
       email: '',
@@ -28,23 +25,20 @@ const LoginPage = () => {
   const onSubmit = async (data) => {
     setLoading(true);
 
-    // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     if (import.meta.env.VITE_USE_MOCK === 'true') {
-      // (Mock logic if needed, but not used since USE_MOCK is false)
+      // mock logic unused
     } else {
       try {
-        // Lowercase the email to support any casing
         const normalizedEmail = data.email.toLowerCase().trim();
         const response = await authService.login(normalizedEmail, data.password, currentTenantCode);
-        
+
         if (response.success) {
           const { user, accessToken, refreshToken } = response.data;
           login(user, accessToken, refreshToken);
           logger.info('Login successful', user);
-          
-          // Redirect based on role
+
           switch (user.role) {
             case 'SuperAdmin': navigate('/superadmin/tenants'); break;
             case 'TenantAdmin': navigate('/admin/users'); break;
@@ -57,7 +51,6 @@ const LoginPage = () => {
             default: navigate('/');
           }
         } else {
-          // Toast error message
           notification.error({
             message: 'Login Failed',
             description: response.message || 'Invalid credentials'
@@ -66,7 +59,6 @@ const LoginPage = () => {
       } catch (err) {
         const serverMsg = err?.response?.data?.message || '';
 
-        // Map specific backend messages to user-friendly toasts
         if (serverMsg.toLowerCase().includes('not registered') || serverMsg.toLowerCase().includes('email')) {
           notification.error({
             message: 'Email Not Found',
@@ -88,7 +80,7 @@ const LoginPage = () => {
         }
       }
     }
-    
+
     setLoading(false);
   };
 
@@ -99,140 +91,92 @@ const LoginPage = () => {
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
       minHeight: '100vh',
-      background: '#ffffff',
       width: '100vw',
-      transition: 'all 0.3s ease'
+      background: '#ffffff',
     }}>
-      <Card style={{ width: 420, textAlign: 'center' }}>
+      <Card style={{ width: 400, textAlign: 'center' }}>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
-            <Title level={2} style={{ marginBottom: 4, color: isDarkMode ? '#ffffff' : '#0f172a' }}>Rabbit 4.0</Title>
+            <Title level={2} style={{ marginBottom: 0 }}>Rabbit 4.0</Title>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <Text style={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: 13 }}>
-                {currentTenantCode.toUpperCase()} Workspace
-              </Text>
-              <Button type="link" size="small" onClick={() => setIsWorkspaceModalOpen(true)} style={{ color: '#6366f1', fontWeight: 600 }}>Change</Button>
+              <Text type="secondary">{currentTenantCode.toUpperCase()} Workspace</Text>
+              <Button type="link" size="small" onClick={() => setIsWorkspaceModalOpen(true)}>Change</Button>
             </div>
           </div>
 
           <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
-            <Form.Item 
-              validateStatus={errors.email ? 'error' : ''} 
+            <Form.Item
+              validateStatus={errors.email ? 'error' : ''}
               help={errors.email?.message}
             >
               <Controller
                 name="email"
                 control={control}
-                rules={{ 
+                rules={{
                   required: 'Email is required',
                   pattern: { value: /^\S+@\S+$/i, message: 'Invalid email address' }
                 }}
                 render={({ field }) => (
-                  <Input 
-                    {...field} 
-                    prefix={<UserOutlined style={{ color: isDarkMode ? '#64748b' : '#bfbfbf' }} />} 
-                    placeholder="Email" 
-                    size="large" 
-                    style={{
-                      background: isDarkMode ? '#0f172a' : '#ffffff',
-                      color: isDarkMode ? '#ffffff' : '#000000',
-                      borderColor: isDarkMode ? '#334155' : '#d9d9d9',
-                      borderRadius: 10,
-                      height: 48
-                    }}
+                  <Input
+                    {...field}
+                    prefix={<UserOutlined />}
+                    placeholder="Email"
+                    size="large"
                   />
                 )}
               />
             </Form.Item>
 
-            <Form.Item 
-              validateStatus={errors.password ? 'error' : ''} 
+            <Form.Item
+              validateStatus={errors.password ? 'error' : ''}
               help={errors.password?.message}
             >
               <Controller
                 name="password"
                 control={control}
-                rules={{ 
+                rules={{
                   required: 'Password is required',
                   minLength: { value: 6, message: 'Minimum 6 characters' }
                 }}
                 render={({ field }) => (
-                  <Input.Password 
-                    {...field} 
-                    prefix={<LockOutlined style={{ color: isDarkMode ? '#64748b' : '#bfbfbf' }} />} 
-                    placeholder="Password" 
-                    size="large" 
-                    style={{
-                      background: isDarkMode ? '#0f172a' : '#ffffff',
-                      color: isDarkMode ? '#ffffff' : '#000000',
-                      borderColor: isDarkMode ? '#334155' : '#d9d9d9',
-                      borderRadius: 10,
-                      height: 48
-                    }}
+                  <Input.Password
+                    {...field}
+                    prefix={<LockOutlined />}
+                    placeholder="Password"
+                    size="large"
                   />
                 )}
               />
             </Form.Item>
 
-            <Form.Item style={{ marginTop: 24 }}>
-              <Button 
-                type="primary" 
-                htmlType="submit" 
-                size="large" 
-                block 
-                loading={loading}
-                style={{
-                  background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                  border: 'none',
-                  height: 48,
-                  borderRadius: 10,
-                  fontWeight: 700,
-                  fontSize: 16,
-                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
-                }}
-              >
+            <Form.Item>
+              <Button type="primary" htmlType="submit" size="large" block loading={loading}>
                 Sign In
               </Button>
             </Form.Item>
           </Form>
-
-         
         </Space>
       </Card>
 
       <Modal
-        title={<span style={{ color: isDarkMode ? '#ffffff' : '#0f172a' }}>Switch Workspace</span>}
+        title="Switch Workspace"
         open={isWorkspaceModalOpen}
         onCancel={() => setIsWorkspaceModalOpen(false)}
         onOk={handleWorkspaceChange}
-        styles={{
-          content: {
-            background: isDarkMode ? '#1e293b' : '#ffffff',
-            color: isDarkMode ? '#ffffff' : '#000000',
-            borderRadius: 16
-          }
-        }}
       >
-        <div style={{ marginBottom: '16px', marginTop: '12px' }}>
-          <Text style={{ color: isDarkMode ? '#94a3b8' : '#64748b' }}>Enter the workspace code (e.g., 'venpep', 'dev')</Text>
+        <div style={{ marginBottom: '16px' }}>
+          <Text type="secondary">Enter the workspace code (e.g., 'venpep', 'dev')</Text>
         </div>
-        <Input 
-          value={newTenantCode} 
-          onChange={(e) => setNewTenantCode(e.target.value)} 
+        <Input
+          value={newTenantCode}
+          onChange={(e) => setNewTenantCode(e.target.value)}
           placeholder="Workspace Code"
           onPressEnter={handleWorkspaceChange}
-          style={{
-            background: isDarkMode ? '#0f172a' : '#ffffff',
-            color: isDarkMode ? '#ffffff' : '#000000',
-            borderColor: isDarkMode ? '#334155' : '#d9d9d9',
-            borderRadius: 8,
-            height: 40
-          }}
         />
       </Modal>
     </div>
