@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { authService } from '../../services/authService';
 import { logger } from '../../utils/logger';
+import { useThemeStore } from '../../store/themeStore';
 
 const { Title, Text } = Typography;
 
@@ -14,7 +15,9 @@ const LoginPage = () => {
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const navigate = useNavigate();
   const { login, tenantCode: currentTenantCode } = useAuthStore();
+  const { isDarkMode } = useThemeStore();
   const [newTenantCode, setNewTenantCode] = useState(currentTenantCode);
+  
   const { control, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
       email: '',
@@ -101,16 +104,27 @@ const LoginPage = () => {
       justifyContent: 'center', 
       alignItems: 'center', 
       minHeight: '100vh',
-      background: '#f0f2f5',
-      width: '100vw'
+      background: isDarkMode ? 'linear-gradient(135deg, #0f172a, #1e1b4b)' : 'linear-gradient(135deg, #f8fafc, #e2e8f0)',
+      width: '100vw',
+      transition: 'all 0.3s ease'
     }}>
-      <Card style={{ width: 400, textAlign: 'center', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+      <Card style={{ 
+        width: 420, 
+        textAlign: 'center', 
+        borderRadius: 20, 
+        background: isDarkMode ? '#1e293b' : '#ffffff',
+        border: isDarkMode ? '1px solid rgba(99, 102, 241, 0.2)' : '1px solid #e2e8f0',
+        boxShadow: isDarkMode ? '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2)' : '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+        padding: '12px 10px'
+      }}>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
-            <Title level={2} style={{ marginBottom: 0 }}>Rabbit 4.0</Title>
+            <Title level={2} style={{ marginBottom: 4, color: isDarkMode ? '#ffffff' : '#0f172a' }}>Rabbit 4.0</Title>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <Text type="secondary">{currentTenantCode.toUpperCase()} Workspace</Text>
-              <Button type="link" size="small" onClick={() => setIsWorkspaceModalOpen(true)}>Change</Button>
+              <Text style={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: 13 }}>
+                {currentTenantCode.toUpperCase()} Workspace
+              </Text>
+              <Button type="link" size="small" onClick={() => setIsWorkspaceModalOpen(true)} style={{ color: '#6366f1', fontWeight: 600 }}>Change</Button>
             </div>
           </div>
 
@@ -129,9 +143,16 @@ const LoginPage = () => {
                 render={({ field }) => (
                   <Input 
                     {...field} 
-                    prefix={<UserOutlined />} 
+                    prefix={<UserOutlined style={{ color: isDarkMode ? '#64748b' : '#bfbfbf' }} />} 
                     placeholder="Email" 
                     size="large" 
+                    style={{
+                      background: isDarkMode ? '#0f172a' : '#ffffff',
+                      color: isDarkMode ? '#ffffff' : '#000000',
+                      borderColor: isDarkMode ? '#334155' : '#d9d9d9',
+                      borderRadius: 10,
+                      height: 48
+                    }}
                   />
                 )}
               />
@@ -151,41 +172,77 @@ const LoginPage = () => {
                 render={({ field }) => (
                   <Input.Password 
                     {...field} 
-                    prefix={<LockOutlined />} 
+                    prefix={<LockOutlined style={{ color: isDarkMode ? '#64748b' : '#bfbfbf' }} />} 
                     placeholder="Password" 
                     size="large" 
+                    style={{
+                      background: isDarkMode ? '#0f172a' : '#ffffff',
+                      color: isDarkMode ? '#ffffff' : '#000000',
+                      borderColor: isDarkMode ? '#334155' : '#d9d9d9',
+                      borderRadius: 10,
+                      height: 48
+                    }}
                   />
                 )}
               />
             </Form.Item>
 
-            <Form.Item>
-              <Button type="primary" htmlType="submit" size="large" block loading={loading}>
+            <Form.Item style={{ marginTop: 24 }}>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                size="large" 
+                block 
+                loading={loading}
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                  border: 'none',
+                  height: 48,
+                  borderRadius: 10,
+                  fontWeight: 700,
+                  fontSize: 16,
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                }}
+              >
                 Sign In
               </Button>
             </Form.Item>
           </Form>
 
-          <Text type="secondary" style={{ fontSize: '12px' }}>
+          <Text style={{ fontSize: '12px', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
             Multi-tenant Project Management & Automation
           </Text>
         </Space>
       </Card>
 
       <Modal
-        title="Switch Workspace"
+        title={<span style={{ color: isDarkMode ? '#ffffff' : '#0f172a' }}>Switch Workspace</span>}
         open={isWorkspaceModalOpen}
         onCancel={() => setIsWorkspaceModalOpen(false)}
         onOk={handleWorkspaceChange}
+        styles={{
+          content: {
+            background: isDarkMode ? '#1e293b' : '#ffffff',
+            color: isDarkMode ? '#ffffff' : '#000000',
+            borderRadius: 16
+          }
+        }}
       >
-        <div style={{ marginBottom: '16px' }}>
-          <Text type="secondary">Enter the workspace code (e.g., 'venpep', 'dev')</Text>
+        <div style={{ marginBottom: '16px', marginTop: '12px' }}>
+          <Text style={{ color: isDarkMode ? '#94a3b8' : '#64748b' }}>Enter the workspace code (e.g., 'venpep', 'dev')</Text>
         </div>
         <Input 
           value={newTenantCode} 
           onChange={(e) => setNewTenantCode(e.target.value)} 
           placeholder="Workspace Code"
           onPressEnter={handleWorkspaceChange}
+          style={{
+            background: isDarkMode ? '#0f172a' : '#ffffff',
+            color: isDarkMode ? '#ffffff' : '#000000',
+            borderColor: isDarkMode ? '#334155' : '#d9d9d9',
+            borderRadius: 8,
+            height: 40
+          }}
         />
       </Modal>
     </div>
