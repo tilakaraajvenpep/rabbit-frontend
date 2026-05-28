@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card, Row, Col, Avatar, Button, InputNumber, Spin, Typography,
-  Space, notification, Progress, Tag, Empty, Divider
+  Space, notification, Progress, Tag, Empty, Divider, Select
 } from 'antd';
 import {
-  UserOutlined, ArrowLeftOutlined, SaveOutlined, ClockCircleOutlined,
-  CheckCircleOutlined, ProjectOutlined, TeamOutlined, WarningOutlined
+  UserOutlined, SaveOutlined, ClockCircleOutlined,
+  CheckCircleOutlined, ProjectOutlined, TeamOutlined,
+  WarningOutlined, DownOutlined
 } from '@ant-design/icons';
-import { useNavigate, useParams } from 'react-router-dom';
 import { projectService } from '../../services/projectService';
 import { adminService } from '../../services/adminService';
 import { ticketService } from '../../services/ticketService';
@@ -15,6 +15,7 @@ import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
 
 const { Text, Title } = Typography;
+const { Option } = Select;
 
 /* ── helpers ── */
 const toDecimal = (h, m) => (Number(h) || 0) + (Number(m) || 0) / 60;
@@ -24,48 +25,61 @@ const fromDecimal = (d) => {
 };
 const fmtHM = (h, m) => {
   const parts = [];
-  if (h) parts.push(`${h}h`);
-  if (m) parts.push(`${m}m`);
+  if (h)  parts.push(`${h}h`);
+  if (m)  parts.push(`${m}m`);
   return parts.length ? parts.join(' ') : '0h';
 };
 
 const HRAllocateProjectHoursPage = () => {
-  const { id }    = useParams();
-  const navigate  = useNavigate();
   const { isDarkMode } = useThemeStore();
 
-  const [loading,   setLoading]   = useState(true);
-  const [saving,    setSaving]    = useState(false);
-  const [project,   setProject]   = useState(null);
-  const [employees, setEmployees] = useState([]);
+  const [allProjects,     setAllProjects]     = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
 
-  /* allocation stored as { empId: { h, m } } */
-  const [alloc, setAlloc] = useState({});
+  const [selectedId,  setSelectedId]  = useState(null);
+  const [project,     setProject]     = useState(null);
+  const [employees,   setEmployees]   = useState([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const [alloc,  setAlloc]  = useState({});  /* { empId: { h, m } } */
+  const [saving, setSaving] = useState(false);
 
   /* ── Derived totals ── */
-  const projectTotal    = project ? Number(project.approvedHours || project.totalHours || 0) : 0;
-  const totalAllocated  = Object.values(alloc).reduce((s, v) => s + toDecimal(v.h, v.m), 0);
-  const remaining       = projectTotal - totalAllocated;
-  const allocPct        = projectTotal > 0 ? Math.min(100, Math.round((totalAllocated / projectTotal) * 100)) : 0;
-  const isOver          = totalAllocated > projectTotal;
+  const projectTotal   = project ? Number(project.approvedHours || project.totalHours || 0) : 0;
+  const totalAllocated = Object.values(alloc).reduce((s, v) => s + toDecimal(v.h, v.m), 0);
+  const remaining      = projectTotal - totalAllocated;
+  const allocPct       = projectTotal > 0 ? Math.min(100, Math.round((totalAllocated / projectTotal) * 100)) : 0;
+  const isOver         = totalAllocated > projectTotal;
 
-  /* formatted totals display */
-  const totalHrs  = Math.floor(totalAllocated);
+  const totalHrs = Math.floor(totalAllocated);
   const totalMins = Math.round((totalAllocated % 1) * 60);
-  const remHrs    = Math.floor(Math.max(0, remaining));
-  const remMins   = Math.round((Math.max(0, remaining) % 1) * 60);
+  const remHrs   = Math.floor(Math.max(0, remaining));
+  const remMins  = Math.round((Math.max(0, remaining) % 1) * 60);
 
-  /* ── Load data ── */
+  /* ── Load project list on mount ── */
   useEffect(() => {
     const load = async () => {
-      setLoading(true);
+      setProjectsLoading(true);
+      try {
+        const res = await projectService.getProjects();
+        setAllProjects(res.data || []);
+      } catch { notification.error({ message: 'Could not load projects.' }); }
+      finally { setProjectsLoading(false); }
+    };
+    load();
+  }, []);
+
+  /* ── Load selected project employees ── */
+  useEffect(() => {
+    if (!selectedId) { setProject(null); setEmployees([]); setAlloc({}); return; }
+    const load = async () => {
+      setDetailLoading(true);
       try {
         const [projRes, usersRes, ticketsRes] = await Promise.all([
-          projectService.getProjectById(id),
+          projectService.getProjectById(selectedId),
           adminService.getUsers(),
           ticketService.getTickets()
         ]);
-
         const proj    = projRes.data;
         const users   = usersRes.data   || [];
         const tickets = ticketsRes.data || [];
@@ -73,18 +87,18 @@ const HRAllocateProjectHoursPage = () => {
         const tlAssignedIds = proj.assignedEmployeeIds && Array.isArray(proj.assignedEmployeeIds)
           ? proj.assignedEmployeeIds.map(String) : [];
         const ticketUserIds = [...new Set(
-          tickets.filter(t => String(t.projectId) === String(id))
+          tickets.filter(t => String(t.projectId) === String(selectedId))
             .map(t => t.assignedToUserId).filter(Boolean).map(String)
         )];
         const useIds = tlAssignedIds.length > 0 ? tlAssignedIds : ticketUserIds;
-        const emps   = users.filter(u => useIds.includes(String(u.id || u.userId)) && u.role === 'Employee');
+        const emps   = users.filter(u =>
+          useIds.includes(String(u.id || u.userId)) && u.role === 'Employee'
+        );
 
-        /* initialise from saved decimal values */
         const init = {};
         emps.forEach(emp => {
-          const eid   = String(emp.id || emp.userId);
-          const saved = proj.employeeAllocatedHours?.[eid] || 0;
-          init[eid]   = fromDecimal(saved);
+          const eid  = String(emp.id || emp.userId);
+          init[eid]  = fromDecimal(proj.employeeAllocatedHours?.[eid] || 0);
         });
 
         setProject(proj);
@@ -92,13 +106,13 @@ const HRAllocateProjectHoursPage = () => {
         setAlloc(init);
       } catch (e) {
         console.error(e);
-        notification.error({ message: 'Failed to load project data.' });
+        notification.error({ message: 'Failed to load project details.' });
       } finally {
-        setLoading(false);
+        setDetailLoading(false);
       }
     };
     load();
-  }, [id]);
+  }, [selectedId]);
 
   const handleChange = (empId, field, val) => {
     setAlloc(prev => ({
@@ -108,22 +122,22 @@ const HRAllocateProjectHoursPage = () => {
   };
 
   const handleSave = async () => {
+    if (!project) return;
     setSaving(true);
     try {
-      /* convert back to decimal hours for storage */
       const employeeAllocatedHours = {};
       Object.entries(alloc).forEach(([eid, { h, m }]) => {
         employeeAllocatedHours[eid] = toDecimal(h, m);
       });
-
-      await projectService.updateProjectStatus(id, {
+      await projectService.updateProjectStatus(selectedId, {
         status: project.status,
         employeeAllocatedHours
       });
-      notification.success({ message: 'Hour Allocations Saved', description: 'Employee hours updated successfully.' });
-      navigate('/hr/projects');
+      notification.success({ message: 'Allocations Saved', description: 'Employee hours updated successfully.' });
+      /* re-sync local project state */
+      setProject(prev => prev ? { ...prev, employeeAllocatedHours } : prev);
     } catch {
-      notification.error({ message: 'Save Failed', description: 'Could not save allocations. Try again.' });
+      notification.error({ message: 'Save Failed', description: 'Could not save allocations.' });
     } finally {
       setSaving(false);
     }
@@ -137,23 +151,13 @@ const HRAllocateProjectHoursPage = () => {
   const purple = '#7c3aed';
   const green  = '#10b981';
 
-  if (loading) {
-    return (
-      <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'60vh' }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
-  if (!project) {
-    return <div style={{ padding: 32 }}><Empty description="Project not found." /></div>;
-  }
-
-  const milestones = project.milestones && Array.isArray(project.milestones) ? project.milestones : [];
+  const milestones = project?.milestones && Array.isArray(project.milestones)
+    ? project.milestones : [];
 
   return (
     <div style={{ background: bg, minHeight: '100vh', paddingBottom: 48 }}>
 
-      {/* ── Gradient header ── */}
+      {/* ── Header ── */}
       <div style={{
         background: `linear-gradient(135deg, ${accent} 0%, ${purple} 100%)`,
         padding: '28px 32px 80px', position: 'relative', overflow: 'hidden'
@@ -161,15 +165,7 @@ const HRAllocateProjectHoursPage = () => {
         <div style={{ position:'absolute', top:-40, right:-40, width:180, height:180, borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
         <div style={{ position:'absolute', bottom:-20, right:120, width:100, height:100, borderRadius:'50%', background:'rgba(255,255,255,0.04)' }} />
 
-        <Button
-          type="text" icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/hr/projects')}
-          style={{ color:'rgba(255,255,255,0.8)', marginBottom:16, paddingLeft:0 }}
-        >
-          Back to Projects
-        </Button>
-
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:20 }}>
           <div style={{
             width:52, height:52, borderRadius:14,
             background:'rgba(255,255,255,0.2)', backdropFilter:'blur(8px)',
@@ -178,228 +174,283 @@ const HRAllocateProjectHoursPage = () => {
             <ClockCircleOutlined style={{ fontSize:24, color:'#fff' }} />
           </div>
           <div>
-            <div style={{ color:'rgba(255,255,255,0.65)', fontSize:12, marginBottom:2 }}>
-              Hour Allocation — {project.code}
-            </div>
-            <Title level={3} style={{ color:'#fff', margin:0, fontSize:22 }}>
-              {project.name || project.projectName}
-            </Title>
+            <div style={{ color:'rgba(255,255,255,0.65)', fontSize:12, marginBottom:2 }}>HR Portal</div>
+            <Title level={3} style={{ color:'#fff', margin:0, fontSize:22 }}>Project Hour Allocation</Title>
           </div>
+        </div>
+
+        {/* Project selector inside header */}
+        <div>
+          <div style={{ color:'rgba(255,255,255,0.75)', fontSize:12, marginBottom:6, fontWeight:500 }}>
+            Select a Project to Allocate Hours
+          </div>
+          <Select
+            showSearch
+            loading={projectsLoading}
+            placeholder="— Choose a project —"
+            value={selectedId}
+            onChange={setSelectedId}
+            filterOption={(input, opt) => (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+            style={{ width: '100%', maxWidth: 520 }}
+            size="large"
+            suffixIcon={<DownOutlined style={{ color: '#fff' }} />}
+            className="hr-project-select"
+          >
+            {allProjects.map(p => (
+              <Option
+                key={p.id || p.projectId}
+                value={p.id || p.projectId}
+                label={p.name || p.projectName}
+              >
+                <Space>
+                  <ProjectOutlined style={{ color: accent }} />
+                  <span style={{ fontWeight: 600 }}>{p.name || p.projectName}</span>
+                  <Text type="secondary" style={{ fontSize: 11 }}>({p.code})</Text>
+                </Space>
+              </Option>
+            ))}
+          </Select>
         </div>
       </div>
 
-      <div style={{ padding:'0 32px', marginTop:-48 }}>
+      <div style={{ padding: '0 32px', marginTop: -48 }}>
 
-        {/* ── Summary stats ── */}
-        <Row gutter={16} style={{ marginBottom:24 }}>
-          {[
-            { label:'Project Total',   value:`${projectTotal} hrs`,               icon:<ProjectOutlined />,      color: accent },
-            { label:'Total Allocated', value: fmtHM(totalHrs, totalMins),         icon:<ClockCircleOutlined />,  color: isOver ? '#ef4444' : green },
-            { label:'Remaining',       value: fmtHM(remHrs, remMins),             icon:<CheckCircleOutlined />,  color: remaining < 0 ? '#ef4444' : '#f59e0b' },
-            { label:'Employees',       value: employees.length,                    icon:<TeamOutlined />,         color: purple }
-          ].map((s, i) => (
-            <Col span={6} key={i}>
-              <Card size="small" style={{ borderRadius:14, border:`1px solid ${border}`, background:cardBg, boxShadow: isDarkMode?'none':'0 4px 20px rgba(79,110,247,0.08)' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                  <div style={{ width:40, height:40, borderRadius:10, background:`${s.color}18`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, color:s.color }}>
-                    {s.icon}
-                  </div>
-                  <div>
-                    <div style={{ fontSize:10, color: isDarkMode?'#6b7280':'#9ca3af', marginBottom:2 }}>{s.label}</div>
-                    <div style={{ fontSize:18, fontWeight:700, color:s.color }}>{s.value}</div>
-                  </div>
-                </div>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+        {/* ── No project selected ── */}
+        {!selectedId && !detailLoading && (
+          <Card style={{ borderRadius:14, border:`1px solid ${border}`, background:cardBg, textAlign:'center', padding:'40px 0' }}>
+            <ProjectOutlined style={{ fontSize:48, color: isDarkMode?'#4b5563':'#d1d5db', marginBottom:16 }} />
+            <Title level={4} style={{ color: isDarkMode?'#6b7280':'#9ca3af', margin:0 }}>
+              Select a project above to begin allocating hours
+            </Title>
+          </Card>
+        )}
 
-        <Row gutter={24}>
+        {/* ── Loading detail ── */}
+        {detailLoading && (
+          <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:200 }}>
+            <Spin size="large" />
+          </div>
+        )}
 
-          {/* ── LEFT: Milestones ── */}
-          <Col xs={24} lg={8}>
-            <Card
-              title={<Space><ProjectOutlined style={{ color:accent }} /><span>Project Milestones</span></Space>}
-              style={{ borderRadius:14, border:`1px solid ${border}`, background:cardBg, marginBottom:24 }}
-              styles={{ header:{ borderBottom:`1px solid ${border}` } }}
-            >
-              {milestones.length === 0 ? (
-                <Empty description="No milestones defined." image={Empty.PRESENTED_IMAGE_SIMPLE} />
-              ) : (
-                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                  {milestones.map((m, i) => (
-                    <div key={i} style={{
-                      display:'flex', justifyContent:'space-between', alignItems:'center',
-                      padding:'10px 12px', background: isDarkMode?'#1a1a28':'#f8f9ff',
-                      borderRadius:10, border:`1px solid ${border}`
-                    }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                        <div style={{
-                          width:26, height:26, borderRadius:'50%',
-                          background:`linear-gradient(135deg, ${accent}30, ${purple}30)`,
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                          fontSize:11, fontWeight:700, color:accent
-                        }}>{i + 1}</div>
-                        <Text style={{ fontSize:13 }}>{m.title || m.name || `Milestone ${i + 1}`}</Text>
+        {/* ── Project loaded ── */}
+        {project && !detailLoading && (
+          <>
+            {/* Summary stats */}
+            <Row gutter={16} style={{ marginBottom:24 }}>
+              {[
+                { label:'Project Total',   value:`${projectTotal} hrs`,       icon:<ProjectOutlined />,     color:accent },
+                { label:'Total Allocated', value:fmtHM(totalHrs, totalMins),  icon:<ClockCircleOutlined />, color:isOver?'#ef4444':green },
+                { label:'Remaining',       value:fmtHM(remHrs, remMins),      icon:<CheckCircleOutlined />, color:remaining<0?'#ef4444':'#f59e0b' },
+                { label:'Employees',       value:employees.length,             icon:<TeamOutlined />,        color:purple }
+              ].map((s, i) => (
+                <Col span={6} key={i}>
+                  <Card size="small" style={{ borderRadius:14, border:`1px solid ${border}`, background:cardBg, boxShadow:isDarkMode?'none':'0 4px 20px rgba(79,110,247,0.08)' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                      <div style={{ width:40, height:40, borderRadius:10, background:`${s.color}18`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, color:s.color }}>
+                        {s.icon}
                       </div>
-                      <Tag color="blue" style={{ borderRadius:6, fontSize:11, fontWeight:600, margin:0 }}>
-                        {projectTotal} hrs
-                      </Tag>
+                      <div>
+                        <div style={{ fontSize:10, color:isDarkMode?'#6b7280':'#9ca3af', marginBottom:2 }}>{s.label}</div>
+                        <div style={{ fontSize:18, fontWeight:700, color:s.color }}>{s.value}</div>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </Col>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
 
-          {/* ── RIGHT: Employee Allocation ── */}
-          <Col xs={24} lg={16}>
-            <Card
-              title={
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <Space><TeamOutlined style={{ color:green }} /><span>Employee Hour Allocation</span></Space>
-                  {isOver && (
-                    <Tag color="error" icon={<WarningOutlined />}>
-                      Over by {fmtHM(Math.floor(Math.abs(remaining)), Math.round((Math.abs(remaining) % 1) * 60))}
-                    </Tag>
+            <Row gutter={24}>
+              {/* LEFT: Milestones */}
+              <Col xs={24} lg={8}>
+                <Card
+                  title={<Space><ProjectOutlined style={{ color:accent }} /><span>Project Milestones</span></Space>}
+                  style={{ borderRadius:14, border:`1px solid ${border}`, background:cardBg, marginBottom:24 }}
+                  styles={{ header:{ borderBottom:`1px solid ${border}` } }}
+                >
+                  {milestones.length === 0 ? (
+                    <Empty description="No milestones defined." image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                      {milestones.map((m, i) => (
+                        <div key={i} style={{
+                          display:'flex', justifyContent:'space-between', alignItems:'center',
+                          padding:'10px 12px',
+                          background:isDarkMode?'#1a1a28':'#f8f9ff',
+                          borderRadius:10, border:`1px solid ${border}`
+                        }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                            <div style={{
+                              width:26, height:26, borderRadius:'50%',
+                              background:`linear-gradient(135deg, ${accent}30, ${purple}30)`,
+                              display:'flex', alignItems:'center', justifyContent:'center',
+                              fontSize:11, fontWeight:700, color:accent
+                            }}>{i + 1}</div>
+                            <Text style={{ fontSize:13 }}>{m.title || m.name || `Milestone ${i + 1}`}</Text>
+                          </div>
+                          <Tag color="blue" style={{ borderRadius:6, fontSize:11, fontWeight:600, margin:0 }}>
+                            {projectTotal} hrs
+                          </Tag>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                </div>
-              }
-              style={{ borderRadius:14, border:`1px solid ${border}`, background:cardBg }}
-              styles={{ header:{ borderBottom:`1px solid ${border}` } }}
-            >
-              {/* Overall progress */}
-              <div style={{ marginBottom:20 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-                  <Text style={{ fontSize:12, color: isDarkMode?'#9ca3af':'#6b7280' }}>Total Allocation Progress</Text>
-                  <Text style={{ fontSize:12, fontWeight:600, color: isOver?'#ef4444':accent }}>
-                    {fmtHM(totalHrs, totalMins)} / {projectTotal} hrs ({allocPct}%)
-                  </Text>
-                </div>
-                <Progress
-                  percent={allocPct} showInfo={false} strokeWidth={10}
-                  strokeColor={isOver ? '#ef4444' : { from: accent, to: purple }}
-                  trailColor={isDarkMode ? '#1f2937' : '#e5e7eb'}
-                />
-              </div>
+                </Card>
+              </Col>
 
-              <Divider style={{ margin:'0 0 16px', borderColor:border }} />
+              {/* RIGHT: Employee Allocation */}
+              <Col xs={24} lg={16}>
+                <Card
+                  title={
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <Space><TeamOutlined style={{ color:green }} /><span>Employee Hour Allocation</span></Space>
+                      {isOver && (
+                        <Tag color="error" icon={<WarningOutlined />}>
+                          Over by {fmtHM(
+                            Math.floor(Math.abs(remaining)),
+                            Math.round((Math.abs(remaining) % 1) * 60)
+                          )}
+                        </Tag>
+                      )}
+                    </div>
+                  }
+                  style={{ borderRadius:14, border:`1px solid ${border}`, background:cardBg }}
+                  styles={{ header:{ borderBottom:`1px solid ${border}` } }}
+                >
+                  {/* Overall progress */}
+                  <div style={{ marginBottom:20 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                      <Text style={{ fontSize:12, color:isDarkMode?'#9ca3af':'#6b7280' }}>Total Allocation Progress</Text>
+                      <Text style={{ fontSize:12, fontWeight:600, color:isOver?'#ef4444':accent }}>
+                        {fmtHM(totalHrs, totalMins)} / {projectTotal} hrs ({allocPct}%)
+                      </Text>
+                    </div>
+                    <Progress
+                      percent={allocPct} showInfo={false} strokeWidth={10}
+                      strokeColor={isOver?'#ef4444':{ from:accent, to:purple }}
+                      trailColor={isDarkMode?'#1f2937':'#e5e7eb'}
+                    />
+                  </div>
 
-              {employees.length === 0 ? (
-                <Empty
-                  description={<Text type="secondary">No employees assigned to this project by the Team Lead yet.</Text>}
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                />
-              ) : (
-                <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-                  {employees.map(emp => {
-                    const eid    = String(emp.id || emp.userId);
-                    const { h=0, m=0 } = alloc[eid] || {};
-                    const dec    = toDecimal(h, m);
-                    const pct    = projectTotal > 0 ? Math.min(100, Math.round((dec / projectTotal) * 100)) : 0;
-                    const hasVal = dec > 0;
+                  <Divider style={{ margin:'0 0 16px', borderColor:border }} />
 
-                    return (
-                      <div key={eid} style={{
-                        background: isDarkMode ? '#0f0f1a' : '#f9fafb',
-                        border: `1.5px solid ${hasVal ? `${green}55` : border}`,
-                        borderRadius:14, padding:'16px 20px',
-                        boxShadow: hasVal ? `0 0 0 3px ${green}12` : 'none',
-                        transition:'border-color 0.2s, box-shadow 0.2s'
-                      }}>
+                  {employees.length === 0 ? (
+                    <Empty
+                      description={<Text type="secondary">No employees assigned to this project by the Team Lead yet.</Text>}
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                  ) : (
+                    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                      {employees.map(emp => {
+                        const eid = String(emp.id || emp.userId);
+                        const { h=0, m=0 } = alloc[eid] || {};
+                        const dec   = toDecimal(h, m);
+                        const pct   = projectTotal > 0 ? Math.min(100, Math.round((dec / projectTotal) * 100)) : 0;
+                        const hasVal = dec > 0;
 
-                        {/* Employee header row */}
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
-                          <Space align="start">
-                            <Avatar src={emp.avatar} icon={<UserOutlined />} size={42} style={{ backgroundColor:green }} />
-                            <div>
-                              <div style={{ fontWeight:600, fontSize:14, color: isDarkMode?'#f3f4f6':'#111827' }}>
-                                {emp.name || emp.fullName}
-                              </div>
-                              <div style={{ fontSize:11, color: isDarkMode?'#6b7280':'#9ca3af' }}>{emp.email}</div>
-                              <div style={{ marginTop:5 }}>
-                                {hasVal ? (
-                                  <Tag color="success" style={{ fontSize:10, borderRadius:4 }}>
-                                    <CheckCircleOutlined /> {fmtHM(h, m)} assigned
-                                  </Tag>
-                                ) : (
-                                  <Tag color="default" style={{ fontSize:10, borderRadius:4 }}>Not yet allocated</Tag>
-                                )}
+                        return (
+                          <div key={eid} style={{
+                            background:isDarkMode?'#0f0f1a':'#f9fafb',
+                            border:`1.5px solid ${hasVal?`${green}55`:border}`,
+                            borderRadius:14, padding:'16px 20px',
+                            boxShadow:hasVal?`0 0 0 3px ${green}12`:'none',
+                            transition:'border-color 0.2s, box-shadow 0.2s'
+                          }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
+                              {/* Employee info */}
+                              <Space align="start">
+                                <Avatar src={emp.avatar} icon={<UserOutlined />} size={42} style={{ backgroundColor:green }} />
+                                <div>
+                                  <div style={{ fontWeight:600, fontSize:14, color:isDarkMode?'#f3f4f6':'#111827' }}>
+                                    {emp.name || emp.fullName}
+                                  </div>
+                                  <div style={{ fontSize:11, color:isDarkMode?'#6b7280':'#9ca3af' }}>{emp.email}</div>
+                                  <div style={{ marginTop:5 }}>
+                                    {hasVal ? (
+                                      <Tag color="success" style={{ fontSize:10, borderRadius:4 }}>
+                                        <CheckCircleOutlined /> {fmtHM(h, m)} assigned
+                                      </Tag>
+                                    ) : (
+                                      <Tag color="default" style={{ fontSize:10, borderRadius:4 }}>Not yet allocated</Tag>
+                                    )}
+                                  </div>
+                                </div>
+                              </Space>
+
+                              {/* H : M inputs */}
+                              <div style={{ textAlign:'right' }}>
+                                <div style={{ fontSize:11, color:isDarkMode?'#6b7280':'#9ca3af', marginBottom:6 }}>Allocate Time</div>
+                                <Space size={6} align="center">
+                                  <div style={{ textAlign:'center' }}>
+                                    <InputNumber
+                                      min={0}
+                                      value={h}
+                                      onChange={val => handleChange(eid, 'h', val)}
+                                      style={{ width:80, borderRadius:8, borderColor:hasVal?green:border }}
+                                      size="middle"
+                                    />
+                                    <div style={{ fontSize:10, color:isDarkMode?'#6b7280':'#9ca3af', marginTop:3 }}>Hours</div>
+                                  </div>
+                                  <div style={{ fontSize:18, color:isDarkMode?'#4b5563':'#d1d5db', paddingBottom:16 }}>:</div>
+                                  <div style={{ textAlign:'center' }}>
+                                    <InputNumber
+                                      min={0} max={59}
+                                      value={m}
+                                      onChange={val => handleChange(eid, 'm', val)}
+                                      style={{ width:72, borderRadius:8, borderColor:hasVal?green:border }}
+                                      size="middle"
+                                    />
+                                    <div style={{ fontSize:10, color:isDarkMode?'#6b7280':'#9ca3af', marginTop:3 }}>Minutes</div>
+                                  </div>
+                                </Space>
                               </div>
                             </div>
-                          </Space>
 
-                          {/* Hours + Minutes inputs */}
-                          <div style={{ textAlign:'right' }}>
-                            <div style={{ fontSize:11, color: isDarkMode?'#6b7280':'#9ca3af', marginBottom:6 }}>Allocate Time</div>
-                            <Space size={6} align="center">
-                              <div style={{ textAlign:'center' }}>
-                                <InputNumber
-                                  min={0}
-                                  value={h}
-                                  onChange={(val) => handleChange(eid, 'h', val)}
-                                  style={{ width:80, borderRadius:8, borderColor: hasVal ? green : border }}
-                                  size="middle"
+                            {/* Per-employee progress */}
+                            {projectTotal > 0 && (
+                              <div>
+                                <Progress
+                                  percent={pct} showInfo={false} size="small"
+                                  strokeColor={pct > 100 ? '#ef4444' : green}
+                                  trailColor={isDarkMode?'#1f2937':'#e5e7eb'}
                                 />
-                                <div style={{ fontSize:10, color: isDarkMode?'#6b7280':'#9ca3af', marginTop:3 }}>Hours</div>
+                                <Text style={{ fontSize:10, color:isDarkMode?'#6b7280':'#9ca3af' }}>
+                                  {pct}% of project total · {fmtHM(h, m)} / {projectTotal} hrs
+                                </Text>
                               </div>
-                              <div style={{ fontSize:18, color: isDarkMode?'#4b5563':'#d1d5db', paddingBottom:16 }}>:</div>
-                              <div style={{ textAlign:'center' }}>
-                                <InputNumber
-                                  min={0}
-                                  max={59}
-                                  value={m}
-                                  onChange={(val) => handleChange(eid, 'm', val)}
-                                  style={{ width:72, borderRadius:8, borderColor: hasVal ? green : border }}
-                                  size="middle"
-                                />
-                                <div style={{ fontSize:10, color: isDarkMode?'#6b7280':'#9ca3af', marginTop:3 }}>Minutes</div>
-                              </div>
-                            </Space>
+                            )}
                           </div>
-                        </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                        {/* Per-employee progress */}
-                        {projectTotal > 0 && (
-                          <div>
-                            <Progress
-                              percent={pct} showInfo={false} size="small"
-                              strokeColor={pct > 100 ? '#ef4444' : green}
-                              trailColor={isDarkMode ? '#1f2937' : '#e5e7eb'}
-                            />
-                            <Text style={{ fontSize:10, color: isDarkMode?'#6b7280':'#9ca3af' }}>
-                              {pct}% of project total · {fmtHM(h, m)} / {projectTotal} hrs
-                            </Text>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Actions */}
-              <div style={{ marginTop:24, display:'flex', justifyContent:'flex-end', gap:12 }}>
-                <Button onClick={() => navigate('/hr/projects')} style={{ borderRadius:8, minWidth:100 }}>
-                  Cancel
-                </Button>
-                <Button
-                  type="primary" icon={<SaveOutlined />}
-                  loading={saving} onClick={handleSave}
-                  disabled={employees.length === 0}
-                  size="large"
-                  style={{
-                    borderRadius:8, minWidth:160, fontWeight:600,
-                    background:`linear-gradient(135deg, ${accent}, ${purple})`,
-                    border:'none', height:44
-                  }}
-                >
-                  Save Allocations
-                </Button>
-              </div>
-            </Card>
-          </Col>
-        </Row>
+                  {/* Actions */}
+                  <div style={{ marginTop:24, display:'flex', justifyContent:'flex-end', gap:12 }}>
+                    <Button
+                      onClick={() => { setSelectedId(null); }}
+                      style={{ borderRadius:8, minWidth:100 }}
+                    >
+                      Clear
+                    </Button>
+                    <Button
+                      type="primary" icon={<SaveOutlined />}
+                      loading={saving} onClick={handleSave}
+                      disabled={employees.length === 0}
+                      size="large"
+                      style={{
+                        borderRadius:8, minWidth:160, fontWeight:600,
+                        background:`linear-gradient(135deg, ${accent}, ${purple})`,
+                        border:'none', height:44
+                      }}
+                    >
+                      Save Allocations
+                    </Button>
+                  </div>
+                </Card>
+              </Col>
+            </Row>
+          </>
+        )}
       </div>
     </div>
   );

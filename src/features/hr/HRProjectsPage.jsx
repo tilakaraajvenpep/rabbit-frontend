@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Avatar, Badge, Spin, Typography, Space, notification, Tooltip, Button } from 'antd';
-import { UserOutlined, ClockCircleOutlined, ArrowRightOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { UserOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { projectService } from '../../services/projectService';
 import { ticketService } from '../../services/ticketService';
 import { adminService } from '../../services/adminService';
@@ -14,7 +13,6 @@ const HRProjectsPage = () => {
   const [loading, setLoading] = useState(true);
   const [projectList, setProjectList] = useState([]);
   const { isDarkMode } = useThemeStore();
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -125,25 +123,6 @@ const HRProjectsPage = () => {
       align: 'center',
       render: (count) => <Badge count={count} style={{ backgroundColor: '#52c41a' }} />
     },
-    {
-      title: 'Action',
-      key: 'action',
-      align: 'center',
-      render: (_, record) => (
-        <Button
-          type="primary"
-          size="small"
-          icon={<ArrowRightOutlined />}
-          onClick={() => navigate(`/hr/projects/${record.id || record.projectId}/allocate`)}
-          style={{
-            background: 'linear-gradient(135deg, #4f6ef7, #7c3aed)',
-            border: 'none', borderRadius: 6, fontWeight: 600
-          }}
-        >
-          Allocate Hours
-        </Button>
-      )
-    }
   ];
 
   return (

@@ -238,7 +238,7 @@ const App = () => {
                 <Route path="/hr/task-tracking" element={<HRTaskTrackingPage />} />
                 <Route path="/hr/offboarding" element={<HROffboardingPage />} />
                 <Route path="/hr/projects" element={<HRProjectsPage />} />
-                <Route path="/hr/projects/:id/allocate" element={<HRAllocateProjectHoursPage />} />
+                <Route path="/hr/allocate" element={<HRAllocateProjectHoursPage />} />
                 <Route path="/hr/report-access-approvals" element={<ReportAccessApprovalPage />} />
                 <Route path="/hr/hours" element={<HRHourAllocationPage />} />
                 <Route path="/hr/timer-requests" element={<HRTimerRequestsPage />} />
