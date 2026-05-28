@@ -995,10 +995,10 @@ const EODReportPage = () => {
         </div>
 
         {/* Middle Section: Inline Date Picker & Week Navigation */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Button
             shape="circle"
-            icon={<LeftOutlined />}
+            icon={<LeftOutlined style={{ fontSize: 11 }} />}
             onClick={() => {
               const prevDate = dayjs(selectedDate).subtract(1, 'day');
               setSelectedDate(prevDate.format('YYYY-MM-DD'));
@@ -1008,8 +1008,8 @@ const EODReportPage = () => {
               background: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0', 
               border: 'none', 
               color: isDarkMode ? '#cbd5e1' : '#4b5563', 
-              width: 36, 
-              height: 36,
+              width: 30, 
+              height: 30,
               boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
             }}
           />
@@ -1026,20 +1026,20 @@ const EODReportPage = () => {
             allowClear={false}
             picker="date"
             style={{
-              borderRadius: 12,
+              borderRadius: 8,
               border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}`,
               background: isDarkMode ? 'rgba(30, 41, 59, 0.65)' : '#ffffff',
               color: isDarkMode ? '#cbd5e1' : '#0f172a',
-              height: 40,
-              width: 170,
-              fontSize: 14,
+              height: 32,
+              width: 130,
+              fontSize: 12,
               fontWeight: 700
             }}
           />
 
           <Button
             shape="circle"
-            icon={<RightOutlined />}
+            icon={<RightOutlined style={{ fontSize: 11 }} />}
             onClick={() => {
               const nextDate = dayjs(selectedDate).add(1, 'day');
               setSelectedDate(nextDate.format('YYYY-MM-DD'));
@@ -1049,8 +1049,8 @@ const EODReportPage = () => {
               background: isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#e2e8f0', 
               border: 'none', 
               color: isDarkMode ? '#cbd5e1' : '#4b5563', 
-              width: 36, 
-              height: 36,
+              width: 30, 
+              height: 30,
               boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
             }}
           />
@@ -1433,8 +1433,8 @@ const EODReportPage = () => {
                         {/* ── STEP 3: SELECT TICKET AND REPORT TASK ───────────────────────────────── */}
                         <Card
                           title={
-                            <span style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', color: isDarkMode ? '#cbd5e1' : '#475569' }}>
-                              Step 3: Log Task for {proj?.name || proj?.projectName}
+                            <span style={{ fontSize: 14, fontWeight: 900, textTransform: 'uppercase', color: '#6366f1', letterSpacing: '0.5px' }}>
+                              Step 3: Log Task Details for {proj?.name || proj?.projectName}
                             </span>
                           }
                           style={{
@@ -1445,13 +1445,13 @@ const EODReportPage = () => {
                           }}
                           bodyStyle={{ padding: 24 }}
                         >
-                          <Row gutter={[16, 16]}>
+                          <Row gutter={[20, 20]}>
                             <Col span={24}>
-                              <Form.Item label={<Text strong style={{ fontSize: 12 }}>Task Category / Ticket</Text>} style={{ marginBottom: 0 }}>
+                              <Form.Item label={<Text strong style={{ fontSize: 13, color: isDarkMode ? '#e2e8f0' : '#334155' }}>Task Category / Ticket</Text>} style={{ marginBottom: 0 }}>
                                 <Select
                                   disabled={isLocked || viewOnly}
                                   placeholder="Select Project Ticket to Report"
-                                  style={{ width: '100%' }}
+                                  style={{ width: '100%', height: 44 }}
                                   value={selectedTicketId || undefined}
                                   onChange={(val) => {
                                     setSelectedTicketId(val);
@@ -1483,7 +1483,7 @@ const EODReportPage = () => {
                                     setActiveTicketRowIndex(null); 
                                     setIsTicketModalOpen(true);
                                   }}
-                                  style={{ padding: 0, fontSize: 11, height: 'auto', marginTop: 6, fontWeight: 600 }}
+                                  style={{ padding: 0, fontSize: 12, height: 'auto', marginTop: 8, fontWeight: 700, color: '#6366f1' }}
                                 >
                                   Create New Ticket for this Project
                                 </Button>
@@ -1491,7 +1491,7 @@ const EODReportPage = () => {
                             </Col>
 
                             <Col xs={12} md={12}>
-                              <Form.Item label={<Text strong style={{ fontSize: 12 }}>Hours Spent</Text>} style={{ marginBottom: 0 }}>
+                              <Form.Item label={<Text strong style={{ fontSize: 13, color: isDarkMode ? '#e2e8f0' : '#334155' }}>Hours Spent</Text>} style={{ marginBottom: 0 }}>
                                 <InputNumber
                                   disabled={isLocked || viewOnly}
                                   min={0}
@@ -1499,13 +1499,13 @@ const EODReportPage = () => {
                                   placeholder="Hours"
                                   value={taskHours}
                                   onChange={setTaskHours}
-                                  style={{ width: '100%', borderRadius: 8 }}
+                                  style={{ width: '100%', borderRadius: 10, height: 44, display: 'flex', alignItems: 'center' }}
                                 />
                               </Form.Item>
                             </Col>
 
                             <Col xs={12} md={12}>
-                              <Form.Item label={<Text strong style={{ fontSize: 12 }}>Minutes Spent</Text>} style={{ marginBottom: 0 }}>
+                              <Form.Item label={<Text strong style={{ fontSize: 13, color: isDarkMode ? '#e2e8f0' : '#334155' }}>Minutes Spent</Text>} style={{ marginBottom: 0 }}>
                                 <InputNumber
                                   disabled={isLocked || viewOnly}
                                   min={0}
@@ -1513,36 +1513,36 @@ const EODReportPage = () => {
                                   placeholder="Mins"
                                   value={taskMinutes}
                                   onChange={setTaskMinutes}
-                                  style={{ width: '100%', borderRadius: 8 }}
+                                  style={{ width: '100%', borderRadius: 10, height: 44, display: 'flex', alignItems: 'center' }}
                                 />
                               </Form.Item>
                             </Col>
 
                             <Col span={24}>
-                              <Form.Item label={<Text strong style={{ fontSize: 12 }}>Work Done Description</Text>} style={{ marginBottom: 0 }}>
-                                <Input
+                              <Form.Item label={<Text strong style={{ fontSize: 13, color: isDarkMode ? '#e2e8f0' : '#334155' }}>Work Done Description (Detailed)</Text>} style={{ marginBottom: 0 }}>
+                                <Input.TextArea
                                   disabled={isLocked || viewOnly}
-                                  placeholder="What did you work on? (e.g., Developed API endpoint, tested layout...)"
+                                  placeholder="Provide a detailed description of what you accomplished..."
                                   value={taskWorkDone}
                                   onChange={(e) => setTaskWorkDone(e.target.value)}
-                                  style={{ width: '100%', borderRadius: 8, height: 38 }}
+                                  rows={4}
+                                  style={{ width: '100%', borderRadius: 10, padding: '12px 16px', fontSize: 13 }}
                                 />
                               </Form.Item>
                             </Col>
 
                             {!viewOnly && !isLocked && (
-                              <Col span={24} style={{ textAlign: 'right', marginTop: 8 }}>
+                              <Col span={24} style={{ textAlign: 'right', marginTop: 10 }}>
                                 <Button
                                   type="primary"
                                   icon={<PlusOutlined />}
                                   onClick={handleAddTask}
-                                  style={{ background: '#10b981', borderColor: '#10b981', borderRadius: 8, height: 38, fontWeight: 700 }}
+                                  style={{ background: '#10b981', borderColor: '#10b981', borderRadius: 10, height: 44, padding: '0 28px', fontWeight: 800, fontSize: 14, boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}
                                 >
                                   Add Task to Report
                                 </Button>
                               </Col>
                             )}
-
                           </Row>
                         </Card>
 
