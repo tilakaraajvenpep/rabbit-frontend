@@ -209,9 +209,7 @@ const LoginPage = () => {
             </Form.Item>
           </Form>
 
-          <Text style={{ fontSize: '12px', color: isDarkMode ? '#64748b' : '#94a3b8' }}>
-            Multi-tenant Project Management & Automation
-          </Text>
+         
         </Space>
       </Card>
 
