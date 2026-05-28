@@ -35,6 +35,7 @@ const EODReportPage = () => {
   const { isDarkMode } = useThemeStore();
 
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [selectedTopProjectId, setSelectedTopProjectId] = useState(null);
   const [baseDate, setBaseDate] = useState(dayjs().startOf('week').add(1, 'day'));
   const [weekDates, setWeekDates] = useState([]);
   const [weeklyStatus, setWeeklyStatus] = useState({});
@@ -445,10 +446,17 @@ const EODReportPage = () => {
           ...res.data,
           items: mappedItems
         };
+        const firstProjId = mappedItems[0]?.projectId;
+        if (firstProjId) {
+          setSelectedTopProjectId(firstProjId);
+        } else {
+          setSelectedTopProjectId(null);
+        }
         reset(mappedReport);
         setExistingReport(mappedReport);
         setViewOnly(true);
       } else {
+        setSelectedTopProjectId(null);
         reset({ items: [{ projectId: '', ticketId: '', hours: 0, workDone: '' }], blockers: '', isAlertIssue: false, alertMessage: '' });
         setExistingReport(null);
         
@@ -1084,18 +1092,119 @@ const EODReportPage = () => {
                   />
                 )}
                 
+                {/* Top Project Selector & Info */}
+                <Card
+                  size="small"
+                  style={{
+                    borderRadius: 12,
+                    border: `1.5px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#6366f1'}`,
+                    background: isDarkMode ? 'rgba(99, 102, 241, 0.05)' : '#f5f7ff',
+                  }}
+                  bodyStyle={{ padding: 16 }}
+                >
+                  <Row gutter={16} align="middle">
+                    <Col span={10}>
+                      <Form.Item label={<Text strong style={{ fontSize: 13 }}>Select Project to Report</Text>} required style={{ marginBottom: 0 }}>
+                        <Select
+                          disabled={isLocked || !!existingReport}
+                          placeholder="Select Project"
+                          value={selectedTopProjectId}
+                          onChange={(val) => {
+                            setSelectedTopProjectId(val);
+                            reset({
+                              items: [{ projectId: val, ticketId: '', hours: 0, workDone: '' }],
+                              blockers: watch('blockers'),
+                              isAlertIssue: watch('isAlertIssue'),
+                              alertMessage: watch('alertMessage')
+                            });
+                          }}
+                          style={{ width: '100%' }}
+                        >
+                          {allProjects.map(p => {
+                            const eHours = p.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
+                            const labelHours = eHours !== undefined 
+                              ? `${formatHoursAndMinutes(Number(eHours))} (My Quota)` 
+                              : `${formatHoursAndMinutes(Number(p.totalHours || 0))} (Total)`;
+                            return (
+                              <Select.Option key={p.id} value={p.id}>
+                                {p.name || p.projectName} — {labelHours}
+                              </Select.Option>
+                            );
+                          })}
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    
+                    {selectedTopProjectId && (() => {
+                      const selectedProj = allProjects.find(p => String(p.id || p.projectId) === String(selectedTopProjectId));
+                      const empHours = selectedProj?.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
+                      
+                      let timeLeftAfterReporting = 0;
+                      if (empHours !== undefined && empHours !== null) {
+                        const totalLoggedForProject = allMyTickets
+                          .filter(t => String(t.projectId) === String(selectedTopProjectId))
+                          .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+                        
+                        const existingReportProjectHours = existingReport?.items?.reduce((sum, item) => {
+                          if (String(item.projectId) === String(selectedTopProjectId)) {
+                            return sum + (Number(item.hours) || 0);
+                          }
+                          return sum;
+                        }, 0) || 0;
+                        
+                        const currentProjectHoursInForm = watchedItems?.reduce((sum, item) => {
+                          if (String(item.projectId) === String(selectedTopProjectId)) {
+                            return sum + (Number(item.hours) || 0);
+                          }
+                          return sum;
+                        }, 0) || 0;
+                        
+                        const previouslyLogged = Math.max(0, totalLoggedForProject - existingReportProjectHours);
+                        timeLeftAfterReporting = Math.max(0, Number(empHours) - previouslyLogged - currentProjectHoursInForm);
+                      }
+
+                      return (
+                        <Col span={14}>
+                          <div style={{ padding: '4px 8px', borderRadius: 8, background: isDarkMode ? '#1e1e24' : '#fff', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                            <Row gutter={8}>
+                              <Col span={12}>
+                                <div style={{ fontSize: 10, color: '#8c8c8c' }}>PROJECT BUDGETED HOURS</div>
+                                <div style={{ fontSize: 13, fontWeight: 700 }}>{selectedProj?.totalHours || '0.00'} hrs</div>
+                              </Col>
+                              <Col span={12}>
+                                {empHours !== undefined ? (
+                                  <>
+                                    <div style={{ fontSize: 10, color: '#8c8c8c' }}>YOUR QUOTA / TIME LEFT</div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>
+                                      {formatHoursAndMinutes(Number(empHours))} / <span style={{ color: timeLeftAfterReporting <= 0 ? '#ff4d4f' : '#6366f1' }}>{formatHoursAndMinutes(timeLeftAfterReporting)}</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div style={{ fontSize: 11, color: '#ff4d4f', fontStyle: 'italic', marginTop: 10 }}>
+                                    No quota assigned by HR.
+                                  </div>
+                                )}
+                              </Col>
+                            </Row>
+                          </div>
+                        </Col>
+                      );
+                    })()}
+                  </Row>
+                </Card>
+
                 {/* Daily Tasks Section */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: isDarkMode ? '#fff' : '#1e1b4b' }}>
                       Daily Tasks & Hours Logged
                     </span>
-                    {!isLocked && (
+                    {!isLocked && selectedTopProjectId && (
                       <Button 
                         type="dashed" 
                         size="small" 
                         icon={<PlusOutlined />}
-                        onClick={() => append({ projectId: '', ticketId: '', hours: 0, workDone: '' })}
+                        onClick={() => append({ projectId: selectedTopProjectId, ticketId: '', hours: 0, workDone: '' })}
                         style={{ borderRadius: 6 }}
                       >
                         Add Task
@@ -1103,232 +1212,165 @@ const EODReportPage = () => {
                     )}
                   </div>
 
-                  {fields.map((field, index) => {
-                    const currentItemProjectId = watchedItems?.[index]?.projectId;
-                    const currentItemTicketId = watchedItems?.[index]?.ticketId;
-                    const ticketData = myTickets.find(t => t.id === currentItemTicketId);
+                  {!selectedTopProjectId ? (
+                    <div style={{ textAlign: 'center', padding: '24px 0', border: `1px dashed ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#d9d9d9'}`, borderRadius: 12 }}>
+                      <Text type="secondary">Please select a project at the top to start reporting daily tasks.</Text>
+                    </div>
+                  ) : (
+                    fields.map((field, index) => {
+                      const currentItemProjectId = watchedItems?.[index]?.projectId;
+                      const currentItemTicketId = watchedItems?.[index]?.ticketId;
+                      const ticketData = myTickets.find(t => t.id === currentItemTicketId);
 
-                    return (
-                      <Card
-                        key={field.id}
-                        size="small"
-                        title={
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                            <span style={{ fontWeight: 700, fontSize: 13 }}>Task {index + 1}</span>
-                            {!isLocked && fields.length > 1 && (
-                              <Button 
-                                type="text" 
-                                danger 
-                                size="small" 
-                                icon={<DeleteOutlined />} 
-                                onClick={() => remove(index)}
-                              />
-                            )}
-                          </div>
-                        }
-                        style={{
-                          borderRadius: 12,
-                          border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
-                          background: isDarkMode ? '#1e1e24' : '#fff'
-                        }}
-                      >
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          <Row gutter={12}>
-                            <Col span={12}>
-                              <Form.Item label="Project" required help={errors.items?.[index]?.projectId?.message} validateStatus={errors.items?.[index]?.projectId ? 'error' : ''} style={{ marginBottom: 0 }}>
-                                <Controller
-                                  name={`items.${index}.projectId`}
-                                  control={control}
-                                  rules={{ required: !isLocked ? 'Required' : false }}
-                                  render={({ field: selectField }) => {
-                                    const selectedProj = allProjects.find(p => String(p.id || p.projectId) === String(selectField.value));
-                                    const empHours = selectedProj?.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
-                                    
-                                    let timeLeftAfterReporting = 0;
-                                    if (empHours !== undefined && empHours !== null) {
-                                      const totalLoggedForProject = allMyTickets
-                                        .filter(t => String(t.projectId) === String(selectField.value))
-                                        .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
-                                      
-                                      const existingReportProjectHours = existingReport?.items?.reduce((sum, item) => {
-                                        if (String(item.projectId) === String(selectField.value)) {
-                                          return sum + (Number(item.hours) || 0);
-                                        }
-                                        return sum;
-                                      }, 0) || 0;
-                                      
-                                      const currentProjectHoursInForm = watchedItems?.reduce((sum, item) => {
-                                        if (String(item.projectId) === String(selectField.value)) {
-                                          return sum + (Number(item.hours) || 0);
-                                        }
-                                        return sum;
-                                      }, 0) || 0;
-                                      
-                                      const previouslyLogged = Math.max(0, totalLoggedForProject - existingReportProjectHours);
-                                      timeLeftAfterReporting = Math.max(0, Number(empHours) - previouslyLogged - currentProjectHoursInForm);
-                                    }
-
-                                    return (
-                                      <div>
+                      return (
+                        <Card
+                          key={field.id}
+                          size="small"
+                          title={
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                              <span style={{ fontWeight: 700, fontSize: 13 }}>Task {index + 1}</span>
+                              {!isLocked && fields.length > 1 && (
+                                <Button 
+                                  type="text" 
+                                  danger 
+                                  size="small" 
+                                  icon={<DeleteOutlined />} 
+                                  onClick={() => remove(index)}
+                                />
+                              )}
+                            </div>
+                          }
+                          style={{
+                            borderRadius: 12,
+                            border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
+                            background: isDarkMode ? '#1e1e24' : '#fff'
+                          }}
+                        >
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <Row gutter={12}>
+                              <Col span={24}>
+                                <Form.Item label="Ticket" required help={errors.items?.[index]?.ticketId?.message} validateStatus={errors.items?.[index]?.ticketId ? 'error' : ''} style={{ marginBottom: 0 }}>
+                                  <Controller
+                                    name={`items.${index}.ticketId`}
+                                    control={control}
+                                    rules={{ required: !isLocked ? 'Required' : false }}
+                                    render={({ field: selectField }) => {
+                                      const projectTickets = myTickets.filter(t => String(t.projectId) === String(selectedTopProjectId));
+                                      return (
                                         <Select
                                           {...selectField}
-                                          disabled={isLocked}
-                                          placeholder="Select Project"
+                                          disabled={isLocked || !selectedTopProjectId}
+                                          placeholder="Select Ticket"
+                                          showSearch
+                                          optionFilterProp="children"
                                           onChange={(val) => {
                                             selectField.onChange(val);
-                                            setValue(`items.${index}.ticketId`, '');
-                                            setValue(`items.${index}.hours`, 0);
+                                            const ticket = myTickets.find(t => t.id === val);
+                                            if (ticket) {
+                                              setValue(`items.${index}.hours`, parseFloat(((ticket.timerAccumulatedSeconds || 0) / 3600).toFixed(2)));
+                                            } else {
+                                              setValue(`items.${index}.hours`, 0);
+                                            }
                                           }}
                                         >
-                                          {allProjects.map(p => {
-                                            const eHours = p.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
-                                            const labelHours = eHours !== undefined 
-                                              ? `${formatHoursAndMinutes(Number(eHours))} (My Quota)` 
-                                              : `${formatHoursAndMinutes(Number(p.totalHours || 0))} (Total)`;
-                                            return (
-                                              <Select.Option key={p.id} value={p.id}>
-                                                {p.name || p.projectName} — {labelHours}
-                                              </Select.Option>
-                                            );
-                                          })}
+                                          {projectTickets.map(t => (
+                                            <Select.Option key={t.id} value={t.id} disabled={selectedTicketIds.includes(t.id) && currentItemTicketId !== t.id}>
+                                              {t.code} — {t.title}
+                                            </Select.Option>
+                                          ))}
                                         </Select>
-                                        {selectedProj && (
-                                          <div style={{ marginTop: 4, fontSize: '11px', color: '#6366f1' }}>
-                                            <strong>Project Allotted Hours:</strong> {selectedProj.totalHours || '0.00'} hrs
-                                            {empHours !== undefined && (
-                                              <span> | <strong>Your Quota:</strong> {formatHoursAndMinutes(Number(empHours))} | <strong>Time Left:</strong> {formatHoursAndMinutes(timeLeftAfterReporting)}</span>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  }}
-                                />
-                              </Form.Item>
-                            </Col>
-
-                            <Col span={12}>
-                              <Form.Item label="Ticket" required help={errors.items?.[index]?.ticketId?.message} validateStatus={errors.items?.[index]?.ticketId ? 'error' : ''} style={{ marginBottom: 0 }}>
-                                <Controller
-                                  name={`items.${index}.ticketId`}
-                                  control={control}
-                                  rules={{ required: !isLocked ? 'Required' : false }}
-                                  render={({ field: selectField }) => {
-                                    const projectTickets = myTickets.filter(t => String(t.projectId) === String(currentItemProjectId));
-                                    return (
-                                      <Select
-                                        {...selectField}
-                                        disabled={isLocked || !currentItemProjectId}
-                                        placeholder="Select Ticket"
-                                        showSearch
-                                        optionFilterProp="children"
-                                        onChange={(val) => {
-                                          selectField.onChange(val);
-                                          const ticket = myTickets.find(t => t.id === val);
-                                          if (ticket) {
-                                            setValue(`items.${index}.hours`, parseFloat(((ticket.timerAccumulatedSeconds || 0) / 3600).toFixed(2)));
-                                          } else {
-                                            setValue(`items.${index}.hours`, 0);
-                                          }
-                                        }}
-                                      >
-                                        {projectTickets.map(t => (
-                                          <Select.Option key={t.id} value={t.id} disabled={selectedTicketIds.includes(t.id) && currentItemTicketId !== t.id}>
-                                            {t.code} — {t.title}
-                                          </Select.Option>
-                                        ))}
-                                      </Select>
-                                    );
-                                  }}
-                                />
-                              </Form.Item>
-                            </Col>
-                          </Row>
-
-                          <Row gutter={12} align="middle">
-                            <Col span={14}>
-                              <Form.Item label="Work Hours (Hours & Minutes)" required help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''} style={{ marginBottom: 0 }}>
-                                <Controller
-                                  name={`items.${index}.hours`}
-                                  control={control}
-                                  rules={{
-                                    required: !isLocked ? 'Required' : false,
-                                    min: !isLocked ? { value: 0.01, message: 'Min 1 min' } : undefined
-                                  }}
-                                  render={({ field: numField }) => {
-                                    const decimalVal = Number(numField.value) || 0;
-                                    const hVal = Math.floor(decimalVal);
-                                    const mVal = Math.round((decimalVal - hVal) * 60);
-
-                                    return (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <InputNumber
-                                          value={hVal}
-                                          min={0}
-                                          max={24}
-                                          disabled={isLocked || !currentItemTicketId}
-                                          onChange={(val) => {
-                                            const h = Number(val) || 0;
-                                            const newDec = h + (mVal / 60);
-                                            numField.onChange(Number(newDec.toFixed(4)));
-                                          }}
-                                          placeholder="Hrs"
-                                          style={{ width: '50%' }}
-                                          controls
-                                        />
-                                        <span style={{ color: isDarkMode ? '#8c8c8c' : '#555', fontSize: 11 }}>h</span>
-                                        <InputNumber
-                                          value={mVal}
-                                          min={0}
-                                          max={59}
-                                          disabled={isLocked || !currentItemTicketId}
-                                          onChange={(val) => {
-                                            const m = Number(val) || 0;
-                                            const newDec = hVal + (m / 60);
-                                            numField.onChange(Number(newDec.toFixed(4)));
-                                          }}
-                                          placeholder="Mins"
-                                          style={{ width: '50%' }}
-                                          controls
-                                        />
-                                        <span style={{ color: isDarkMode ? '#8c8c8c' : '#555', fontSize: 11 }}>m</span>
-                                      </div>
-                                    );
-                                  }}
-                                />
-                              </Form.Item>
-                            </Col>
-
-                            <Col span={10}>
-                              {!isLocked && (
-                                <Space style={{ marginTop: 8 }}>
-                                  <Button
-                                    size="small"
-                                    icon={<PlusOutlined />}
-                                    onClick={() => {
-                                      setActiveTicketRowIndex(index);
-                                      setIsTicketModalOpen(true);
+                                      );
                                     }}
-                                  >
-                                    Create New Ticket
-                                  </Button>
-                                </Space>
-                              )}
-                            </Col>
-                          </Row>
+                                  />
+                                </Form.Item>
+                              </Col>
+                            </Row>
 
-                          <Form.Item label="Work Done" required help={errors.items?.[index]?.workDone?.message} validateStatus={errors.items?.[index]?.workDone ? 'error' : ''} style={{ marginBottom: 0 }}>
-                            <Controller
-                              name={`items.${index}.workDone`}
-                              control={control}
-                              rules={{ required: !isLocked ? 'Required' : false, minLength: { value: 5, message: 'Too short' } }}
-                              render={({ field: txtField }) => <TextArea {...txtField} disabled={isLocked} rows={3} placeholder="Describe completed work..." />}
-                            />
-                          </Form.Item>
-                        </div>
-                      </Card>
-                    );
-                  })}
+                            <Row gutter={12} align="middle">
+                              <Col span={14}>
+                                <Form.Item label="Work Hours (Hours & Minutes)" required help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''} style={{ marginBottom: 0 }}>
+                                  <Controller
+                                    name={`items.${index}.hours`}
+                                    control={control}
+                                    rules={{
+                                      required: !isLocked ? 'Required' : false,
+                                      min: !isLocked ? { value: 0.01, message: 'Min 1 min' } : undefined
+                                    }}
+                                    render={({ field: numField }) => {
+                                      const decimalVal = Number(numField.value) || 0;
+                                      const hVal = Math.floor(decimalVal);
+                                      const mVal = Math.round((decimalVal - hVal) * 60);
+
+                                      return (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                          <InputNumber
+                                            value={hVal}
+                                            min={0}
+                                            max={24}
+                                            disabled={isLocked || !currentItemTicketId}
+                                            onChange={(val) => {
+                                              const h = Number(val) || 0;
+                                              const newDec = h + (mVal / 60);
+                                              numField.onChange(Number(newDec.toFixed(4)));
+                                            }}
+                                            placeholder="Hrs"
+                                            style={{ width: '50%' }}
+                                            controls
+                                          />
+                                          <span style={{ color: isDarkMode ? '#8c8c8c' : '#555', fontSize: 11 }}>h</span>
+                                          <InputNumber
+                                            value={mVal}
+                                            min={0}
+                                            max={59}
+                                            disabled={isLocked || !currentItemTicketId}
+                                            onChange={(val) => {
+                                              const m = Number(val) || 0;
+                                              const newDec = hVal + (m / 60);
+                                              numField.onChange(Number(newDec.toFixed(4)));
+                                            }}
+                                            placeholder="Mins"
+                                            style={{ width: '50%' }}
+                                            controls
+                                          />
+                                          <span style={{ color: isDarkMode ? '#8c8c8c' : '#555', fontSize: 11 }}>m</span>
+                                        </div>
+                                      );
+                                    }}
+                                  />
+                                </Form.Item>
+                              </Col>
+
+                              <Col span={10}>
+                                {!isLocked && (
+                                  <Space style={{ marginTop: 8 }}>
+                                    <Button
+                                      size="small"
+                                      icon={<PlusOutlined />}
+                                      onClick={() => {
+                                        setActiveTicketRowIndex(index);
+                                        setIsTicketModalOpen(true);
+                                      }}
+                                    >
+                                      Create New Ticket
+                                    </Button>
+                                  </Space>
+                                )}
+                              </Col>
+                            </Row>
+
+                            <Form.Item label="Work Done" required help={errors.items?.[index]?.workDone?.message} validateStatus={errors.items?.[index]?.workDone ? 'error' : ''} style={{ marginBottom: 0 }}>
+                              <Controller
+                                name={`items.${index}.workDone`}
+                                control={control}
+                                rules={{ required: !isLocked ? 'Required' : false, minLength: { value: 5, message: 'Too short' } }}
+                                render={({ field: txtField }) => <TextArea {...txtField} disabled={isLocked} rows={3} placeholder="Describe completed work..." />}
+                              />
+                            </Form.Item>
+                          </div>
+                        </Card>
+                      );
+                    })
+                  )}
                 </div>
 
                 {/* Divider */}
