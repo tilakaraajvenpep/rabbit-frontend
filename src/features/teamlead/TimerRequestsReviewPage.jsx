@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Typography, Tag, Modal, Input, message, Spin, Empty } from 'antd';
+import { Table, Button, Space, Typography, Tag, Modal, Input, message, Spin, Empty, Tooltip } from 'antd';
 import {
   ClockCircleOutlined, SendOutlined, CheckCircleOutlined, CloseCircleOutlined,
   UserOutlined, TeamOutlined, FileTextOutlined, ThunderboltOutlined,
@@ -28,35 +28,42 @@ const MetricCard = ({ icon, label, value, color, bg }) => (
   <div style={{
     background: bg, border: `1px solid ${color}30`,
     borderRadius: 16, padding: '18px 22px',
-    display: 'flex', alignItems: 'center', gap: 16, flex: 1,
-    minWidth: 140,
+    flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 16,
+    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
   }}>
     <div style={{
-      width: 44, height: 44, borderRadius: 12,
-      background: `${color}18`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color,
+      width: 46, height: 46, borderRadius: 12,
+      background: `${color}15`, display: 'flex', alignItems: 'center',
+      justifyContent: 'center', color, fontSize: 20,
     }}>{icon}</div>
     <div>
-      <div style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{label}</div>
+      <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2, color: '#0f172a' }}>{value}</div>
     </div>
   </div>
 );
 
-const WorkflowStep = ({ step, label, active, done }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-    <div style={{
-      width: 36, height: 36, borderRadius: '50%',
-      background: done ? '#10b981' : active ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : '#e2e8f0',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: done || active ? '#fff' : '#94a3b8',
-      fontWeight: 700, fontSize: 13, transition: 'all .3s',
-    }}>{done ? '✓' : step}</div>
-    <span style={{ fontSize: 11, color: active ? '#4f46e5' : done ? '#10b981' : '#94a3b8', fontWeight: active ? 700 : 500 }}>{label}</span>
-  </div>
-);
+const WorkflowStep = ({ step, label, active, done }) => {
+  const color = done ? '#10b981' : active ? '#6366f1' : '#cbd5e1';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{
+        width: 24, height: 24, borderRadius: '50%',
+        background: done ? '#10b981' : active ? '#6366f1' : '#f1f5f9',
+        border: `2px solid ${color}`, display: 'flex', alignItems: 'center',
+        justifyContent: 'center', color: done || active ? '#fff' : '#94a3b8',
+        fontWeight: 700, fontSize: 11,
+      }}>{step}</div>
+      <span style={{ fontSize: 12, fontWeight: active || done ? 700 : 500, color: active || done ? '#1e293b' : '#94a3b8' }}>{label}</span>
+    </div>
+  );
+};
+
 const WorkflowLine = ({ done }) => (
-  <div style={{ flex: 1, height: 2, background: done ? '#10b981' : '#e2e8f0', marginBottom: 20, borderRadius: 2, transition: 'background .3s' }} />
+  <div style={{
+    flex: 1, height: 2, margin: '0 8px',
+    background: done ? '#10b981' : '#e2e8f0', minWidth: 20,
+  }} />
 );
 
 /* ─── main component ─────────────────────────────────────────────── */
@@ -106,7 +113,7 @@ const TimerRequestsReviewPage = () => {
       message.success(`Request ${isApproval ? 'Approved' : 'Rejected'} successfully! Employee has been notified.`);
       setIsRespondModalOpen(false);
       fetchTLRequests();
-    } catch { message.error('Failed to submit response'); }
+    } catch (err) { message.error(err?.response?.data?.message || 'Failed to submit response'); }
     finally { setSubmitting(false); }
   };
 
@@ -136,7 +143,12 @@ const TimerRequestsReviewPage = () => {
       key: 'project',
       render: (_, r) => (
         <div>
-          <div style={{ fontWeight: 600, color: '#6366f1', fontSize: 13 }}>{r.projectName || '—'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontWeight: 600, color: '#6366f1', fontSize: 13 }}>{r.projectName || '—'}</span>
+            <Tag color={Number(r.bufferHours || 0) > 0 ? 'cyan' : 'red'} style={{ border: 'none', fontWeight: 600, fontSize: 10, padding: '1px 6px', borderRadius: 10 }}>
+              Buffer: {r.bufferHours || '0.00'}h
+            </Tag>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <span style={{ background: '#f1f5f9', color: '#475569', fontSize: 11, padding: '1px 7px', borderRadius: 5, fontFamily: 'monospace' }}>{r.ticketCode}</span>
             <span style={{ fontSize: 12, color: '#64748b' }}>{r.ticketTitle}</span>
@@ -181,28 +193,47 @@ const TimerRequestsReviewPage = () => {
       title: 'Actions',
       key: 'actions',
       width: 260,
-      render: (_, record) => (
-        <Space size={6}>
-          <Button
-            size="small"
-            onClick={() => { setSelectedRequest(record); setIsApproval(true); setTlComment(''); setIsRespondModalOpen(true); }}
-            style={{ background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
-            icon={<CheckCircleOutlined />}
-          >Approve</Button>
-          <Button
-            size="small"
-            onClick={() => { setSelectedRequest(record); setIsApproval(false); setTlComment(''); setIsRespondModalOpen(true); }}
-            style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
-            icon={<CloseCircleOutlined />}
-          >Reject</Button>
-          <Button
-            size="small"
-            onClick={() => { setSelectedRequest(record); setForwardComment(''); setIsForwardModalOpen(true); }}
-            style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
-            icon={<SendOutlined />}
-          >Forward PM</Button>
-        </Space>
-      ),
+      render: (_, record) => {
+        const reqHours = Number(record.request?.requestedHours || 0);
+        const bufHours = Number(record.bufferHours || 0);
+        const canApprove = bufHours >= reqHours;
+
+        return (
+          <Space size={6}>
+            <Tooltip title={!canApprove ? `Insufficient project buffer hours (Available: ${bufHours}h, Requested: ${reqHours}h). Must forward to Project Manager.` : 'Approve using project buffer hours'}>
+              <span>
+                <Button
+                  size="small"
+                  onClick={() => { setSelectedRequest(record); setIsApproval(true); setTlComment(''); setIsRespondModalOpen(true); }}
+                  disabled={!canApprove}
+                  style={{
+                    background: canApprove ? 'linear-gradient(135deg,#10b981,#059669)' : '#e2e8f0',
+                    border: 'none',
+                    color: canApprove ? '#fff' : '#94a3b8',
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    fontSize: 12,
+                    cursor: canApprove ? 'pointer' : 'not-allowed'
+                  }}
+                  icon={<CheckCircleOutlined />}
+                >Approve</Button>
+              </span>
+            </Tooltip>
+            <Button
+              size="small"
+              onClick={() => { setSelectedRequest(record); setIsApproval(false); setTlComment(''); setIsRespondModalOpen(true); }}
+              style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
+              icon={<CloseCircleOutlined />}
+            >Reject</Button>
+            <Button
+              size="small"
+              onClick={() => { setSelectedRequest(record); setForwardComment(''); setIsForwardModalOpen(true); }}
+              style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
+              icon={<SendOutlined />}
+            >Forward PM</Button>
+          </Space>
+        );
+      },
     },
   ];
 
