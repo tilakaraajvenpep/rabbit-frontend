@@ -50,7 +50,7 @@ const EODReportPage = () => {
   const [existingReport, setExistingReport] = useState(null);
   const [currentLeave, setCurrentLeave] = useState(null);
   const [weeklyReports, setWeeklyReports] = useState([]);
-  const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(Number(currentUser?.allocatedHours) || Number(currentUser?.prevAllocatedHours) || 0);
+  const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(0);
   const [currentWeekRemainingHours, setCurrentWeekRemainingHours] = useState(null);
   const [hasWarnedExceeded, setHasWarnedExceeded] = useState(false);
   const [accessRequestType, setAccessRequestType] = useState('single');
@@ -197,7 +197,15 @@ const EODReportPage = () => {
   const fetchProjects = async () => {
     try {
       const res = await projectService.getProjects();
-      setAllProjects(res.data || []);
+      const projList = res.data || [];
+      setAllProjects(projList);
+
+      const userId = currentUser?.userId || currentUser?.id;
+      const totalHours = projList.reduce((sum, p) => {
+        const hours = Number(p.employeeAllocatedHours?.[userId]) || 0;
+        return sum + hours;
+      }, 0);
+      setAllocatedHoursPerDay(totalHours);
     } catch (e) {
       console.error('Failed to fetch projects');
     }
@@ -252,12 +260,8 @@ const EODReportPage = () => {
     adminService.getMyProfile().then(res => {
       const fresh = Number(res?.data?.allocatedHours) || 0;
       const prev = Number(res?.data?.prevAllocatedHours) || 0;
-      const effectiveHours = fresh > 0 ? fresh : prev;
-      if (!isNaN(effectiveHours) && effectiveHours >= 0) {
-        setAllocatedHoursPerDay(effectiveHours);
-        // Keep auth store in sync so it's consistent across page navigation
-        setUser({ ...currentUser, allocatedHours: String(effectiveHours), prevAllocatedHours: String(prev) });
-      }
+      // Keep auth store in sync so it's consistent across page navigation
+      setUser({ ...currentUser, allocatedHours: String(fresh), prevAllocatedHours: String(prev) });
       const tlId = res?.data?.teamLeadId;
       if (tlId) setSelectedTeamLeadId(tlId);
     }).catch(() => {});
@@ -432,6 +436,13 @@ const EODReportPage = () => {
         const resProj = await projectService.getProjects();
         projectsList = resProj.data || [];
         setAllProjects(projectsList);
+
+        const userId = currentUser?.userId || currentUser?.id;
+        const totalHours = projectsList.reduce((sum, p) => {
+          const hours = Number(p.employeeAllocatedHours?.[userId]) || 0;
+          return sum + hours;
+        }, 0);
+        setAllocatedHoursPerDay(totalHours);
       }
 
       // Force fetch tickets if they aren't loaded yet to map properly
@@ -842,6 +853,10 @@ const EODReportPage = () => {
       return { bg: '#facc15', text: '#854d0e', label: 'Permission' };
     }
     if (status === 'restricted') {
+      const isDateNextWeek = dateObj.isAfter(today.endOf('week'));
+      if (isDateNextWeek) {
+        return { bg: '#e5e7eb', text: '#4b5563', label: 'Next Week' };
+      }
       return { bg: '#f3f4f6', text: '#9ca3af', label: 'Reporting Restricted' };
     }
     if (status === 'optional') {
@@ -877,6 +892,7 @@ const EODReportPage = () => {
   const hasAccessPending = myAccessRequests.find(r => r.targetDate === selectedDate);
   const isSunday = dayjs(selectedDate).day() === 0;
   const isFullDayLeave = currentLeave && currentLeave.type === 'FullDay';
+  const isNextWeek = dayjs(selectedDate).isAfter(dayjs().endOf('week'));
 
   // Render the Tabbed EOD dashboard
   return (
@@ -962,7 +978,8 @@ const EODReportPage = () => {
                 <div
                   key={dateStr}
                   onClick={() => {
-                    if (status !== 'restricted') {
+                    const isDateNextWeek = date.isAfter(dayjs().endOf('week'));
+                    if (status !== 'restricted' || isDateNextWeek) {
                       setSelectedDate(dateStr);
                       setAdminUnlocked(false);
                     }
@@ -974,11 +991,11 @@ const EODReportPage = () => {
                     justifyContent: 'center',
                     padding: '8px 16px',
                     borderRadius: 8,
-                    cursor: status === 'restricted' ? 'not-allowed' : 'pointer',
+                    cursor: (status === 'restricted' && !date.isAfter(dayjs().endOf('week'))) ? 'not-allowed' : 'pointer',
                     minWidth: 72,
                     textAlign: 'center',
                     transition: 'all 0.2s ease',
-                    opacity: status === 'restricted' ? 0.4 : 1,
+                    opacity: (status === 'restricted' && !date.isAfter(dayjs().endOf('week'))) ? 0.4 : 1,
                     ...boxStyle
                   }}
                 >
@@ -999,7 +1016,14 @@ const EODReportPage = () => {
         </div>
 
         {/* Right Section: Action Buttons */}
-        <div style={{ display: 'flex', gap: 10, minWidth: 160, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 10, minWidth: 160, justifyContent: 'flex-end', alignItems: 'center' }}>
+          <Button
+            icon={<CalendarOutlined />}
+            onClick={() => handleOpenApplyLeaveModal(selectedDate)}
+            style={{ borderRadius: 8, height: 38, borderColor: '#10b981', color: '#10b981', fontWeight: 600 }}
+          >
+            Apply Leave
+          </Button>
           {viewOnly ? (
             <>
               {!isLocked && (
@@ -1106,6 +1130,52 @@ const EODReportPage = () => {
         {isSunday ? (
           <div style={{ background: isDarkMode ? '#1e293b' : '#ffffff', padding: 36, borderRadius: 12, textAlign: 'center', border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}` }}>
             <Result icon={<CheckCircleOutlined style={{ color: '#faad14', fontSize: 48 }} />} title="Happy Sunday!" subTitle="Rest & Recharge. No EOD reporting required today." />
+          </div>
+        ) : isNextWeek ? (
+          <div style={{
+            background: isDarkMode ? '#1e293b' : '#ffffff',
+            padding: '48px 36px',
+            borderRadius: 12,
+            textAlign: 'center',
+            border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+          }}>
+            <Result
+              icon={<CalendarOutlined style={{ color: '#00b493', fontSize: 54 }} />}
+              title={<span style={{ fontSize: 20, fontWeight: 800, color: isDarkMode ? '#f8fafc' : '#1f2937' }}>Future Date Task Logging</span>}
+              subTitle={
+                <Space direction="vertical" style={{ width: '100%', textAlign: 'center', marginTop: 8 }}>
+                  <Text style={{ fontSize: 14, color: isDarkMode ? '#94a3b8' : '#4b5563' }}>
+                    You have selected a date for next week. To report for this date, you need to raise a ticket first.
+                  </Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Once created, the ticket will be available for you to report and log tasks.
+                  </Text>
+                </Space>
+              }
+              extra={
+                <Space size={12}>
+                  <Button 
+                    type="primary" 
+                    icon={<PlusOutlined />} 
+                    onClick={() => {
+                      ticketForm.resetFields();
+                      setActiveTicketRowIndex(null);
+                      setIsTicketModalOpen(true);
+                    }}
+                    style={{ background: '#00b493', borderColor: '#00b493', borderRadius: 8, height: 40, padding: '0 24px', fontWeight: 600 }}
+                  >
+                    Raise a Ticket
+                  </Button>
+                  <Button 
+                    onClick={handleGoToToday}
+                    style={{ borderRadius: 8, height: 40 }}
+                  >
+                    Back to Today
+                  </Button>
+                </Space>
+              }
+            />
           </div>
         ) : showRestrictionResult ? (
           <div style={{ background: isDarkMode ? '#1e293b' : '#ffffff', padding: 36, borderRadius: 12, border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}` }}>
