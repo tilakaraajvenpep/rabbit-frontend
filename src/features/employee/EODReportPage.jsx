@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Form, Input, InputNumber, Select, Button, Space, Typography,
-  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table, Badge, Tabs, DatePicker
+  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table, Badge, Tabs, DatePicker, Collapse
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, SendOutlined, CheckCircleOutlined,
@@ -902,71 +902,71 @@ const EODReportPage = () => {
           <Form layout="vertical" onFinish={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
             
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <Tabs
-                type="editable-card"
-                activeKey={activeTabKey || 'submit-tab'}
-                hideAdd={isLocked}
-                onEdit={(targetKey, action) => {
-                  if (action === 'add') {
-                    append({ projectId: '', ticketId: '', hours: 0, workDone: '' });
-                    setActiveTabKey(`task-${fields.length}`);
-                  } else if (action === 'remove') {
-                    const idx = parseInt(targetKey.replace('task-', ''), 10);
-                    if (fields.length > 1) {
-                      remove(idx);
-                      setActiveTabKey('task-0');
-                    }
-                  }
-                }}
-                onChange={(key) => setActiveTabKey(key)}
-                style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-                tabBarStyle={{ margin: 0, padding: '0 8px' }}
-                items={[
-                  ...fields.map((field, index) => {
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                
+                {/* Daily Tasks Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: isDarkMode ? '#fff' : '#1e1b4b' }}>
+                      Daily Tasks & Hours Logged
+                    </span>
+                    {!isLocked && (
+                      <Button 
+                        type="dashed" 
+                        size="small" 
+                        icon={<PlusOutlined />}
+                        onClick={() => append({ projectId: '', ticketId: '', hours: 0, workDone: '' })}
+                        style={{ borderRadius: 6 }}
+                      >
+                        Add Task
+                      </Button>
+                    )}
+                  </div>
+
+                  {fields.map((field, index) => {
                     const currentItemProjectId = watchedItems?.[index]?.projectId;
                     const currentItemTicketId = watchedItems?.[index]?.ticketId;
                     const ticketData = myTickets.find(t => t.id === currentItemTicketId);
 
-                    let availableHours = 0;
-                    let timerHours = 0;
-                    let showTimerMissedWarning = false;
-                    let showLimitExceededWarning = false;
-                    let hasApprovedTimerRequest = false;
-
-                    if (ticketData) {
-                      timerHours = parseFloat(((ticketData.timerAccumulatedSeconds || 0) / 3600).toFixed(2));
-                      availableHours = (Number(ticketData.estimatedHours) || 0) - (Number(ticketData.consumedHours) || 0);
-                      
-                      hasApprovedTimerRequest = myTimerRequests.some(r => 
-                        r.request.ticketId === ticketData.id && r.request.status === 'Approved'
-                      );
-
-
-                    }
-
-                    return {
-                      key: `task-${index}`,
-                      label: `Task ${index + 1}`,
-                      closable: !isLocked && fields.length > 1,
-                      children: (
-                        <div style={{ padding: 16, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          
-
-
+                    return (
+                      <Card
+                        key={field.id}
+                        size="small"
+                        title={
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                            <span style={{ fontWeight: 700, fontSize: 13 }}>Task {index + 1}</span>
+                            {!isLocked && fields.length > 1 && (
+                              <Button 
+                                type="text" 
+                                danger 
+                                size="small" 
+                                icon={<DeleteOutlined />} 
+                                onClick={() => remove(index)}
+                              />
+                            )}
+                          </div>
+                        }
+                        style={{
+                          borderRadius: 12,
+                          border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
+                          background: isDarkMode ? '#1e1e24' : '#fff'
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                           <Row gutter={12}>
                             <Col span={12}>
-                              <Form.Item label="Project" required help={errors.items?.[index]?.projectId?.message} validateStatus={errors.items?.[index]?.projectId ? 'error' : ''}>
+                              <Form.Item label="Project" required help={errors.items?.[index]?.projectId?.message} validateStatus={errors.items?.[index]?.projectId ? 'error' : ''} style={{ marginBottom: 0 }}>
                                 <Controller
                                   name={`items.${index}.projectId`}
                                   control={control}
                                   rules={{ required: !isLocked ? 'Required' : false }}
-                                  render={({ field }) => (
+                                  render={({ field: selectField }) => (
                                     <Select
-                                      {...field}
+                                      {...selectField}
                                       disabled={isLocked}
                                       placeholder="Select Project"
                                       onChange={(val) => {
-                                        field.onChange(val);
+                                        selectField.onChange(val);
                                         setValue(`items.${index}.ticketId`, '');
                                         setValue(`items.${index}.hours`, 0);
                                       }}
@@ -981,22 +981,22 @@ const EODReportPage = () => {
                             </Col>
 
                             <Col span={12}>
-                              <Form.Item label="Ticket" required help={errors.items?.[index]?.ticketId?.message} validateStatus={errors.items?.[index]?.ticketId ? 'error' : ''}>
+                              <Form.Item label="Ticket" required help={errors.items?.[index]?.ticketId?.message} validateStatus={errors.items?.[index]?.ticketId ? 'error' : ''} style={{ marginBottom: 0 }}>
                                 <Controller
                                   name={`items.${index}.ticketId`}
                                   control={control}
                                   rules={{ required: !isLocked ? 'Required' : false }}
-                                  render={({ field }) => {
+                                  render={({ field: selectField }) => {
                                     const projectTickets = myTickets.filter(t => String(t.projectId) === String(currentItemProjectId));
                                     return (
                                       <Select
-                                        {...field}
+                                        {...selectField}
                                         disabled={isLocked || !currentItemProjectId}
                                         placeholder="Select Ticket"
                                         showSearch
                                         optionFilterProp="children"
                                         onChange={(val) => {
-                                          field.onChange(val);
+                                          selectField.onChange(val);
                                           const ticket = myTickets.find(t => t.id === val);
                                           if (ticket) {
                                             setValue(`items.${index}.hours`, parseFloat(((ticket.timerAccumulatedSeconds || 0) / 3600).toFixed(2)));
@@ -1020,17 +1020,17 @@ const EODReportPage = () => {
 
                           <Row gutter={12} align="middle">
                             <Col span={8}>
-                              <Form.Item label="Hours" required={!showTimerMissedWarning} help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''}>
+                              <Form.Item label="Hours" required help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''} style={{ marginBottom: 0 }}>
                                 <Controller
                                   name={`items.${index}.hours`}
                                   control={control}
                                   rules={{
-                                    required: (!isLocked && !showTimerMissedWarning) ? 'Required' : false,
-                                    min: (!isLocked && !showTimerMissedWarning) ? { value: 0.1, message: 'Min 0.1' } : undefined
+                                    required: !isLocked ? 'Required' : false,
+                                    min: !isLocked ? { value: 0.1, message: 'Min 0.1' } : undefined
                                   }}
-                                  render={({ field }) => (
+                                  render={({ field: numField }) => (
                                     <InputNumber
-                                      {...field}
+                                      {...numField}
                                       disabled={isLocked || !currentItemTicketId}
                                       style={{ width: '100%' }}
                                       min={0}
@@ -1059,88 +1059,93 @@ const EODReportPage = () => {
                             </Col>
                           </Row>
 
-                          <Form.Item label="Work Done" required help={errors.items?.[index]?.workDone?.message} validateStatus={errors.items?.[index]?.workDone ? 'error' : ''}>
+                          <Form.Item label="Work Done" required help={errors.items?.[index]?.workDone?.message} validateStatus={errors.items?.[index]?.workDone ? 'error' : ''} style={{ marginBottom: 0 }}>
                             <Controller
                               name={`items.${index}.workDone`}
                               control={control}
                               rules={{ required: !isLocked ? 'Required' : false, minLength: { value: 5, message: 'Too short' } }}
-                              render={({ field }) => <TextArea {...field} disabled={isLocked} rows={3} placeholder="Describe completed work..." />}
+                              render={({ field: txtField }) => <TextArea {...txtField} disabled={isLocked} rows={3} placeholder="Describe completed work..." />}
                             />
                           </Form.Item>
                         </div>
-                      )
-                    };
-                  }),
-                  {
-                    key: 'submit-tab',
-                    label: <span style={{ fontWeight: 700, color: '#6366f1' }}>Submit & Review</span>,
-                    closable: false,
-                    children: (
-                      <div style={{ padding: 16, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        <Title level={5} style={{ margin: 0, fontSize: 13 }}>Final EOD Checks</Title>
-                        
-                        <Card size="small" style={{ background: isDarkMode ? 'rgba(255,255,255,0.01)' : '#f8fafc' }}>
-                          <Row align="middle" justify="space-between">
-                            <Text>Logged Work Today:</Text>
-                            <Text strong style={{ fontSize: 14, color: totalHours >= REQUIRED_HOURS ? '#52c41a' : '#faad14' }}>
-                              {totalHours.toFixed(1)} hrs
-                            </Text>
-                          </Row>
-                        </Card>
+                      </Card>
+                    );
+                  })}
+                </div>
 
-                        <Form.Item label="Blockers" style={{ marginBottom: 0 }}>
-                          <Controller name="blockers" control={control} render={({ field }) => <TextArea {...field} disabled={isLocked} rows={2} placeholder="Any blockers faced?" />} />
-                        </Form.Item>
+                {/* Divider */}
+                <div style={{ height: 1, background: isDarkMode ? 'rgba(255,255,255,0.08)' : '#e2e8f0', margin: '8px 0' }} />
 
-                        <Card title={<Space><AlertOutlined style={{ color: 'red' }} /><span>Raise Alert Issue?</span></Space>} size="small" bodyStyle={{ padding: 10 }}>
-                          <Controller 
-                            name="isAlertIssue" 
-                            control={control} 
-                            render={({ field }) => (
-                              <Radio.Group {...field} disabled={isLocked} style={{ marginBottom: field.value ? 8 : 0 }}>
-                                <Radio value={false}>No</Radio>
-                                <Radio value={true}>Yes</Radio>
-                              </Radio.Group>
-                            )} 
+                {/* Blockers & Alerts Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: isDarkMode ? '#fff' : '#1e1b4b' }}>
+                    Final Checks, Blockers & Alerts
+                  </span>
+
+                  <Card size="small" style={{ borderRadius: 12, background: isDarkMode ? 'rgba(255,255,255,0.01)' : '#f8fafc', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
+                    <Row align="middle" justify="space-between">
+                      <Text>Logged Work Today:</Text>
+                      <Text strong style={{ fontSize: 14, color: totalHours >= REQUIRED_HOURS ? '#52c41a' : '#faad14' }}>
+                        {totalHours.toFixed(1)} hrs
+                      </Text>
+                    </Row>
+                  </Card>
+
+                  <Form.Item label="Blockers" style={{ marginBottom: 0 }}>
+                    <Controller name="blockers" control={control} render={({ field }) => <TextArea {...field} disabled={isLocked} rows={2} placeholder="Any blockers faced?" />} />
+                  </Form.Item>
+
+                  <Card title={<Space><AlertOutlined style={{ color: 'red' }} /><span>Raise Alert Issue?</span></Space>} size="small" style={{ borderRadius: 12 }} bodyStyle={{ padding: 10 }}>
+                    <Controller 
+                      name="isAlertIssue" 
+                      control={control} 
+                      render={({ field }) => (
+                        <Radio.Group {...field} disabled={isLocked} style={{ marginBottom: field.value ? 8 : 0 }}>
+                          <Radio value={false}>No</Radio>
+                          <Radio value={true}>Yes</Radio>
+                        </Radio.Group>
+                      )} 
+                    />
+                    {watch('isAlertIssue') && (
+                      <Controller 
+                        name="alertMessage" 
+                        control={control} 
+                        rules={{ required: watch('isAlertIssue') ? 'Required' : false }}
+                        render={({ field }) => (
+                          <Form.Item validateStatus={errors.alertMessage ? 'error' : ''} help={errors.alertMessage?.message} style={{ marginBottom: 0 }}>
+                            <TextArea {...field} disabled={isLocked} rows={2} placeholder="Describe the critical alert..." />
+                          </Form.Item>
+                        )} 
+                      />
+                    )}
+                  </Card>
+
+                  {/* Additional Hours History logs in collapsible collapse */}
+                  <Collapse 
+                    ghost
+                    style={{ marginTop: 8 }}
+                    expandIconPosition="end"
+                    items={[{
+                      key: 'history',
+                      label: <span style={{ fontWeight: 700, color: '#ec4899' }}>Additional Hours History Logs ({myTimerRequests.length})</span>,
+                      children: (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <Button size="small" onClick={fetchTimerRequests} type="link">Refresh Logs</Button>
+                          </div>
+                          <Table
+                            columns={requestColumns}
+                            dataSource={myTimerRequests}
+                            rowKey={(r) => r.request?.requestId || Math.random()}
+                            size="small"
+                            pagination={{ pageSize: 5 }}
                           />
-                          {watch('isAlertIssue') && (
-                            <Controller 
-                              name="alertMessage" 
-                              control={control} 
-                              rules={{ required: watch('isAlertIssue') ? 'Required' : false }}
-                              render={({ field }) => (
-                                <Form.Item validateStatus={errors.alertMessage ? 'error' : ''} help={errors.alertMessage?.message} style={{ marginBottom: 0 }}>
-                                  <TextArea {...field} disabled={isLocked} rows={2} placeholder="Describe the critical alert..." />
-                                </Form.Item>
-                              )} 
-                            />
-                          )}
-                        </Card>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'history-tab',
-                    label: <span style={{ fontWeight: 700, color: '#ec4899' }}>Additional Hours History</span>,
-                    closable: false,
-                    children: (
-                      <div style={{ padding: 16, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Title level={5} style={{ margin: 0, fontSize: 14 }}>Your Additional Hours History Logs</Title>
-                          <Button size="small" onClick={fetchTimerRequests} type="link">Refresh Logs</Button>
                         </div>
-                        <Table
-                          columns={requestColumns}
-                          dataSource={myTimerRequests}
-                          rowKey={(r) => r.request?.requestId || Math.random()}
-                          size="small"
-                          pagination={{ pageSize: 5 }}
-                        />
-                      </div>
-                    )
-                  }
-                ]}
-              />
+                      )
+                    }]}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Bottom Actions footer */}
@@ -1164,27 +1169,16 @@ const EODReportPage = () => {
                   </Button>
                 )}
                 {!isLocked && (
-                  activeTabKey !== 'submit-tab' ? (
-                    <Button 
-                      size="small" 
-                      type="primary" 
-                      onClick={handleNextToReview} 
-                      disabled={totalHours === 0}
-                    >
-                      Review & Submit
-                    </Button>
-                  ) : (
-                    <Button 
-                      size="small" 
-                      type="primary" 
-                      icon={<SendOutlined />} 
-                      htmlType="submit" 
-                      loading={submitting} 
-                      disabled={totalHours === 0}
-                    >
-                      {existingReport ? 'Update Report' : 'Submit Report'}
-                    </Button>
-                  )
+                  <Button 
+                    size="small" 
+                    type="primary" 
+                    icon={<SendOutlined />} 
+                    htmlType="submit" 
+                    loading={submitting} 
+                    disabled={totalHours === 0}
+                  >
+                    {existingReport ? 'Update Report' : 'Submit Report'}
+                  </Button>
                 )}
               </Space>
             </div>
