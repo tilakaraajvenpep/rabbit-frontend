@@ -108,15 +108,7 @@ const LoginPage = () => {
       width: '100vw',
       transition: 'all 0.3s ease'
     }}>
-      <Card style={{ 
-        width: 420, 
-        textAlign: 'center', 
-        borderRadius: 20, 
-        background: isDarkMode ? '#1e293b' : '#ffffff',
-        border: isDarkMode ? '1px solid rgba(99, 102, 241, 0.2)' : '1px solid #e2e8f0',
-        boxShadow: isDarkMode ? '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2)' : '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-        padding: '12px 10px'
-      }}>
+      <Card style={{ width: 420, textAlign: 'center' }}>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
             <Title level={2} style={{ marginBottom: 4, color: isDarkMode ? '#ffffff' : '#0f172a' }}>Rabbit 4.0</Title>
