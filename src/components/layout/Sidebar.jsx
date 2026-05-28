@@ -69,6 +69,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/pm/alerts', icon: <BellOutlined />, label: 'Alerts Feed' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },
         { key: '/pm/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
+        { key: '/pm/report-access-approvals', icon: <CalendarOutlined />, label: 'Report Access Approvals' },
         { key: '/pm/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
         { key: '/pm/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Requests' },
         { key: '/pm/team', icon: <TeamOutlined />, label: 'TL & Employees' },
@@ -129,6 +130,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       items.push(
         { key: '/hr/team', icon: <TeamOutlined />, label: 'Team Details' },
         { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' },
+        { key: '/hr/report-access-approvals', icon: <CalendarOutlined />, label: 'Report Access Approvals' },
         { key: '/hr/projects', icon: <ProjectOutlined />, label: 'Project Allocations' },
         { key: '/hr/task-tracking', icon: <ClockCircleOutlined />, label: 'Task Tracking' },
         { key: '/hr/hours', icon: <DollarOutlined />, label: 'Hour Allocation' },

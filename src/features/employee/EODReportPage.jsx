@@ -48,7 +48,9 @@ const EODReportPage = () => {
   const [existingReport, setExistingReport] = useState(null);
   const [currentLeave, setCurrentLeave] = useState(null);
   const [weeklyReports, setWeeklyReports] = useState([]);
-  const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(Number(currentUser?.allocatedHours) || 8.5);
+  const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(Number(currentUser?.allocatedHours) || 0);
+  const [hasWarnedExceeded, setHasWarnedExceeded] = useState(false);
+  const [accessRequestType, setAccessRequestType] = useState('single');
 
   // Timer Requests State
   const [myTimerRequests, setMyTimerRequests] = useState([]);
@@ -117,6 +119,20 @@ const EODReportPage = () => {
   }
 
   const selectedTicketIds = watchedItems?.map(item => item.ticketId).filter(id => !!id) || [];
+
+  useEffect(() => {
+    if (allocatedHoursPerDay > 0 && REQUIRED_HOURS > 0) {
+      if (totalHours > REQUIRED_HOURS) {
+        if (!hasWarnedExceeded) {
+          setBlockedSubmitTotal(totalHours);
+          setIsHoursBlockedModalOpen(true);
+          setHasWarnedExceeded(true);
+        }
+      } else {
+        setHasWarnedExceeded(false);
+      }
+    }
+  }, [totalHours, REQUIRED_HOURS, allocatedHoursPerDay, hasWarnedExceeded]);
 
   const hoursReportedOtherDays = weeklyReports
     .filter(r => r.date !== selectedDate)
@@ -199,7 +215,7 @@ const EODReportPage = () => {
     adminService.getMyProfile().then(res => {
       const fresh = Number(res?.data?.allocatedHours);
       if (!isNaN(fresh) && fresh >= 0) {
-        setAllocatedHoursPerDay(fresh > 0 ? fresh : 8.5);
+        setAllocatedHoursPerDay(fresh);
         // Keep auth store in sync so it's consistent across page navigation
         setUser({ ...currentUser, allocatedHours: String(fresh) });
       }
@@ -207,6 +223,12 @@ const EODReportPage = () => {
       if (tlId) setSelectedTeamLeadId(tlId);
     }).catch(() => {});
   }, []);
+
+  const handleGoToToday = () => {
+    const today = dayjs();
+    setSelectedDate(today.format('YYYY-MM-DD'));
+    setBaseDate(today.startOf('week').add(1, 'day'));
+  };
 
   useEffect(() => {
     updateWeekDates(baseDate);
@@ -641,7 +663,18 @@ const EODReportPage = () => {
       key: 'comments',
       render: (c) => c ? <Text type="secondary">{c}</Text> : <Text italic type="secondary">No comment</Text>
     }
-  ];  const isLocked = viewOnly && !adminUnlocked;
+  ];
+
+  const formatHoursAndMinutes = (hoursDecimal) => {
+    const h = Math.floor(hoursDecimal);
+    const m = Math.round((hoursDecimal - h) * 60);
+    if (h === 0 && m === 0) return '0 mins';
+    const hStr = h > 0 ? `${h}h` : '';
+    const mStr = m > 0 ? `${m}m` : '';
+    return [hStr, mStr].filter(Boolean).join(' ');
+  };
+
+  const isLocked = viewOnly && !adminUnlocked;
 
   // Render the Tabbed EOD dashboard
   return (
@@ -665,77 +698,95 @@ const EODReportPage = () => {
             <Text strong style={{ fontSize: 13 }}>Weekly Overview</Text>
           </div>
 
-          {/* ── Allocated Hours Banner ───────────────────────────────── */}
-          <div style={{
-            background: totalHours >= REQUIRED_HOURS
-              ? 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.08))'
-              : 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.12))',
-            border: `1.5px solid ${totalHours >= REQUIRED_HOURS ? 'rgba(16,185,129,0.4)' : 'rgba(99,102,241,0.35)'}`,
-            borderRadius: 10,
-            padding: '10px 12px',
-            marginBottom: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <div>
-              <div style={{ fontSize: 10, color: '#8c8c8c', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                Daily Quota (PM Assigned)
+          {/* Daily Quota Card */}
+          {allocatedHoursPerDay > 0 ? (
+            <div style={{
+              background: totalHours >= REQUIRED_HOURS
+                ? 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.08))'
+                : 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.12))',
+              border: `1.5px solid ${totalHours >= REQUIRED_HOURS ? 'rgba(16,185,129,0.4)' : 'rgba(99,102,241,0.35)'}`,
+              borderRadius: 10,
+              padding: '10px 12px',
+              marginBottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <div>
+                <div style={{ fontSize: 10, color: '#8c8c8c', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                  Daily Quota (PM Assigned)
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>
+                    {formatHoursAndMinutes(REQUIRED_HOURS)}
+                  </span>
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{ fontSize: 26, fontWeight: 900, lineHeight: 1, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>
-                  {REQUIRED_HOURS}
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>hrs/day</span>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 10, color: '#8c8c8c', marginBottom: 2 }}>Logged</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b' }}>
+                  {formatHoursAndMinutes(totalHours)}
+                </div>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, marginTop: 2,
+                  color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b',
+                  background: totalHours >= REQUIRED_HOURS ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
+                  borderRadius: 20, padding: '1px 7px', display: 'inline-block'
+                }}>
+                  {totalHours >= REQUIRED_HOURS ? '✓ Goal Met' : `${formatHoursAndMinutes(REQUIRED_HOURS - totalHours)} left`}
+                </div>
               </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: '#8c8c8c', marginBottom: 2 }}>Logged</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b' }}>
-                {totalHours.toFixed(1)}h
-              </div>
-              <div style={{
-                fontSize: 10, fontWeight: 700, marginTop: 2,
-                color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b',
-                background: totalHours >= REQUIRED_HOURS ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
-                borderRadius: 20, padding: '1px 7px', display: 'inline-block'
-              }}>
-                {totalHours >= REQUIRED_HOURS ? '✓ Goal Met' : `${Math.max(0, REQUIRED_HOURS - totalHours).toFixed(1)}h left`}
-              </div>
+          ) : (
+            <div style={{
+              background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc',
+              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
+              borderRadius: 12,
+              padding: '12px',
+              marginBottom: 10,
+              textAlign: 'center',
+            }}>
+              <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic' }}>
+                Daily Quota: Not Assigned by PM/HR
+              </Text>
             </div>
-          </div>
+          )}
           {/* ──────────────────────────────────────────────────────────── */}
 
           {/* Daily Progress Bar */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Text type="secondary" style={{ fontSize: 10 }}>Today's Progress</Text>
-              <Text style={{ fontSize: 10, fontWeight: 700, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>
-                {REQUIRED_HOURS > 0 ? Math.round(Math.min((totalHours / REQUIRED_HOURS) * 100, 100)) : 100}%
-              </Text>
+          {allocatedHoursPerDay > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text type="secondary" style={{ fontSize: 10 }}>Today's Progress</Text>
+                <Text style={{ fontSize: 10, fontWeight: 700, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>
+                  {REQUIRED_HOURS > 0 ? Math.round(Math.min((totalHours / REQUIRED_HOURS) * 100, 100)) : 100}%
+                </Text>
+              </div>
+              <Progress
+                percent={REQUIRED_HOURS > 0 ? Math.round(Math.min((totalHours / REQUIRED_HOURS) * 100, 100)) : 100}
+                size="small"
+                showInfo={false}
+                strokeColor={totalHours >= REQUIRED_HOURS
+                  ? { '0%': '#10b981', '100%': '#34d399' }
+                  : { '0%': '#6366f1', '100%': '#8b5cf6' }}
+              />
             </div>
-            <Progress
-              percent={REQUIRED_HOURS > 0 ? Math.round(Math.min((totalHours / REQUIRED_HOURS) * 100, 100)) : 100}
-              size="small"
-              showInfo={false}
-              strokeColor={totalHours >= REQUIRED_HOURS
-                ? { '0%': '#10b981', '100%': '#34d399' }
-                : { '0%': '#6366f1', '100%': '#8b5cf6' }}
-            />
-          </div>
+          )}
 
           {/* This-week stat */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text type="secondary" style={{ fontSize: 10 }}>This Week</Text>
-            <Text strong style={{ fontSize: 12, color: '#6366f1' }}>{loggedThisWeek.toFixed(1)}h</Text>
+            <Text strong style={{ fontSize: 12, color: '#6366f1' }}>{formatHoursAndMinutes(loggedThisWeek)}</Text>
           </div>
 
-          <Progress
-            percent={Math.round(Math.min((loggedThisWeek / weeklyAllocated) * 100, 100))}
-            size="small"
-            strokeColor={{ '0%': '#6366f1', '100%': '#10b981' }}
-            format={(p) => <span style={{ fontSize: 10, color: '#8c8c8c' }}>{p}% of Quota</span>}
-          />
+          {weeklyAllocated > 0 && (
+            <Progress
+              percent={Math.round(Math.min((loggedThisWeek / weeklyAllocated) * 100, 100))}
+              size="small"
+              strokeColor={{ '0%': '#6366f1', '100%': '#10b981' }}
+              format={(p) => <span style={{ fontSize: 10, color: '#8c8c8c' }}>{p}% of Quota</span>}
+            />
+          )}
         </Card>
 
 
@@ -895,7 +946,7 @@ const EODReportPage = () => {
                 }
                 extra={
                   <Space>
-                    <Button size="small" type="default" onClick={() => setSelectedDate(dayjs().format('YYYY-MM-DD'))}>
+                    <Button size="small" type="default" onClick={handleGoToToday}>
                       Go to Today
                     </Button>
                     {!existingReq || existingReq.status === 'Rejected' ? (
@@ -1042,29 +1093,60 @@ const EODReportPage = () => {
                           </Row>
 
                           <Row gutter={12} align="middle">
-                            <Col span={8}>
-                              <Form.Item label="Hours" required help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''} style={{ marginBottom: 0 }}>
+                            <Col span={14}>
+                              <Form.Item label="Work Hours (Hours & Minutes)" required help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''} style={{ marginBottom: 0 }}>
                                 <Controller
                                   name={`items.${index}.hours`}
                                   control={control}
                                   rules={{
                                     required: !isLocked ? 'Required' : false,
-                                    min: !isLocked ? { value: 0.1, message: 'Min 0.1' } : undefined
+                                    min: !isLocked ? { value: 0.01, message: 'Min 1 min' } : undefined
                                   }}
-                                  render={({ field: numField }) => (
-                                    <InputNumber
-                                      {...numField}
-                                      disabled={isLocked || !currentItemTicketId}
-                                      style={{ width: '100%' }}
-                                      min={0}
-                                      step={0.5}
-                                    />
-                                  )}
+                                  render={({ field: numField }) => {
+                                    const decimalVal = Number(numField.value) || 0;
+                                    const hVal = Math.floor(decimalVal);
+                                    const mVal = Math.round((decimalVal - hVal) * 60);
+
+                                    return (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <InputNumber
+                                          value={hVal}
+                                          min={0}
+                                          max={24}
+                                          disabled={isLocked || !currentItemTicketId}
+                                          onChange={(val) => {
+                                            const h = Number(val) || 0;
+                                            const newDec = h + (mVal / 60);
+                                            numField.onChange(Number(newDec.toFixed(4)));
+                                          }}
+                                          placeholder="Hrs"
+                                          style={{ width: '50%' }}
+                                          controls
+                                        />
+                                        <span style={{ color: isDarkMode ? '#8c8c8c' : '#555', fontSize: 11 }}>h</span>
+                                        <InputNumber
+                                          value={mVal}
+                                          min={0}
+                                          max={59}
+                                          disabled={isLocked || !currentItemTicketId}
+                                          onChange={(val) => {
+                                            const m = Number(val) || 0;
+                                            const newDec = hVal + (m / 60);
+                                            numField.onChange(Number(newDec.toFixed(4)));
+                                          }}
+                                          placeholder="Mins"
+                                          style={{ width: '50%' }}
+                                          controls
+                                        />
+                                        <span style={{ color: isDarkMode ? '#8c8c8c' : '#555', fontSize: 11 }}>m</span>
+                                      </div>
+                                    );
+                                  }}
                                 />
                               </Form.Item>
                             </Col>
 
-                            <Col span={16}>
+                            <Col span={10}>
                               {!isLocked && (
                                 <Space style={{ marginTop: 8 }}>
                                   <Button
@@ -1405,13 +1487,34 @@ const EODReportPage = () => {
           onFinish={async (values) => {
             setAccessRequestSubmitting(true);
             try {
-              await reportAccessService.createRequest({
-                targetDate: values.targetDate,
-                reason: values.reason
-              });
+              if (accessRequestType === 'single') {
+                const targetDate = values.targetDate 
+                  ? dayjs(values.targetDate).format('YYYY-MM-DD') 
+                  : dayjs(selectedDate).format('YYYY-MM-DD');
+                await reportAccessService.createRequest({
+                  targetDate,
+                  reason: values.reason
+                });
+              } else {
+                const start = dayjs(values.dateRange[0]);
+                const end = dayjs(values.dateRange[1]);
+                const diffDays = end.diff(start, 'day');
+                
+                const requests = [];
+                for (let i = 0; i <= diffDays; i++) {
+                  const curDate = start.add(i, 'day').format('YYYY-MM-DD');
+                  requests.push(
+                    reportAccessService.createRequest({
+                      targetDate: curDate,
+                      reason: values.reason
+                    })
+                  );
+                }
+                await Promise.all(requests);
+              }
               notification.success({
                 message: 'Access Request Submitted',
-                description: 'Your request to report for this date has been sent to HR and Project Manager. You will be notified once it is reviewed.'
+                description: 'Your request to report has been sent to HR and Project Manager. You will be notified once it is reviewed.'
               });
               setIsAccessRequestModalOpen(false);
               // Refresh access requests
@@ -1427,12 +1530,47 @@ const EODReportPage = () => {
             }
           }}
         >
-          <Form.Item name="targetDate" hidden><Input /></Form.Item>
+          <Form.Item name="requestType" label="Selection Mode" initialValue="single" style={{ marginBottom: 12 }}>
+            <Radio.Group value={accessRequestType} onChange={(e) => setAccessRequestType(e.target.value)}>
+              <Radio value="single">Single Date</Radio>
+              <Radio value="range">Date Range</Radio>
+            </Radio.Group>
+          </Form.Item>
 
-          <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, marginBottom: 16 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>Requesting access for</Text>
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#6366f1', marginTop: 4 }}>
-              {dayjs(selectedDate).format('dddd, DD MMMM YYYY')}
+          {accessRequestType === 'single' ? (
+            <Form.Item 
+              name="targetDate" 
+              label="Select Target Date" 
+              rules={[{ required: true, message: 'Please select a date' }]}
+              initialValue={dayjs(selectedDate)}
+            >
+              <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+            </Form.Item>
+          ) : (
+            <Form.Item 
+              name="dateRange" 
+              label="Select Date Range" 
+              rules={[{ required: true, message: 'Please select a range' }]}
+            >
+              <DatePicker.RangePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+            </Form.Item>
+          )}
+
+          <div style={{ 
+            background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc', 
+            padding: 12, 
+            borderRadius: 8, 
+            marginBottom: 16,
+            border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`
+          }}>
+            <Text type="secondary" style={{ fontSize: 12, color: isDarkMode ? '#8c8c8c' : '#555' }}>Requesting access for</Text>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#6366f1', marginTop: 4 }}>
+              {accessRequestType === 'single' 
+                ? (accessRequestForm.getFieldValue('targetDate') 
+                   ? dayjs(accessRequestForm.getFieldValue('targetDate')).format('dddd, DD MMMM YYYY')
+                   : dayjs(selectedDate).format('dddd, DD MMMM YYYY'))
+                : 'Selected Date Range'
+              }
             </div>
           </div>
 

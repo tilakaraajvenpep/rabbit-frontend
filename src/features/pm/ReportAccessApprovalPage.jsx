@@ -155,18 +155,24 @@ const ReportAccessApprovalPage = () => {
         cancelText="Cancel"
         destroyOnClose
       >
-        <div style={{ marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 8 }}>
-          <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>Employee Details</Text>
-          <Text strong>{selectedRequest?.employeeName}</Text> ({selectedRequest?.employeeEmail})
+        <div style={{ 
+          marginBottom: 16, 
+          background: isDarkMode ? 'rgba(255, 255, 255, 0.02)' : '#f8fafc', 
+          border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#e2e8f0'}`,
+          padding: 12, 
+          borderRadius: 8 
+        }}>
+          <Text type="secondary" style={{ display: 'block', fontSize: 11, color: isDarkMode ? '#8c8c8c' : '#555' }}>Employee Details</Text>
+          <Text strong>{selectedRequest?.employeeName}</Text> <span style={{ color: isDarkMode ? '#8c8c8c' : '#555' }}>({selectedRequest?.employeeEmail})</span>
           <div style={{ marginTop: 8 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>Requested Date: </Text>
-            <Text strong style={{ fontSize: 12, color: '#4f46e5' }}>
+            <Text type="secondary" style={{ fontSize: 12, color: isDarkMode ? '#8c8c8c' : '#555' }}>Requested Date: </Text>
+            <Text strong style={{ fontSize: 12, color: '#6366f1' }}>
               {selectedRequest ? dayjs(selectedRequest.targetDate).format('dddd, DD MMMM YYYY') : ''}
             </Text>
           </div>
           <div style={{ marginTop: 8 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>Reason: </Text>
-            <Text italic style={{ fontSize: 12 }}>"{selectedRequest?.reason}"</Text>
+            <Text type="secondary" style={{ fontSize: 12, color: isDarkMode ? '#8c8c8c' : '#555' }}>Reason: </Text>
+            <Text italic style={{ fontSize: 12, color: isDarkMode ? '#dfdfdf' : '#333' }}>"{selectedRequest?.reason}"</Text>
           </div>
         </div>
 

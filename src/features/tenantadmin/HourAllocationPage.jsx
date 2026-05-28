@@ -55,6 +55,18 @@ const EmployeeCard = ({ user, onSave }) => {
     }
   };
 
+  const formatHoursAndMinutes = (hoursDecimal) => {
+    const h = Math.floor(hoursDecimal);
+    const m = Math.round((hoursDecimal - h) * 60);
+    if (h === 0 && m === 0) return '0 mins';
+    const hStr = h > 0 ? `${h}h` : '';
+    const mStr = m > 0 ? `${m}m` : '';
+    return [hStr, mStr].filter(Boolean).join(' ');
+  };
+
+  const hoursPart = Math.floor(hours);
+  const minutesPart = Math.round((hours - hoursPart) * 60);
+
   const pct = Math.min(Math.round((hours / 12) * 100), 100);
 
   return (
@@ -117,7 +129,7 @@ const EmployeeCard = ({ user, onSave }) => {
         <Text type="secondary" style={{ fontSize: 12 }}>Current Quota</Text>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <ClockCircleOutlined style={{ color: meta.color, fontSize: 13 }} />
-          <Text strong style={{ color: meta.color, fontSize: 15 }}>{currentSaved}h/day</Text>
+          <Text strong style={{ color: meta.color, fontSize: 15 }}>{formatHoursAndMinutes(currentSaved)}/day</Text>
         </div>
       </div>
 
@@ -134,15 +146,30 @@ const EmployeeCard = ({ user, onSave }) => {
 
       {/* Input + Save row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>Set hours:</Text>
+        <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>Set quota:</Text>
         <InputNumber
-          value={hours}
+          value={hoursPart}
           min={0}
-          step={0.5}
-          precision={1}
+          max={24}
           style={{ flex: 1 }}
-          onChange={val => { if (val != null) setHours(val); }}
-          keyboard
+          onChange={val => {
+            const h = Number(val) || 0;
+            setHours(h + (minutesPart / 60));
+          }}
+          placeholder="Hrs"
+          controls
+          size="middle"
+        />
+        <InputNumber
+          value={minutesPart}
+          min={0}
+          max={59}
+          style={{ flex: 1 }}
+          onChange={val => {
+            const m = Number(val) || 0;
+            setHours(hoursPart + (m / 60));
+          }}
+          placeholder="Mins"
           controls
           size="middle"
         />
@@ -167,7 +194,7 @@ const EmployeeCard = ({ user, onSave }) => {
       {isDirty && (
         <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text type="secondary" style={{ fontSize: 11 }}>
-            Change: {currentSaved}h → <Text strong style={{ color: meta.color }}>{hours}h</Text>
+            Change: {formatHoursAndMinutes(currentSaved)} → <Text strong style={{ color: meta.color }}>{formatHoursAndMinutes(hours)}</Text>
           </Text>
           <Button
             type="link"
