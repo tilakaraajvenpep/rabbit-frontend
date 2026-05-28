@@ -42,6 +42,7 @@ const EODReportPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [viewOnly, setViewOnly] = useState(false);
   const [myTickets, setMyTickets] = useState([]);
+  const [allMyTickets, setAllMyTickets] = useState([]);
   const [allProjects, setAllProjects] = useState([]);
   const [isOutsideCurrentWeek, setIsOutsideCurrentWeek] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
@@ -200,8 +201,10 @@ const EODReportPage = () => {
   const fetchTickets = async () => {
     try {
       const res = await ticketService.getTickets();
-      let ticketsData = res.data || [];
-      ticketsData = ticketsData.filter(t => t.status !== 'Done');
+      const rawTickets = res.data || [];
+      setAllMyTickets(rawTickets);
+
+      let ticketsData = rawTickets.filter(t => t.status !== 'Done');
       if (role === 'TeamLead' || role === 'ProjectManager' || role === 'TenantAdmin') {
         const myUserId = currentUser?.userId || currentUser?.id;
         ticketsData = ticketsData.filter(t => 
@@ -425,6 +428,7 @@ const EODReportPage = () => {
       if (ticketsList.length === 0) {
         const ticketsRes = await ticketService.getTickets();
         ticketsList = ticketsRes.data || [];
+        setAllMyTickets(ticketsList);
       }
 
       if (hasReport) {
@@ -485,6 +489,7 @@ const EODReportPage = () => {
       };
 
       setMyTickets(prev => [newTicket, ...prev]);
+      setAllMyTickets(prev => [newTicket, ...prev]);
 
       notification.success({ message: 'Ticket Created', description: 'New ticket added to your list.' });
       setIsTicketModalOpen(false);
@@ -834,6 +839,53 @@ const EODReportPage = () => {
           )}
         </Card>
 
+        {/* My Project Allocations Card */}
+        <Card
+          size="small"
+          style={{
+            borderRadius: 12,
+            border: `1.5px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#e2e8f0'}`,
+            background: isDarkMode ? '#1e1e24' : '#fff'
+          }}
+          bodyStyle={{ padding: 12 }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <ProjectOutlined style={{ fontSize: 16, color: '#10b981' }} />
+            <Text strong style={{ fontSize: 13 }}>My Project Allocations</Text>
+          </div>
+          {allProjects.filter(p => {
+            const allocated = p.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
+            return allocated !== undefined && Number(allocated) > 0;
+          }).length === 0 ? (
+            <div style={{ fontSize: 11, color: '#8c8c8c', fontStyle: 'italic', textAlign: 'center' }}>
+              No hours allocated by HR yet.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {allProjects.filter(p => {
+                const allocated = p.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
+                return allocated !== undefined && Number(allocated) > 0;
+              }).map(p => {
+                const allocated = Number(p.employeeAllocatedHours?.[currentUser.userId || currentUser.id]) || 0;
+                const logged = allMyTickets
+                  .filter(t => String(t.projectId) === String(p.id || p.projectId))
+                  .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+                const timeLeft = Math.max(0, allocated - logged);
+                return (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }} title={p.name || p.projectName}>
+                      {p.name || p.projectName}
+                    </div>
+                    <Tag color="green" style={{ margin: 0, fontSize: 10 }}>
+                      {formatHoursAndMinutes(allocated)} (Left: {formatHoursAndMinutes(timeLeft)})
+                    </Tag>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
 
         {/* Vertical Calendar Timeline Card */}
         <Card 
@@ -1091,6 +1143,31 @@ const EODReportPage = () => {
                                   render={({ field: selectField }) => {
                                     const selectedProj = allProjects.find(p => String(p.id || p.projectId) === String(selectField.value));
                                     const empHours = selectedProj?.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
+                                    
+                                    let timeLeftAfterReporting = 0;
+                                    if (empHours !== undefined && empHours !== null) {
+                                      const totalLoggedForProject = allMyTickets
+                                        .filter(t => String(t.projectId) === String(selectField.value))
+                                        .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+                                      
+                                      const existingReportProjectHours = existingReport?.items?.reduce((sum, item) => {
+                                        if (String(item.projectId) === String(selectField.value)) {
+                                          return sum + (Number(item.hours) || 0);
+                                        }
+                                        return sum;
+                                      }, 0) || 0;
+                                      
+                                      const currentProjectHoursInForm = watchedItems?.reduce((sum, item) => {
+                                        if (String(item.projectId) === String(selectField.value)) {
+                                          return sum + (Number(item.hours) || 0);
+                                        }
+                                        return sum;
+                                      }, 0) || 0;
+                                      
+                                      const previouslyLogged = Math.max(0, totalLoggedForProject - existingReportProjectHours);
+                                      timeLeftAfterReporting = Math.max(0, Number(empHours) - previouslyLogged - currentProjectHoursInForm);
+                                    }
+
                                     return (
                                       <div>
                                         <Select
@@ -1105,7 +1182,9 @@ const EODReportPage = () => {
                                         >
                                           {allProjects.map(p => {
                                             const eHours = p.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
-                                            const labelHours = eHours !== undefined ? `${eHours}h (My Quota)` : `${p.totalHours || 0}h (Total)`;
+                                            const labelHours = eHours !== undefined 
+                                              ? `${formatHoursAndMinutes(Number(eHours))} (My Quota)` 
+                                              : `${formatHoursAndMinutes(Number(p.totalHours || 0))} (Total)`;
                                             return (
                                               <Select.Option key={p.id} value={p.id}>
                                                 {p.name || p.projectName} — {labelHours}
@@ -1115,7 +1194,10 @@ const EODReportPage = () => {
                                         </Select>
                                         {selectedProj && (
                                           <div style={{ marginTop: 4, fontSize: '11px', color: '#6366f1' }}>
-                                            <strong>Project Allotted Hours:</strong> {selectedProj.totalHours || '0.00'} hrs | <strong>Your Project Quota:</strong> {empHours !== undefined ? `${empHours} hrs` : 'Not assigned'}
+                                            <strong>Project Allotted Hours:</strong> {selectedProj.totalHours || '0.00'} hrs
+                                            {empHours !== undefined && (
+                                              <span> | <strong>Your Quota:</strong> {formatHoursAndMinutes(Number(empHours))} | <strong>Time Left:</strong> {formatHoursAndMinutes(timeLeftAfterReporting)}</span>
+                                            )}
                                           </div>
                                         )}
                                       </div>
