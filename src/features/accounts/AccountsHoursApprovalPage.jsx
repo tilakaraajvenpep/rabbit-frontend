@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card, Table, Button, Space, Typography, Tag, Modal, Input, message,
-  Spin, Empty, Alert, Statistic, Row, Col,
-} from 'antd';
+import { Table, Button, Space, Typography, Tag, Modal, Input, message, Spin } from 'antd';
 import {
   CheckCircleOutlined, CloseCircleOutlined, DollarOutlined,
-  ClockCircleOutlined, UserOutlined, FileTextOutlined,
+  ClockCircleOutlined, FileTextOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import { timerRequestService } from '../../services/timerRequestService';
 import PageHeader from '../../components/common/PageHeader';
@@ -14,12 +11,55 @@ import { useThemeStore } from '../../store/themeStore';
 const { Text } = Typography;
 const { TextArea } = Input;
 
+const Avatar = ({ name }) => {
+  const initials = (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <div style={{
+      width: 34, height: 34, borderRadius: '50%',
+      background: 'linear-gradient(135deg,#10b981,#059669)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontWeight: 700, fontSize: 12, flexShrink: 0,
+    }}>{initials}</div>
+  );
+};
+
+const MetricCard = ({ icon, label, value, color, bg }) => (
+  <div style={{
+    background: bg, border: `1px solid ${color}30`,
+    borderRadius: 16, padding: '18px 22px',
+    display: 'flex', alignItems: 'center', gap: 16, flex: 1, minWidth: 140,
+  }}>
+    <div style={{
+      width: 44, height: 44, borderRadius: 12, background: `${color}18`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color,
+    }}>{icon}</div>
+    <div>
+      <div style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{label}</div>
+    </div>
+  </div>
+);
+
+const WorkflowStep = ({ step, label, active, done }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+    <div style={{
+      width: 36, height: 36, borderRadius: '50%',
+      background: done ? '#10b981' : active ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : '#e2e8f0',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: done || active ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: 13,
+    }}>{done ? '✓' : step}</div>
+    <span style={{ fontSize: 11, color: active ? '#4f46e5' : done ? '#10b981' : '#94a3b8', fontWeight: active ? 700 : 500 }}>{label}</span>
+  </div>
+);
+const WorkflowLine = ({ done }) => (
+  <div style={{ flex: 1, height: 2, background: done ? '#10b981' : '#e2e8f0', marginBottom: 20, borderRadius: 2 }} />
+);
+
 const AccountsHoursApprovalPage = () => {
   const { isDarkMode } = useThemeStore();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
 
-  // Approve / Reject modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isApproval, setIsApproval] = useState(true);
@@ -33,69 +73,54 @@ const AccountsHoursApprovalPage = () => {
     try {
       const res = await timerRequestService.getAccountsPendingRequests();
       setRequests(res.data.data || []);
-    } catch (err) {
-      message.error('Failed to load additional hours requests');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOpenModal = (record, approve) => {
-    setSelectedRequest(record);
-    setIsApproval(approve);
-    setComment('');
-    setIsModalOpen(true);
+    } catch { message.error('Failed to load additional hours requests'); }
+    finally { setLoading(false); }
   };
 
   const handleSubmit = async () => {
     if (!selectedRequest) return;
     setSubmitting(true);
     try {
-      await timerRequestService.accountsRespondToRequest(selectedRequest.request.requestId, {
-        approved: isApproval,
-        comments: comment,
-      });
-      if (isApproval) {
-        message.success('Approved! HR and PM have been notified to reassign the employee\'s daily quota.');
-      } else {
-        message.success('Rejected. Employee has been notified.');
-      }
+      await timerRequestService.accountsRespondToRequest(selectedRequest.request.requestId, { approved: isApproval, comments: comment });
+      message.success(isApproval
+        ? 'Approved! HR and PM have been notified to reassign the employee\'s daily quota.'
+        : 'Rejected. Employee has been notified.');
       setIsModalOpen(false);
       fetchRequests();
-    } catch (err) {
-      message.error('Failed to submit response');
-    } finally {
-      setSubmitting(false);
-    }
+    } catch { message.error('Failed to submit response'); }
+    finally { setSubmitting(false); }
   };
 
   const totalHours = requests.reduce((s, r) => s + Number(r.request?.requestedHours || 0), 0);
+  const exceeded   = requests.filter(r => r.request?.requestType === 'HoursExceeded').length;
+
+  const cardBase = { borderRadius: 16, overflow: 'hidden', background: isDarkMode ? '#18181b' : '#fff', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.07)' : '#f1f5f9'}` };
 
   const columns = [
     {
       title: 'Employee',
-      dataIndex: 'employeeName',
-      key: 'employeeName',
-      render: (name) => (
-        <Space>
-          <UserOutlined style={{ color: '#6366f1' }} />
-          <Text strong>{name}</Text>
-        </Space>
+      key: 'employee',
+      width: 180,
+      render: (_, r) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Avatar name={r.employeeName} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>{r.employeeName}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>Employee</div>
+          </div>
+        </div>
       ),
     },
     {
-      title: 'Project',
-      dataIndex: 'projectName',
-      key: 'projectName',
-      render: (name) => <Text strong style={{ color: '#6366f1' }}>{name || '—'}</Text>
-    },
-    {
-      title: 'Ticket',
-      key: 'ticket',
+      title: 'Project & Ticket',
+      key: 'project',
       render: (_, r) => (
         <div>
-          <Text code style={{ fontSize: 11 }}>{r.ticketCode}</Text>
-          <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>{r.ticketTitle}</div>
+          <div style={{ fontWeight: 600, color: '#6366f1', fontSize: 13 }}>{r.projectName || '—'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <span style={{ background: '#f1f5f9', color: '#475569', fontSize: 11, padding: '1px 7px', borderRadius: 5, fontFamily: 'monospace' }}>{r.ticketCode}</span>
+            <span style={{ fontSize: 12, color: '#64748b' }}>{r.ticketTitle}</span>
+          </div>
         </div>
       ),
     },
@@ -103,9 +128,14 @@ const AccountsHoursApprovalPage = () => {
       title: 'Type',
       dataIndex: ['request', 'requestType'],
       key: 'requestType',
+      width: 140,
       render: (t) => (
-        <Tag color={t === 'TimerMissed' ? 'volcano' : 'purple'}>
-          {t === 'TimerMissed' ? 'Timer Missed' : 'Extra Hours'}
+        <Tag style={{
+          borderRadius: 20, fontWeight: 600, fontSize: 11, padding: '3px 12px', border: 'none',
+          background: t === 'TimerMissed' ? '#fff7ed' : '#f5f3ff',
+          color: t === 'TimerMissed' ? '#c2410c' : '#7c3aed',
+        }}>
+          {t === 'TimerMissed' ? '⏱ Timer Missed' : '⚡ Extra Hours'}
         </Tag>
       ),
     },
@@ -113,12 +143,10 @@ const AccountsHoursApprovalPage = () => {
       title: 'Extra Hours',
       dataIndex: ['request', 'requestedHours'],
       key: 'requestedHours',
+      width: 110,
       align: 'center',
       render: (h) => (
-        <div style={{
-          background: 'rgba(99,102,241,0.1)', color: '#6366f1',
-          borderRadius: 20, padding: '2px 12px', fontWeight: 700, fontSize: 13, display: 'inline-block',
-        }}>
+        <div style={{ background: 'rgba(16,185,129,0.1)', color: '#059669', borderRadius: 10, padding: '4px 12px', fontWeight: 800, fontSize: 15, display: 'inline-block' }}>
           +{h}h
         </div>
       ),
@@ -128,10 +156,10 @@ const AccountsHoursApprovalPage = () => {
       key: 'reason',
       render: (_, r) => (
         <div>
-          <div style={{ fontSize: 12 }}>{r.request?.reason}</div>
+          <div style={{ fontSize: 12, color: '#475569' }}>{r.request?.reason}</div>
           {r.request?.comments && (
-            <div style={{ fontSize: 11, color: '#d97706', marginTop: 4, fontStyle: 'italic' }}>
-              Notes: {r.request.comments}
+            <div style={{ marginTop: 4, fontSize: 11, color: '#d97706', fontStyle: 'italic', background: '#fffbeb', padding: '2px 8px', borderRadius: 6, display: 'inline-block' }}>
+              Chain: {r.request.comments}
             </div>
           )}
         </div>
@@ -140,29 +168,58 @@ const AccountsHoursApprovalPage = () => {
     {
       title: 'Actions',
       key: 'actions',
+      width: 180,
       render: (_, record) => (
-        <Space>
+        <Space size={6}>
           <Button
-            type="primary"
+            size="small"
+            onClick={() => { setSelectedRequest(record); setIsApproval(true); setComment(''); setIsModalOpen(true); }}
+            style={{ background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
             icon={<CheckCircleOutlined />}
-            onClick={() => handleOpenModal(record, true)}
-            style={{ background: '#10b981', borderColor: '#10b981', borderRadius: 6 }}
-          >
-            Approve
-          </Button>
+          >Approve</Button>
           <Button
-            type="primary"
-            danger
+            size="small"
+            onClick={() => { setSelectedRequest(record); setIsApproval(false); setComment(''); setIsModalOpen(true); }}
+            style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
             icon={<CloseCircleOutlined />}
-            onClick={() => handleOpenModal(record, false)}
-            style={{ borderRadius: 6 }}
-          >
-            Reject
-          </Button>
+          >Reject</Button>
         </Space>
       ),
     },
   ];
+
+  const ModalDetail = ({ req, isApproval }) => (
+    <div style={{
+      background: isApproval ? 'rgba(16,185,129,0.04)' : 'rgba(239,68,68,0.04)',
+      border: `1px solid ${isApproval ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+      borderRadius: 12, padding: 14, marginBottom: 16,
+    }}>
+      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Request Summary</div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+        <Avatar name={req?.employeeName} />
+        <div>
+          <div style={{ fontWeight: 700 }}>{req?.employeeName}</div>
+          <div style={{ fontSize: 12, color: '#6366f1' }}>{req?.projectName}</div>
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: '#64748b' }}>
+        <span style={{ background: '#f1f5f9', padding: '1px 7px', borderRadius: 5, fontFamily: 'monospace', marginRight: 6 }}>{req?.ticketCode}</span>
+        {req?.ticketTitle}
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <Tag color="green" style={{ borderRadius: 20, border: 'none', fontWeight: 700 }}>+{req?.request?.requestedHours}h extra hours</Tag>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 12, color: '#475569', fontStyle: 'italic' }}>"{req?.request?.reason}"</div>
+      {req?.request?.comments && (
+        <div style={{ marginTop: 6, fontSize: 11, color: '#d97706', fontStyle: 'italic' }}>Chain notes: {req?.request?.comments}</div>
+      )}
+      {isApproval && (
+        <div style={{ marginTop: 10, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#166534' }}>
+          ✅ Approving will notify HR and PM to update this employee's daily quota so they can submit their EOD.
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -172,67 +229,53 @@ const AccountsHoursApprovalPage = () => {
         breadcrumbs={[{ label: 'Accounts' }, { label: 'Additional Hours Approval' }]}
       />
 
-      {/* Workflow banner */}
-      <Alert
-        message={
-          <span>
-            <strong>Approval Workflow:</strong> Employee → Team Lead → Project Manager →{' '}
-            <strong style={{ color: '#6366f1' }}>Accounts (you)</strong> → HR/PM reassigns quota → Employee can submit EOD
-          </span>
-        }
-        type="info"
-        showIcon
-        style={{ borderRadius: 10 }}
-      />
+      {/* Workflow stepper */}
+      <div style={{ ...cardBase, padding: '20px 28px' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1 }}>Approval Workflow</div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <WorkflowStep step={1} label="Employee" done />
+          <WorkflowLine done />
+          <WorkflowStep step={2} label="Team Lead" done />
+          <WorkflowLine done />
+          <WorkflowStep step={3} label="Project Manager" done />
+          <WorkflowLine done />
+          <WorkflowStep step={4} label="Accounts" active />
+          <WorkflowLine />
+          <WorkflowStep step={5} label="HR / Quota" />
+        </div>
+      </div>
 
-      {/* Stats */}
-      {!loading && requests.length > 0 && (
-        <Row gutter={16}>
-          <Col xs={12} sm={8}>
-            <Card style={{ borderRadius: 12, border: '1px solid rgba(99,102,241,0.2)', background: 'rgba(99,102,241,0.05)' }}
-              bodyStyle={{ padding: '16px 20px' }}>
-              <Statistic
-                title={<Text style={{ fontSize: 12 }}>Pending Requests</Text>}
-                value={requests.length}
-                prefix={<FileTextOutlined style={{ color: '#6366f1' }} />}
-                valueStyle={{ color: '#6366f1', fontWeight: 800 }}
-              />
-            </Card>
-          </Col>
-          <Col xs={12} sm={8}>
-            <Card style={{ borderRadius: 12, border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)' }}
-              bodyStyle={{ padding: '16px 20px' }}>
-              <Statistic
-                title={<Text style={{ fontSize: 12 }}>Total Extra Hours Requested</Text>}
-                value={totalHours.toFixed(1)}
-                suffix="hrs"
-                prefix={<ClockCircleOutlined style={{ color: '#f59e0b' }} />}
-                valueStyle={{ color: '#f59e0b', fontWeight: 800 }}
-              />
-            </Card>
-          </Col>
-        </Row>
+      {/* Metric cards */}
+      {!loading && (
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <MetricCard icon={<FileTextOutlined />} label="Pending Requests" value={requests.length} color="#6366f1" bg={isDarkMode ? '#18181b' : '#fafafa'} />
+          <MetricCard icon={<ClockCircleOutlined />} label="Total Extra Hours" value={`${totalHours.toFixed(1)}h`} color="#f59e0b" bg={isDarkMode ? '#18181b' : '#fafafa'} />
+          <MetricCard icon={<ThunderboltOutlined />} label="Hours Exceeded" value={exceeded} color="#7c3aed" bg={isDarkMode ? '#18181b' : '#fafafa'} />
+          <MetricCard icon={<DollarOutlined />} label="Budget Decision Needed" value={requests.length} color="#10b981" bg={isDarkMode ? '#18181b' : '#fafafa'} />
+        </div>
       )}
 
+      {/* Table */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '80px 0' }}>
-          <Spin size="large" tip="Loading requests..." />
+          <Spin size="large" />
+          <div style={{ marginTop: 16, color: '#94a3b8' }}>Loading requests…</div>
         </div>
       ) : requests.length === 0 ? (
-        <Card style={{ borderRadius: 16, textAlign: 'center', padding: 40 }}>
+        <div style={{ ...cardBase, padding: '60px 24px', textAlign: 'center' }}>
           <CheckCircleOutlined style={{ fontSize: 48, color: '#10b981', marginBottom: 12 }} />
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>All Clear!</div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>All Clear!</div>
           <Text type="secondary">No pending additional hours requests from any Project Manager.</Text>
-        </Card>
+        </div>
       ) : (
-        <Card style={{ borderRadius: 16, overflow: 'hidden' }}>
+        <div style={cardBase}>
           <Table
             columns={columns}
             dataSource={requests}
             rowKey={(r) => r.request.requestId}
-            pagination={{ pageSize: 10 }}
+            pagination={{ pageSize: 10, style: { padding: '0 20px 16px' } }}
           />
-        </Card>
+        </div>
       )}
 
       {/* Approve / Reject Modal */}
@@ -241,8 +284,8 @@ const AccountsHoursApprovalPage = () => {
           <Space>
             {isApproval
               ? <CheckCircleOutlined style={{ color: '#10b981' }} />
-              : <CloseCircleOutlined style={{ color: '#ff4d4f' }} />}
-            <span>{isApproval ? 'Approve' : 'Reject'} Additional Hours Request</span>
+              : <CloseCircleOutlined style={{ color: '#ef4444' }} />}
+            <span style={{ fontWeight: 700 }}>{isApproval ? 'Approve' : 'Reject'} Additional Hours Request</span>
           </Space>
         }
         open={isModalOpen}
@@ -250,56 +293,22 @@ const AccountsHoursApprovalPage = () => {
         onOk={handleSubmit}
         confirmLoading={submitting}
         okText={isApproval ? 'Approve & Notify HR/PM' : 'Reject Request'}
-        okType={isApproval ? 'primary' : 'danger'}
-        okButtonProps={isApproval ? { style: { background: '#10b981', borderColor: '#10b981' } } : {}}
-        cancelText="Cancel"
+        okButtonProps={{
+          style: {
+            background: isApproval ? 'linear-gradient(135deg,#10b981,#059669)' : 'linear-gradient(135deg,#ef4444,#dc2626)',
+            border: 'none', borderRadius: 8, fontWeight: 600,
+          },
+        }}
+        cancelButtonProps={{ style: { borderRadius: 8 } }}
         destroyOnClose
       >
-        {/* Request summary */}
-        <div style={{
-          background: isApproval ? 'rgba(16,185,129,0.05)' : '#fff1f0',
-          border: `1px solid ${isApproval ? 'rgba(16,185,129,0.2)' : '#ffa39e'}`,
-          borderRadius: 10, padding: 14, marginBottom: 16,
-        }}>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Request Details</Text>
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
-            <Text strong>{selectedRequest?.employeeName}</Text>
-            {selectedRequest?.projectName && (
-              <Text strong style={{ color: '#6366f1', fontSize: 12 }}>Project: {selectedRequest.projectName}</Text>
-            )}
-            <Text style={{ fontSize: 12 }}>{selectedRequest?.ticketCode} — {selectedRequest?.ticketTitle}</Text>
-            <div style={{ marginTop: 6 }}>
-              <Tag color="purple" style={{ fontWeight: 700 }}>
-                Extra Hours: +{selectedRequest?.request?.requestedHours}h
-              </Tag>
-            </div>
-            <Text type="secondary" style={{ fontSize: 12 }}>Reason: "{selectedRequest?.request?.reason}"</Text>
-            {selectedRequest?.request?.comments && (
-              <Text style={{ fontSize: 12, color: '#d97706', fontStyle: 'italic' }}>
-                Chain notes: {selectedRequest?.request?.comments}
-              </Text>
-            )}
-          </Space>
-        </div>
-
-        {isApproval && (
-          <Alert
-            message="Approving will notify HR and Project Manager to update this employee's daily quota so they can submit their EOD."
-            type="success"
-            showIcon
-            style={{ borderRadius: 8, marginBottom: 12 }}
-          />
-        )}
-
+        <ModalDetail req={selectedRequest} isApproval={isApproval} />
         <Text strong>Accounts {isApproval ? 'Approval' : 'Rejection'} Notes</Text>
         <TextArea
-          rows={3}
-          value={comment}
+          rows={3} value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder={isApproval
-            ? 'Optional: Add budget notes or conditions...'
-            : 'Explain why this additional budget cannot be approved...'}
-          style={{ marginTop: 8 }}
+          placeholder={isApproval ? 'Optional: Add budget notes or conditions…' : 'Explain why this additional budget cannot be approved…'}
+          style={{ marginTop: 8, borderRadius: 10 }}
         />
       </Modal>
     </div>
