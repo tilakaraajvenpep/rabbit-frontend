@@ -81,7 +81,7 @@ const EODReportPage = () => {
   const [hasAccessForDate, setHasAccessForDate] = useState(false);
   const [activeTabKey, setActiveTabKey] = useState('task-0');
 
-  const { control, handleSubmit, watch, reset, setValue, formState: { errors } } = useForm({
+  const { control, handleSubmit, watch, reset, setValue, trigger, formState: { errors } } = useForm({
     defaultValues: {
       items: [{ projectId: '', ticketId: '', hours: 0, workDone: '' }],
       blockers: '',
@@ -89,6 +89,15 @@ const EODReportPage = () => {
       alertMessage: ''
     }
   });
+
+  const handleNextToReview = async () => {
+    const isValid = await trigger('items');
+    if (isValid) {
+      setActiveTabKey('submit-tab');
+    } else {
+      message.error('Please fill in all required task fields before proceeding.');
+    }
+  };
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const watchedItems = watch('items');
@@ -1154,9 +1163,27 @@ const EODReportPage = () => {
                   </Button>
                 )}
                 {!isLocked && (
-                  <Button size="small" type="primary" icon={<SendOutlined />} htmlType="submit" loading={submitting} disabled={totalHours === 0}>
-                    {existingReport ? 'Update Report' : 'Submit Report'}
-                  </Button>
+                  activeTabKey !== 'submit-tab' ? (
+                    <Button 
+                      size="small" 
+                      type="primary" 
+                      onClick={handleNextToReview} 
+                      disabled={totalHours === 0}
+                    >
+                      Review & Submit
+                    </Button>
+                  ) : (
+                    <Button 
+                      size="small" 
+                      type="primary" 
+                      icon={<SendOutlined />} 
+                      htmlType="submit" 
+                      loading={submitting} 
+                      disabled={totalHours === 0}
+                    >
+                      {existingReport ? 'Update Report' : 'Submit Report'}
+                    </Button>
+                  )
                 )}
               </Space>
             </div>
