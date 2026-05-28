@@ -294,6 +294,13 @@ const EODReportPage = () => {
         console.error('Failed to fetch leaves for status map');
       }
 
+      let accessRequestsList = [];
+      try {
+        const arRes = await reportAccessService.getMyRequests();
+        accessRequestsList = arRes?.data || [];
+        setMyAccessRequests(accessRequestsList);
+      } catch (_) {}
+
       const today = dayjs();
       const currentWeekStart = today.startOf('week').add(1, 'day'); // Monday
       const currentWeekEnd = today.startOf('week').add(7, 'day');   // Sunday
@@ -306,6 +313,9 @@ const EODReportPage = () => {
         const report = (res.data || []).find(r => r.date === dateStr);
         const approvedLeave = userLeaves.find(
           l => dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr && l.status === 'Approved'
+        );
+        const hasApprovedAccess = accessRequestsList.some(
+          r => dayjs(r.targetDate).format('YYYY-MM-DD') === dateStr && r.status === 'Approved'
         );
         const isSunday = d.day() === 0;
         const isSaturday = d.day() === 6;
@@ -329,8 +339,10 @@ const EODReportPage = () => {
           statusMap[dateStr] = 'optional';
         } else if (isCurrentWeek && isPast) {
           statusMap[dateStr] = 'incomplete';
-        } else if (!isCurrentWeek) {
+        } else if (!isCurrentWeek && !hasApprovedAccess) {
           statusMap[dateStr] = 'restricted';
+        } else if (!isCurrentWeek && hasApprovedAccess && isPast) {
+          statusMap[dateStr] = 'incomplete';
         } else {
           statusMap[dateStr] = 'pending';
         }
