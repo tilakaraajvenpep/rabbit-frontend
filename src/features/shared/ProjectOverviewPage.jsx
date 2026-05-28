@@ -12,13 +12,15 @@ import {
   CheckCircleOutlined,
   HistoryOutlined,
   ArrowLeftOutlined,
-  DashboardOutlined
+  DashboardOutlined,
+  UserOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { projectService } from '../../services/projectService';
+import { ticketService } from '../../services/ticketService';
+import { adminService } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
-import { mockUsers } from '../../mocks/mockUsers';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import HoursProgress from '../../components/common/HoursProgress';
@@ -33,6 +35,7 @@ const ProjectOverviewPage = () => {
   const [project, setProject] = useState(null);
   const [auditLog, setAuditLog] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [assignedEmployees, setAssignedEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [form] = Form.useForm();
@@ -44,19 +47,36 @@ const ProjectOverviewPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [projRes, auditRes, docsRes] = await Promise.all([
+      const [projRes, auditRes, docsRes, ticketsRes, usersRes] = await Promise.all([
         projectService.getProjectOverview(id),
         projectService.getAuditLog(id),
-        projectService.getDocuments(id)
+        projectService.getDocuments(id),
+        ticketService.getTickets(),
+        adminService.getUsers()
       ]);
       setProject(projRes.data);
       setAuditLog(auditRes.data);
       setDocuments(docsRes.data || []);
+
+      const allTickets = ticketsRes.data || [];
+      const allUsers = usersRes.data || [];
+
+      // Filter tickets for this project and collect unique assigned user IDs
+      const projectTickets = allTickets.filter(t => String(t.projectId) === String(id));
+      const assignedUserIds = [...new Set(projectTickets.map(t => t.assignedToUserId).filter(Boolean))];
+
+      // Match against users where role is Employee
+      const employees = allUsers.filter(u => 
+        assignedUserIds.includes(u.id || u.userId) && u.role === 'Employee'
+      );
+      setAssignedEmployees(employees);
+
       form.setFieldsValue({
         status: projRes.data.status,
         note: projRes.data.latestStatusNote
       });
     } catch (error) {
+      console.error(error);
       notification.error({ message: 'Error', description: 'Failed to load project overview.' });
     } finally {
       setLoading(false);
@@ -160,15 +180,40 @@ const ProjectOverviewPage = () => {
               <Col span={24}>
                 <Divider style={{ margin: '12px 0' }} />
                 <Text type="secondary">Team Members:</Text>
-                <div style={{ marginTop: 8 }}>
-                  <Avatar.Group maxCount={10}>
-                    {mockUsers.filter(u => ['Employee', 'TeamLead'].includes(u.role)).map(user => (
-                      <Tooltip title={user.name} key={user.id}>
-                        <Avatar src={user.avatar} />
-                      </Tooltip>
-                    ))}
-                  </Avatar.Group>
-                </div>
+                {role === 'TeamLead' ? (
+                  assignedEmployees.length > 0 ? (
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: 8 }}>
+                      {assignedEmployees.map(emp => (
+                        <Tag 
+                          key={emp.id || emp.userId} 
+                          color="blue" 
+                          style={{ padding: '4px 10px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500 }}
+                        >
+                          <Avatar size="small" src={emp.avatar} icon={<UserOutlined />} />
+                          {emp.name || emp.fullName}
+                        </Tag>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 8 }}>
+                      <Text type="secondary" italic>no team members still assigned</Text>
+                    </div>
+                  )
+                ) : (
+                  <div style={{ marginTop: 8 }}>
+                    {assignedEmployees.length > 0 ? (
+                      <Avatar.Group maxCount={10}>
+                        {assignedEmployees.map(emp => (
+                          <Tooltip title={emp.name || emp.fullName} key={emp.id || emp.userId}>
+                            <Avatar src={emp.avatar} icon={<UserOutlined />} />
+                          </Tooltip>
+                        ))}
+                      </Avatar.Group>
+                    ) : (
+                      <Text type="secondary" italic>no team members still assigned</Text>
+                    )}
+                  </div>
+                )}
               </Col>
               <Col span={24}>
                 <Divider style={{ margin: '12px 0' }} />
