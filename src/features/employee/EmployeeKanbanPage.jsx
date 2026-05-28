@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   Row, Col, Card, Typography, Button, Drawer, Space, 
   Skeleton, notification, FloatButton, Tag, Divider,
-  Alert, Select
+  Alert, Select, Avatar
 } from 'antd';
 import { 
   ClockCircleOutlined, SyncOutlined, PlayCircleOutlined,
-  EditOutlined
+  EditOutlined, UserOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -315,6 +315,24 @@ const EmployeeKanbanPage = () => {
                                 </Text>
 
                                 <Divider style={{ margin: '10px 0' }} />
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                                  <Avatar size="small" src={currentUser?.avatar} icon={<UserOutlined />} />
+                                  <span 
+                                    style={{ 
+                                      fontSize: '12px', 
+                                      fontWeight: 600, 
+                                      color: isDarkMode ? '#e4e4e7' : '#3f3f46',
+                                      maxWidth: '120px',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      display: 'inline-block'
+                                    }}
+                                  >
+                                    {currentUser?.name || currentUser?.fullName}
+                                  </span>
+                                </div>
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                   <HoursProgress consumed={ticket.consumedHours} total={ticket.estimatedHours} />

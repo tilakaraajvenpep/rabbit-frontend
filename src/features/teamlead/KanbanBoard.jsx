@@ -169,9 +169,30 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space size={8}>
-            <Tooltip title={user?.name || 'Unassigned'}>
+            <Tooltip title={user ? `${user.name || user.fullName} (${user.role})` : 'Unassigned'}>
               <Avatar size="small" src={user?.avatar} icon={<UserOutlined />} />
             </Tooltip>
+            {user ? (
+              <span 
+                style={{ 
+                  fontSize: '12px', 
+                  fontWeight: 600, 
+                  color: isDarkMode ? '#e4e4e7' : '#3f3f46',
+                  maxWidth: '120px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-block',
+                  verticalAlign: 'middle'
+                }}
+              >
+                {user.name || user.fullName}
+              </span>
+            ) : (
+              <span style={{ fontSize: '11px', color: '#a1a1aa', fontStyle: 'italic' }}>
+                Not Assigned
+              </span>
+            )}
             <Tag color="purple" style={{ fontSize: '10px', borderRadius: 4, margin: 0, fontWeight: 500 }}>
               {ticket.estimatedHours}h
             </Tag>
