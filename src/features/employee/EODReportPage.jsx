@@ -1088,22 +1088,39 @@ const EODReportPage = () => {
                                   name={`items.${index}.projectId`}
                                   control={control}
                                   rules={{ required: !isLocked ? 'Required' : false }}
-                                  render={({ field: selectField }) => (
-                                    <Select
-                                      {...selectField}
-                                      disabled={isLocked}
-                                      placeholder="Select Project"
-                                      onChange={(val) => {
-                                        selectField.onChange(val);
-                                        setValue(`items.${index}.ticketId`, '');
-                                        setValue(`items.${index}.hours`, 0);
-                                      }}
-                                    >
-                                      {allProjects.map(p => (
-                                        <Select.Option key={p.id} value={p.id}>{p.name || p.projectName}</Select.Option>
-                                      ))}
-                                    </Select>
-                                  )}
+                                  render={({ field: selectField }) => {
+                                    const selectedProj = allProjects.find(p => String(p.id || p.projectId) === String(selectField.value));
+                                    const empHours = selectedProj?.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
+                                    return (
+                                      <div>
+                                        <Select
+                                          {...selectField}
+                                          disabled={isLocked}
+                                          placeholder="Select Project"
+                                          onChange={(val) => {
+                                            selectField.onChange(val);
+                                            setValue(`items.${index}.ticketId`, '');
+                                            setValue(`items.${index}.hours`, 0);
+                                          }}
+                                        >
+                                          {allProjects.map(p => {
+                                            const eHours = p.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
+                                            const labelHours = eHours !== undefined ? `${eHours}h (My Quota)` : `${p.totalHours || 0}h (Total)`;
+                                            return (
+                                              <Select.Option key={p.id} value={p.id}>
+                                                {p.name || p.projectName} — {labelHours}
+                                              </Select.Option>
+                                            );
+                                          })}
+                                        </Select>
+                                        {selectedProj && (
+                                          <div style={{ marginTop: 4, fontSize: '11px', color: '#6366f1' }}>
+                                            <strong>Project Allotted Hours:</strong> {selectedProj.totalHours || '0.00'} hrs | <strong>Your Project Quota:</strong> {empHours !== undefined ? `${empHours} hrs` : 'Not assigned'}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  }}
                                 />
                               </Form.Item>
                             </Col>

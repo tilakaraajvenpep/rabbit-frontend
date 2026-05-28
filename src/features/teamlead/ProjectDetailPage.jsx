@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Button, Space, Avatar, Tooltip, Skeleton, notification, Descriptions, Tag } from 'antd';
+import { Card, Row, Col, Statistic, Table, Button, Space, Avatar, Tooltip, Skeleton, notification, Descriptions, Tag, Modal, Select, Typography } from 'antd';
 import { 
   DashboardOutlined, 
   TeamOutlined, 
   FieldTimeOutlined, 
   DollarOutlined,
-  DownloadOutlined
+  DownloadOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { projectService } from '../../services/projectService';
@@ -18,6 +19,8 @@ import PriorityBadge from '../../components/common/PriorityBadge';
 import HoursProgress from '../../components/common/HoursProgress';
 import dayjs from 'dayjs';
 
+const { Text } = Typography;
+
 const ProjectDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -27,9 +30,55 @@ const ProjectDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [latestDoc, setLatestDoc] = useState(null);
 
+  const [isManageTeamModalOpen, setIsManageTeamModalOpen] = useState(false);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
+  const [savingTeam, setSavingTeam] = useState(false);
+  const [requestingHRHours, setRequestingHRHours] = useState(false);
+
+  useEffect(() => {
+    if (project) {
+      setSelectedEmployeeIds(project.assignedEmployeeIds || []);
+    }
+  }, [project]);
+
   useEffect(() => {
     fetchData();
   }, [id]);
+
+  const handleAssignEmployees = async () => {
+    setSavingTeam(true);
+    try {
+      await projectService.updateProjectStatus(id, {
+        status: project.status,
+        assignedEmployeeIds: selectedEmployeeIds
+      });
+      notification.success({ message: 'Success', description: 'Assigned employees updated successfully.' });
+      setIsManageTeamModalOpen(false);
+      fetchData();
+    } catch (e) {
+      notification.error({ message: 'Error', description: 'Failed to assign employees.' });
+    } finally {
+      setSavingTeam(false);
+    }
+  };
+
+  const handleRequestHRHours = async () => {
+    setRequestingHRHours(true);
+    try {
+      await projectService.updateProjectStatus(id, {
+        status: project.status,
+        note: 'Requested HR to allocate hours for assigned employees.'
+      });
+      notification.success({ 
+        message: 'Request Sent', 
+        description: 'HR has been notified to allocate hours for this project.' 
+      });
+    } catch (error) {
+      notification.error({ message: 'Error', description: 'Failed to request hours from HR.' });
+    } finally {
+      setRequestingHRHours(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -101,12 +150,25 @@ const ProjectDetailPage = () => {
   if (!project) return <div>Project not found</div>;
 
   const remainingHours = project.approvedHours - project.consumedHours;
+  const projectEmployees = (project.assignedEmployeeIds && Array.isArray(project.assignedEmployeeIds))
+    ? users.filter(u => project.assignedEmployeeIds.includes(u.id || u.userId))
+    : [];
+  const employeesList = users.filter(u => u.role === 'Employee');
 
   return (
     <div>
       <PageHeader 
         title={project.name}
         extra={[
+          <Button 
+            key="request-hr" 
+            icon={<ClockCircleOutlined />} 
+            onClick={handleRequestHRHours}
+            loading={requestingHRHours}
+            style={{ color: '#eb2f96', borderColor: '#ffadd2' }}
+          >
+            Request HR for Hours
+          </Button>,
           <Button 
             key="download" 
             icon={<DownloadOutlined />} 
@@ -152,17 +214,33 @@ const ProjectDetailPage = () => {
         </Descriptions>
       </Card>
 
-      <Card title="Team Members" style={{ marginBottom: 24 }}>
-        <Avatar.Group maxCount={5} size="large">
-          {mockUsers.filter(u => u.role === 'Employee').map(user => (
-            <Tooltip title={user.name} key={user.id}>
-              <Avatar src={user.avatar} />
-            </Tooltip>
-          ))}
-        </Avatar.Group>
+      <Card 
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <span>Team Members</span>
+            <Button type="primary" size="small" icon={<TeamOutlined />} onClick={() => setIsManageTeamModalOpen(true)}>
+              Assign Employees
+            </Button>
+          </div>
+        } 
+        style={{ marginBottom: 24 }}
+      >
+        {projectEmployees.length === 0 ? (
+          <span style={{ fontStyle: 'italic', color: '#8c8c8c' }}>No employees assigned to this project yet. Click "Assign Employees" to add some.</span>
+        ) : (
+          <Avatar.Group maxCount={10} size="large">
+            {projectEmployees.map(user => (
+              <Tooltip title={`${user.name || user.fullName} (${user.role})`} key={user.id || user.userId}>
+                <Avatar src={user.avatar} style={{ backgroundColor: '#87d068' }}>
+                  {(user.name || user.fullName || 'E')[0].toUpperCase()}
+                </Avatar>
+              </Tooltip>
+            ))}
+          </Avatar.Group>
+        )}
       </Card>
 
-      <Card title="Tickets Summary">
+      <Card title="Tickets Summary" style={{ marginBottom: 24 }}>
         <Table 
           columns={columns} 
           dataSource={tickets} 
@@ -173,6 +251,34 @@ const ProjectDetailPage = () => {
           })}
         />
       </Card>
+
+      {/* Assign Employees Modal */}
+      <Modal
+        title={<span><TeamOutlined /> Assign Employees to Project</span>}
+        open={isManageTeamModalOpen}
+        onOk={handleAssignEmployees}
+        onCancel={() => setIsManageTeamModalOpen(false)}
+        confirmLoading={savingTeam}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary">Select employees to assign to this project. HR will then allocate their working hours.</Text>
+        </div>
+        <Select
+          mode="multiple"
+          style={{ width: '100%' }}
+          placeholder="Select Employees"
+          value={selectedEmployeeIds}
+          onChange={setSelectedEmployeeIds}
+          optionFilterProp="children"
+        >
+          {employeesList.map(emp => (
+            <Select.Option key={emp.id || emp.userId} value={emp.id || emp.userId}>
+              {emp.name || emp.fullName} ({emp.email})
+            </Select.Option>
+          ))}
+        </Select>
+      </Modal>
     </div>
   );
 };
