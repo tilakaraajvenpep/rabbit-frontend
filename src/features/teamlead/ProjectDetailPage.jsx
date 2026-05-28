@@ -10,6 +10,7 @@ import {
 import { useParams, useNavigate } from 'react-router-dom';
 import { projectService } from '../../services/projectService';
 import { ticketService } from '../../services/ticketService';
+import { adminService } from '../../services/adminService';
 import { mockUsers } from '../../mocks/mockUsers';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -22,6 +23,7 @@ const ProjectDetailPage = () => {
   const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [tickets, setTickets] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [latestDoc, setLatestDoc] = useState(null);
 
@@ -32,12 +34,14 @@ const ProjectDetailPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [projRes, tickRes] = await Promise.all([
+      const [projRes, tickRes, usersRes] = await Promise.all([
         projectService.getProjectById(id),
-        ticketService.getTickets(id)
+        ticketService.getTickets(id),
+        adminService.getUsers()
       ]);
       setProject(projRes.data);
       setTickets(tickRes.data);
+      setUsers(usersRes.data || []);
 
       const docsRes = await projectService.getDocuments(id);
       if (docsRes.data && docsRes.data.length > 0) {
@@ -72,11 +76,17 @@ const ProjectDetailPage = () => {
       dataIndex: 'assignedTo', 
       key: 'assignee',
       render: (userId) => {
-        const user = mockUsers.find(u => u.id === userId);
+        if (!userId) {
+          return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>Not Assigned</span>;
+        }
+        const user = users.find(u => String(u.id) === String(userId)) || mockUsers.find(u => String(u.id) === String(userId));
+        if (!user) {
+          return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>Not Assigned</span>;
+        }
         return (
           <Space>
-            <Avatar size="small" src={user?.avatar} />
-            {user?.name}
+            {user.avatar ? <Avatar size="small" src={user.avatar} /> : <Avatar size="small">{user.name ? user.name[0].toUpperCase() : 'U'}</Avatar>}
+            <span>{user.name || user.fullName}</span>
           </Space>
         );
       }
