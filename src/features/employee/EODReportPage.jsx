@@ -1121,160 +1121,11 @@ const EODReportPage = () => {
       <Form onFinish={handleSubmit(onSubmit)} layout="vertical" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
         <Row gutter={24} style={{ flex: 1, minHeight: 0, display: 'flex', flexWrap: 'nowrap' }}>
           
-          {/* ── LEFT PANEL: Sleek Metrics & Progress Widgets (Col 7) ─────────────────── */}
-          <Col xs={24} lg={7} style={{ height: '100%', overflowY: 'auto', paddingBottom: 16 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 20 }}>
-              
-              {/* Card 1: Today's Quota Progress Circular Gauge */}
-              <Card
-                style={{
-                  borderRadius: 16,
-                  background: isDarkMode ? 'rgba(30, 41, 59, 0.45)' : '#ffffff',
-                  border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.02)',
-                  textAlign: 'center'
-                }}
-                bodyStyle={{ padding: '28px 20px' }}
-              >
-                <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isDarkMode ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 20 }}>
-                  Today's Quota Progress
-                </span>
-                
-                <div style={{ position: 'relative', display: 'inline-block', margin: '10px 0' }}>
-                  <Progress
-                    type="circle"
-                    percent={Math.min(100, Math.round((totalHours / (REQUIRED_HOURS || 8)) * 100))}
-                    strokeColor={{
-                      '0%': '#6366f1',
-                      '100%': '#10b981',
-                    }}
-                    trailColor={isDarkMode ? '#334155' : '#e2e8f0'}
-                    strokeWidth={8}
-                    width={150}
-                    format={() => (
-                      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                        <span style={{ fontSize: 24, fontWeight: 900, color: isDarkMode ? '#f8fafc' : '#0f172a' }}>
-                          {totalHours.toFixed(1)}h
-                        </span>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: isDarkMode ? '#64748b' : '#94a3b8', marginTop: 2 }}>
-                          of {REQUIRED_HOURS}h
-                        </span>
-                      </div>
-                    )}
-                  />
-                </div>
-                
-                <div style={{ marginTop: 20, background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc', padding: '12px 16px', borderRadius: 12, border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.04)' : '#f1f5f9'}` }}>
-                  <Row gutter={8}>
-                    <Col span={12} style={{ borderRight: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#e2e8f0'}` }}>
-                      <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', textTransform: 'uppercase' }}>Daily Quota</Text>
-                      <span style={{ fontSize: 16, fontWeight: 800, color: isDarkMode ? '#f8fafc' : '#0f172a' }}>{REQUIRED_HOURS} hrs</span>
-                    </Col>
-                    <Col span={12}>
-                      <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, display: 'block', textTransform: 'uppercase' }}>Remaining</Text>
-                      <span style={{ fontSize: 16, fontWeight: 800, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b' }}>
-                        {Math.max(0, REQUIRED_HOURS - totalHours).toFixed(1)} hrs
-                      </span>
-                    </Col>
-                  </Row>
-                </div>
-              </Card>
-
-              {/* Card 2: Weekly Hours Summary Info Block */}
-              <Card
-                style={{
-                  borderRadius: 16,
-                  background: isDarkMode ? 'rgba(30, 41, 59, 0.45)' : '#ffffff',
-                  border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.02)'
-                }}
-                bodyStyle={{ padding: 24 }}
-              >
-                <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isDarkMode ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 16 }}>
-                  Weekly Allocation Status
-                </span>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text type="secondary" style={{ fontSize: 13 }}>Sum of Project Hours:</Text>
-                    <span style={{ fontWeight: 800, color: isDarkMode ? '#f8fafc' : '#0f172a' }}>{allocatedHoursPerDay} hrs</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text type="secondary" style={{ fontSize: 13 }}>Logged Other Days:</Text>
-                    <span style={{ fontWeight: 800, color: isDarkMode ? '#f8fafc' : '#0f172a' }}>{hoursReportedOtherDays.toFixed(1)} hrs</span>
-                  </div>
-                  
-                  <div style={{ height: '1px', background: isDarkMode ? 'rgba(255,255,255,0.08)' : '#e2e8f0', margin: '4px 0' }} />
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text type="secondary" style={{ fontSize: 13 }}>Weekly Remaining:</Text>
-                    <span style={{ fontWeight: 900, color: remainingBeforeToday <= 0 ? '#10b981' : '#6366f1', fontSize: 15 }}>
-                      {Math.max(0, remainingBeforeToday).toFixed(1)} hrs
-                    </span>
-                  </div>
-                </div>
-
-                {allocatedHoursPerDay > 0 && remainingBeforeToday <= 0 && !existingReport && (
-                  <Alert
-                    message="Weekly Quota Met"
-                    description="Awesome! You have logged all allocated hours for this week."
-                    type="success"
-                    showIcon
-                    style={{ marginTop: 16, borderRadius: 10 }}
-                  />
-                )}
-              </Card>
-
-              {/* Card 3: Attendance Details & Active Leave Badge */}
-              <Card
-                style={{
-                  borderRadius: 16,
-                  background: isDarkMode ? 'rgba(30, 41, 59, 0.45)' : '#ffffff',
-                  border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.02)'
-                }}
-                bodyStyle={{ padding: 24 }}
-              >
-                <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isDarkMode ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 16 }}>
-                  Leave & Attendance Detail
-                </span>
-                
-                {currentLeave ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <CalendarFilled style={{ color: '#f59e0b', fontSize: 18 }} />
-                      <span style={{ fontWeight: 800, fontSize: 14, color: isDarkMode ? '#f8fafc' : '#0f172a' }}>
-                        {currentLeave.type === 'FullDay' ? 'Full Day Leave' : currentLeave.type === 'HalfDay' ? 'Half Day Leave' : 'Permission Absence'}
-                      </span>
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      Reason: "{currentLeave.reason || 'None specified'}"
-                    </Text>
-                    <Alert
-                      message="Leave Quota Adjustments Applied"
-                      type="info"
-                      showIcon
-                      style={{ marginTop: 8, borderRadius: 8 }}
-                    />
-                  </div>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                    <CalendarOutlined style={{ fontSize: 32, color: isDarkMode ? '#334155' : '#cbd5e1', marginBottom: 10 }} />
-                    <span style={{ display: 'block', fontSize: 13, color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: 600 }}>
-                      No Leaves Applied Today
-                    </span>
-                    <Text type="secondary" style={{ fontSize: 11 }}>
-                      You are expected to log full required work hours.
-                    </Text>
-                  </div>
-                )}
-              </Card>
-
-            </div>
-          </Col>
-
-                    {/* ── RIGHT PANEL: Task Reporting List Workspace (Col 17) ──────────────────── */}
-          <Col xs={24} lg={17} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          
+          {/* ── MAIN WORKSPACE: Task Reporting Full-Width Dashboard ──────────────────── */}
+          <Col xs={24} lg={24} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ maxWidth: 1100, margin: '0 auto', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    
             
             {/* Conditional Notifications */}
             {currentLeave && (
@@ -1952,6 +1803,7 @@ const EODReportPage = () => {
               </div>
             </div>
 
+            </div>
           </Col>
         </Row>
       </Form>
