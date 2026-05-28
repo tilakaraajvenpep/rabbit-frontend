@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Typography, Tag, Modal, Input, message, Spin, Empty, Tooltip } from 'antd';
+import { Table, Button, Space, Typography, Tag, Modal, Input, message, Spin, Empty, Tooltip, Tabs, Badge } from 'antd';
 import {
   ClockCircleOutlined, SendOutlined, CheckCircleOutlined, CloseCircleOutlined,
   UserOutlined, TeamOutlined, FileTextOutlined, ThunderboltOutlined,
@@ -82,7 +82,13 @@ const TimerRequestsReviewPage = () => {
   const [tlComment, setTlComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { fetchTLRequests(); }, []);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    fetchTLRequests();
+    fetchHistory();
+  }, []);
 
   const fetchTLRequests = async () => {
     setLoading(true);
@@ -93,6 +99,15 @@ const TimerRequestsReviewPage = () => {
     finally { setLoading(false); }
   };
 
+  const fetchHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await timerRequestService.getHistoryRequests();
+      setHistory(res.data.data || []);
+    } catch { message.error('Failed to load history logs'); }
+    finally { setHistoryLoading(false); }
+  };
+
   const handleForwardSubmit = async () => {
     if (!selectedRequest) return;
     setForwarding(true);
@@ -101,6 +116,7 @@ const TimerRequestsReviewPage = () => {
       message.success('Request forwarded to Project Manager!');
       setIsForwardModalOpen(false);
       fetchTLRequests();
+      fetchHistory();
     } catch { message.error('Failed to forward request'); }
     finally { setForwarding(false); }
   };
@@ -113,6 +129,7 @@ const TimerRequestsReviewPage = () => {
       message.success(`Request ${isApproval ? 'Approved' : 'Rejected'} successfully! Employee has been notified.`);
       setIsRespondModalOpen(false);
       fetchTLRequests();
+      fetchHistory();
     } catch (err) { message.error(err?.response?.data?.message || 'Failed to submit response'); }
     finally { setSubmitting(false); }
   };
@@ -237,6 +254,72 @@ const TimerRequestsReviewPage = () => {
     },
   ];
 
+  const historyColumns = [
+    {
+      title: 'Employee',
+      key: 'employee',
+      width: 180,
+      render: (_, r) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Avatar name={r.employeeName} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>{r.employeeName}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>Team Member</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Project & Ticket',
+      key: 'project',
+      render: (_, r) => (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontWeight: 600, color: '#6366f1', fontSize: 13 }}>{r.projectName || '—'}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <span style={{ background: '#f1f5f9', color: '#475569', fontSize: 11, padding: '1px 7px', borderRadius: 5, fontFamily: 'monospace' }}>{r.ticketCode}</span>
+            <span style={{ fontSize: 12, color: '#64748b' }}>{r.ticketTitle}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Requested',
+      dataIndex: ['request', 'requestedHours'],
+      key: 'requestedHours',
+      width: 120,
+      render: (h) => <Tag color="purple" style={{ fontWeight: 700, borderRadius: 6 }}>+{h}h</Tag>,
+    },
+    {
+      title: 'Status',
+      dataIndex: ['request', 'status'],
+      key: 'status',
+      width: 140,
+      render: (status) => {
+        const conf = {
+          PendingTL: { color: 'gold', label: 'Pending TL' },
+          PendingPM: { color: 'blue', label: 'Pending PM' },
+          PendingAccounts: { color: 'purple', label: 'Pending Accounts' },
+          AccountsApproved: { color: 'cyan', label: 'Accounts Approved' },
+          Approved: { color: 'green', label: 'Fully Approved' },
+          Rejected: { color: 'red', label: 'Rejected' },
+        }[status] || { color: 'default', label: status };
+        return <Badge status={conf.color === 'green' ? 'success' : conf.color === 'red' ? 'error' : 'processing'} text={conf.label} />;
+      }
+    },
+    {
+      title: 'Comments / Reason',
+      key: 'reason',
+      render: (_, r) => (
+        <div style={{ fontSize: 12 }}>
+          <div><Text type="secondary">Reason: </Text>"{r.request?.reason}"</div>
+          {r.request?.comments && <div style={{ marginTop: 2 }}><Text type="secondary">Reviewer Comments: </Text><Text italic>{r.request?.comments}</Text></div>}
+        </div>
+      )
+    }
+  ];
+
   const ModalDetail = ({ req }) => (
     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, marginBottom: 16 }}>
       <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>Request Summary</div>
@@ -291,30 +374,72 @@ const TimerRequestsReviewPage = () => {
         </div>
       )}
 
-      {/* Table */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '80px 0' }}>
-          <Spin size="large" />
-          <div style={{ marginTop: 16, color: '#94a3b8' }}>Loading requests…</div>
-        </div>
-      ) : requests.length === 0 ? (
-        <div style={{ ...cardBase, padding: '60px 24px', textAlign: 'center' }}>
-          <CheckCircleOutlined style={{ fontSize: 48, color: '#10b981', marginBottom: 12 }} />
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>All Clear!</div>
-          <Text type="secondary">No pending additional hours requests from your team.</Text>
-        </div>
-      ) : (
-        <div style={cardBase}>
-          <Table
-            columns={columns}
-            dataSource={requests}
-            rowKey={(r) => r.request.requestId}
-            pagination={{ pageSize: 10, style: { padding: '0 20px 16px' } }}
-            style={{ borderRadius: 16 }}
-            rowClassName={() => 'timer-row'}
-          />
-        </div>
-      )}
+      {/* Tabs Layout */}
+      <Tabs
+        defaultActiveKey="1"
+        style={{ marginTop: 8 }}
+        items={[
+          {
+            key: '1',
+            label: (
+              <span style={{ fontWeight: 700, padding: '0 8px' }}>
+                Pending Requests <Badge count={requests.length} style={{ backgroundColor: '#6366f1', marginLeft: 4 }} />
+              </span>
+            ),
+            children: loading ? (
+              <div style={{ textAlign: 'center', padding: '80px 0' }}>
+                <Spin size="large" />
+                <div style={{ marginTop: 16, color: '#94a3b8' }}>Loading requests…</div>
+              </div>
+            ) : requests.length === 0 ? (
+              <div style={{ ...cardBase, padding: '60px 24px', textAlign: 'center' }}>
+                <CheckCircleOutlined style={{ fontSize: 48, color: '#10b981', marginBottom: 12 }} />
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>All Clear!</div>
+                <Text type="secondary">No pending additional hours requests from your team.</Text>
+              </div>
+            ) : (
+              <div style={cardBase}>
+                <Table
+                  columns={columns}
+                  dataSource={requests}
+                  rowKey={(r) => r.request.requestId}
+                  pagination={{ pageSize: 10, style: { padding: '0 20px 16px' } }}
+                  style={{ borderRadius: 16 }}
+                  rowClassName={() => 'timer-row'}
+                />
+              </div>
+            )
+          },
+          {
+            key: '2',
+            label: (
+              <span style={{ fontWeight: 700, padding: '0 8px' }}>
+                History Logs <Badge count={history.length} style={{ backgroundColor: '#ec4899', marginLeft: 4 }} />
+              </span>
+            ),
+            children: historyLoading ? (
+              <div style={{ textAlign: 'center', padding: '80px 0' }}>
+                <Spin size="large" />
+                <div style={{ marginTop: 16, color: '#94a3b8' }}>Loading history logs…</div>
+              </div>
+            ) : history.length === 0 ? (
+              <div style={{ ...cardBase, padding: '60px 24px', textAlign: 'center' }}>
+                <Empty description="No historical requests found." />
+              </div>
+            ) : (
+              <div style={cardBase}>
+                <Table
+                  columns={historyColumns}
+                  dataSource={history}
+                  rowKey={(r) => r.request?.requestId || Math.random()}
+                  pagination={{ pageSize: 10, style: { padding: '0 20px 16px' } }}
+                  style={{ borderRadius: 16 }}
+                />
+              </div>
+            )
+          }
+        ]}
+      />
 
       {/* Forward to PM Modal */}
       <Modal

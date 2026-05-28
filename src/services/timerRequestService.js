@@ -40,5 +40,9 @@ export const timerRequestService = {
   getHRApprovedRequests: async () => {
     return await apiClient.get('/timer-requests/hr');
   },
+
+  getHistoryRequests: async () => {
+    return await apiClient.get('/timer-requests/history');
+  },
 };
 export default timerRequestService;

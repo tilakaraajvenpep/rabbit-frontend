@@ -1108,6 +1108,26 @@ const EODReportPage = () => {
                         </Card>
                       </div>
                     )
+                  },
+                  {
+                    key: 'history-tab',
+                    label: <span style={{ fontWeight: 700, color: '#ec4899' }}>Additional Hours History</span>,
+                    closable: false,
+                    children: (
+                      <div style={{ padding: 16, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Title level={5} style={{ margin: 0, fontSize: 14 }}>Your Additional Hours History Logs</Title>
+                          <Button size="small" onClick={fetchTimerRequests} type="link">Refresh Logs</Button>
+                        </div>
+                        <Table
+                          columns={requestColumns}
+                          dataSource={myTimerRequests}
+                          rowKey={(r) => r.request?.requestId || Math.random()}
+                          size="small"
+                          pagination={{ pageSize: 5 }}
+                        />
+                      </div>
+                    )
                   }
                 ]}
               />
