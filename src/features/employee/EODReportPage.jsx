@@ -48,7 +48,7 @@ const EODReportPage = () => {
   const [existingReport, setExistingReport] = useState(null);
   const [currentLeave, setCurrentLeave] = useState(null);
   const [weeklyReports, setWeeklyReports] = useState([]);
-  const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(Number(currentUser?.allocatedHours) || 0);
+  const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(Number(currentUser?.allocatedHours) || Number(currentUser?.prevAllocatedHours) || 0);
   const [hasWarnedExceeded, setHasWarnedExceeded] = useState(false);
   const [accessRequestType, setAccessRequestType] = useState('single');
 
@@ -222,11 +222,13 @@ const EODReportPage = () => {
     init();
     
     adminService.getMyProfile().then(res => {
-      const fresh = Number(res?.data?.allocatedHours);
-      if (!isNaN(fresh) && fresh >= 0) {
-        setAllocatedHoursPerDay(fresh);
+      const fresh = Number(res?.data?.allocatedHours) || 0;
+      const prev = Number(res?.data?.prevAllocatedHours) || 0;
+      const effectiveHours = fresh > 0 ? fresh : prev;
+      if (!isNaN(effectiveHours) && effectiveHours >= 0) {
+        setAllocatedHoursPerDay(effectiveHours);
         // Keep auth store in sync so it's consistent across page navigation
-        setUser({ ...currentUser, allocatedHours: String(fresh) });
+        setUser({ ...currentUser, allocatedHours: String(effectiveHours), prevAllocatedHours: String(prev) });
       }
       const tlId = res?.data?.teamLeadId;
       if (tlId) setSelectedTeamLeadId(tlId);
