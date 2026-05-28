@@ -16,6 +16,9 @@ const HRProjectsPage = () => {
 
   useEffect(() => {
     fetchData();
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchData(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
   const fetchData = async () => {

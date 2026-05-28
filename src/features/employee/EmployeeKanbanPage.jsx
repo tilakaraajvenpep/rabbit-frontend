@@ -58,6 +58,14 @@ const EmployeeKanbanPage = () => {
   useEffect(() => {
     fetchMyTickets();
     fetchProjects();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchMyTickets();
+        fetchProjects();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [currentUser.userId || currentUser.id]);
 
   const fetchProjects = async () => {
