@@ -1,8 +1,6 @@
-import { Table, Button, Typography, Tag, message, Spin, Tabs, Badge, Empty } from 'antd';
-import {
-  CheckCircleOutlined, SettingOutlined,
-  ClockCircleOutlined, FileTextOutlined, UserOutlined,
-} from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Table, Button, Typography, Tag, message, Spin } from 'antd';
+import { CheckCircleOutlined, SettingOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { timerRequestService } from '../../services/timerRequestService';
 import PageHeader from '../../components/common/PageHeader';
@@ -22,50 +20,14 @@ const Avatar = ({ name }) => {
   );
 };
 
-const MetricCard = ({ icon, label, value, color, bg }) => (
-  <div style={{
-    background: bg, border: `1px solid ${color}30`,
-    borderRadius: 16, padding: '18px 22px',
-    display: 'flex', alignItems: 'center', gap: 16, flex: 1, minWidth: 140,
-  }}>
-    <div style={{
-      width: 44, height: 44, borderRadius: 12, background: `${color}18`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color,
-    }}>{icon}</div>
-    <div>
-      <div style={{ fontSize: 24, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{label}</div>
-    </div>
-  </div>
-);
-
-const WorkflowStep = ({ step, label, active, done }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-    <div style={{
-      width: 36, height: 36, borderRadius: '50%',
-      background: done ? '#10b981' : active ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : '#e2e8f0',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: done || active ? '#fff' : '#94a3b8', fontWeight: 700, fontSize: 13,
-    }}>{done ? '✓' : step}</div>
-    <span style={{ fontSize: 11, color: active ? '#4f46e5' : done ? '#10b981' : '#94a3b8', fontWeight: active ? 700 : 500 }}>{label}</span>
-  </div>
-);
-const WorkflowLine = ({ done }) => (
-  <div style={{ flex: 1, height: 2, background: done ? '#10b981' : '#e2e8f0', marginBottom: 20, borderRadius: 2 }} />
-);
-
 const HRTimerRequestsPage = () => {
   const { isDarkMode } = useThemeStore();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
   const navigate = useNavigate();
 
-  const [history, setHistory] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-
   useEffect(() => {
     fetchApprovedRequests();
-    fetchHistory();
   }, []);
 
   const fetchApprovedRequests = async () => {
@@ -73,23 +35,20 @@ const HRTimerRequestsPage = () => {
     try {
       const res = await timerRequestService.getHRApprovedRequests();
       setRequests(res.data.data || []);
-    } catch { message.error('Failed to load approved additional hours requests'); }
-    finally { setLoading(false); }
+    } catch {
+      message.error('Failed to load approved additional hours requests');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const fetchHistory = async () => {
-    setHistoryLoading(true);
-    try {
-      const res = await timerRequestService.getHistoryRequests();
-      setHistory(res.data.data || []);
-    } catch { message.error('Failed to load history logs'); }
-    finally { setHistoryLoading(false); }
-  };
-
-  const totalHours = requests.reduce((s, r) => s + Number(r.request?.requestedHours || 0), 0);
   const roleColors = { TeamLead: '#7c3aed', ProjectManager: '#3b82f6', Employee: '#f59e0b' };
-
-  const cardBase = { borderRadius: 16, overflow: 'hidden', background: isDarkMode ? '#18181b' : '#fff', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.07)' : '#f1f5f9'}` };
+  const cardBase = {
+    borderRadius: 16,
+    overflow: 'hidden',
+    background: isDarkMode ? '#18181b' : '#fff',
+    border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.07)' : '#f1f5f9'}`
+  };
 
   const columns = [
     {
@@ -137,15 +96,17 @@ const HRTimerRequestsPage = () => {
     },
     {
       title: 'Approved Extra',
-      dataIndex: ['request', 'requestedHours'],
       key: 'requestedHours',
       width: 130,
       align: 'center',
-      render: (h) => (
-        <div style={{ background: 'rgba(16,185,129,0.12)', color: '#059669', borderRadius: 10, padding: '4px 12px', fontWeight: 800, fontSize: 15, display: 'inline-block' }}>
-          +{h}h
-        </div>
-      ),
+      render: (_, r) => {
+        const h = r.request?.requestedHours || 0;
+        return (
+          <div style={{ background: 'rgba(16,185,129,0.12)', color: '#059669', borderRadius: 10, padding: '4px 12px', fontWeight: 800, fontSize: 15, display: 'inline-block' }}>
+            +{h}h
+          </div>
+        );
+      },
     },
     {
       title: 'Status',
@@ -180,184 +141,36 @@ const HRTimerRequestsPage = () => {
     },
   ];
 
-  const historyColumns = [
-    {
-      title: 'Employee',
-      key: 'employee',
-      width: 180,
-      render: (_, r) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Avatar name={r.employeeName} />
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 13 }}>{r.employeeName}</div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>Employee</div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: 'Project & Ticket',
-      key: 'project',
-      render: (_, r) => (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontWeight: 600, color: '#6366f1', fontSize: 13 }}>{r.projectName || '—'}</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-            <span style={{ background: '#f1f5f9', color: '#475569', fontSize: 11, padding: '1px 7px', borderRadius: 5, fontFamily: 'monospace' }}>{r.ticketCode}</span>
-            <span style={{ fontSize: 12, color: '#64748b' }}>{r.ticketTitle}</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: 'Requested',
-      dataIndex: ['request', 'requestedHours'],
-      key: 'requestedHours',
-      width: 120,
-      render: (h) => <Tag color="purple" style={{ fontWeight: 700, borderRadius: 6 }}>+{h}h</Tag>,
-    },
-    {
-      title: 'Status',
-      dataIndex: ['request', 'status'],
-      key: 'status',
-      width: 140,
-      render: (status) => {
-        const conf = {
-          PendingTL: { color: 'gold', label: 'Pending TL' },
-          PendingPM: { color: 'blue', label: 'Pending PM' },
-          PendingAccounts: { color: 'purple', label: 'Pending Accounts' },
-          AccountsApproved: { color: 'cyan', label: 'Accounts Approved' },
-          Approved: { color: 'green', label: 'Fully Approved' },
-          Rejected: { color: 'red', label: 'Rejected' },
-        }[status] || { color: 'default', label: status };
-        return <Badge status={conf.color === 'green' ? 'success' : conf.color === 'red' ? 'error' : 'processing'} text={conf.label} />;
-      }
-    },
-    {
-      title: 'Comments / Reason',
-      key: 'reason',
-      render: (_, r) => (
-        <div style={{ fontSize: 12 }}>
-          <div><Text type="secondary">Reason: </Text>"{r.request?.reason}"</div>
-          {r.request?.comments && <div style={{ marginTop: 2 }}><Text type="secondary">Reviewer Comments: </Text><Text italic>{r.request?.comments}</Text></div>}
-        </div>
-      )
-    }
-  ];
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader
         title="Accounts Approved Additional Hours"
-        subtitle="Budget has been cleared. Reallocate daily quotas so employees can submit their EOD reports."
+        subtitle="Review approved additional hours budget from Accounts and reallocate daily quotas."
+        breadcrumbs={[{ label: 'HR' }, { label: 'Additional Hours' }]}
       />
 
-      {/* Workflow stepper */}
-      <div style={{ ...cardBase, padding: '20px 28px' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1 }}>Approval Workflow</div>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <WorkflowStep step={1} label="Employee" done />
-          <WorkflowLine done />
-          <WorkflowStep step={2} label="Team Lead" done />
-          <WorkflowLine done />
-          <WorkflowStep step={3} label="Project Manager" done />
-          <WorkflowLine done />
-          <WorkflowStep step={4} label="Accounts" done />
-          <WorkflowLine done />
-          <WorkflowStep step={5} label="HR / Quota" active />
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '80px 0' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: 16, color: '#94a3b8' }}>Loading approved requests…</div>
         </div>
-      </div>
-
-      {/* Success notice */}
-      <div style={{
-        background: 'linear-gradient(135deg,rgba(16,185,129,0.08),rgba(5,150,105,0.04))',
-        border: '1px solid rgba(16,185,129,0.2)', borderRadius: 14, padding: '14px 20px',
-        display: 'flex', alignItems: 'flex-start', gap: 12,
-      }}>
-        <CheckCircleOutlined style={{ color: '#10b981', fontSize: 18, marginTop: 2 }} />
-        <div>
-          <div style={{ fontWeight: 600, color: '#065f46', marginBottom: 2 }}>Budget Cleared by Accounts</div>
-          <div style={{ fontSize: 13, color: '#047857' }}>
-            The requests below have been financially approved. Please navigate to <strong>Hour Allocation</strong> to update each employee's daily quota so they can submit their EOD reports.
-          </div>
+      ) : requests.length === 0 ? (
+        <div style={{ ...cardBase, padding: '60px 24px', textAlign: 'center' }}>
+          <CheckCircleOutlined style={{ fontSize: 48, color: '#10b981', marginBottom: 12 }} />
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>All Quotas Updated!</div>
+          <Text type="secondary">No pending additional hours adjustments from Accounts.</Text>
         </div>
-      </div>
-
-      {/* Metric cards */}
-      {!loading && (
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <MetricCard icon={<UserOutlined />} label="Employees Needing Update" value={requests.length} color="#6366f1" bg={isDarkMode ? '#18181b' : '#fafafa'} />
-          <MetricCard icon={<ClockCircleOutlined />} label="Total Extra Hours Approved" value={`${totalHours.toFixed(1)}h`} color="#10b981" bg={isDarkMode ? '#18181b' : '#fafafa'} />
-          <MetricCard icon={<FileTextOutlined />} label="Pending Reallocations" value={requests.length} color="#f59e0b" bg={isDarkMode ? '#18181b' : '#fafafa'} />
+      ) : (
+        <div style={cardBase}>
+          <Table
+            columns={columns}
+            dataSource={requests}
+            rowKey={(r) => r.request?.requestId || Math.random()}
+            pagination={{ pageSize: 10, style: { padding: '0 20px 16px' } }}
+            style={{ borderRadius: 16 }}
+          />
         </div>
       )}
-
-      {/* Tabs Layout */}
-      <Tabs
-        defaultActiveKey="1"
-        style={{ marginTop: 8 }}
-        items={[
-          {
-            key: '1',
-            label: (
-              <span style={{ fontWeight: 700, padding: '0 8px' }}>
-                Pending Allocations <Badge count={requests.length} style={{ backgroundColor: '#6366f1', marginLeft: 4 }} />
-              </span>
-            ),
-            children: loading ? (
-              <div style={{ textAlign: 'center', padding: '80px 0' }}>
-                <Spin size="large" />
-                <div style={{ marginTop: 16, color: '#94a3b8' }}>Loading approved requests…</div>
-              </div>
-            ) : requests.length === 0 ? (
-              <div style={{ ...cardBase, padding: '60px 24px', textAlign: 'center' }}>
-                <CheckCircleOutlined style={{ fontSize: 48, color: '#10b981', marginBottom: 12 }} />
-                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>All Quotas Updated!</div>
-                <Text type="secondary">No pending additional hours adjustments needed.</Text>
-              </div>
-            ) : (
-              <div style={cardBase}>
-                <Table
-                  columns={columns}
-                  dataSource={requests}
-                  rowKey={(r) => r.request.requestId}
-                  pagination={{ pageSize: 10, style: { padding: '0 20px 16px' } }}
-                  style={{ borderRadius: 16 }}
-                />
-              </div>
-            )
-          },
-          {
-            key: '2',
-            label: (
-              <span style={{ fontWeight: 700, padding: '0 8px' }}>
-                History Logs <Badge count={history.length} style={{ backgroundColor: '#ec4899', marginLeft: 4 }} />
-              </span>
-            ),
-            children: historyLoading ? (
-              <div style={{ textAlign: 'center', padding: '80px 0' }}>
-                <Spin size="large" />
-                <div style={{ marginTop: 16, color: '#94a3b8' }}>Loading history logs…</div>
-              </div>
-            ) : history.length === 0 ? (
-              <div style={{ ...cardBase, padding: '60px 24px', textAlign: 'center' }}>
-                <Empty description="No historical requests found." />
-              </div>
-            ) : (
-              <div style={cardBase}>
-                <Table
-                  columns={historyColumns}
-                  dataSource={history}
-                  rowKey={(r) => r.request?.requestId || Math.random()}
-                  pagination={{ pageSize: 10, style: { padding: '0 20px 16px' } }}
-                  style={{ borderRadius: 16 }}
-                />
-              </div>
-            )
-          }
-        ]}
-      />
     </div>
   );
 };
