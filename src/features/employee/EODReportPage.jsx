@@ -49,6 +49,7 @@ const EODReportPage = () => {
   const [currentLeave, setCurrentLeave] = useState(null);
   const [weeklyReports, setWeeklyReports] = useState([]);
   const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(Number(currentUser?.allocatedHours) || Number(currentUser?.prevAllocatedHours) || 0);
+  const [currentWeekRemainingHours, setCurrentWeekRemainingHours] = useState(null);
   const [hasWarnedExceeded, setHasWarnedExceeded] = useState(false);
   const [accessRequestType, setAccessRequestType] = useState('single');
 
@@ -118,7 +119,7 @@ const EODReportPage = () => {
 
   // 3. Remaining weekly quota before today's input
   const remainingBeforeToday = isOutsideCurrentWeek
-    ? (allocatedHoursPerDay > 0 ? (allocatedHoursPerDay / 5) : 24)
+    ? (currentWeekRemainingHours !== null ? currentWeekRemainingHours : (allocatedHoursPerDay > 0 ? (allocatedHoursPerDay / 5) : 24))
     : (allocatedHoursPerDay > 0 ? Math.max(0, allocatedHoursPerDay - hoursReportedOtherDays) : 24);
 
   // 4. Dynamic daily quota (REQUIRED_HOURS) capped at remainingBeforeToday
@@ -214,12 +215,29 @@ const EODReportPage = () => {
     }
   };
 
+  const fetchCurrentWeekRemaining = async () => {
+    try {
+      const today = dayjs();
+      const start = today.startOf('week').add(1, 'day').format('YYYY-MM-DD');
+      const end = today.startOf('week').add(7, 'day').format('YYYY-MM-DD');
+      const res = await reportService.getReportsByRange(currentUser.id, start, end);
+      const reports = res.data || [];
+      const logged = reports.reduce((sum, r) => {
+        const dayHours = r.items?.reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
+        return sum + dayHours;
+      }, 0);
+      const quota = Number(currentUser?.allocatedHours) || Number(currentUser?.prevAllocatedHours) || 0;
+      setCurrentWeekRemainingHours(Math.max(0, quota - logged));
+    } catch (_) {}
+  };
+
   useEffect(() => {
     const init = async () => {
       await fetchProjects();
       await fetchTickets();
       await fetchTimerRequests();
       await fetchTeamLeads();
+      await fetchCurrentWeekRemaining();
     };
     init();
     
@@ -392,6 +410,7 @@ const EODReportPage = () => {
         } catch (_) {}
       }
       setHasAccessForDate(approvedAccess);
+      await fetchCurrentWeekRemaining();
 
       // Fetch employee's access requests for status display
       try {
@@ -740,7 +759,7 @@ const EODReportPage = () => {
             }}>
               <div>
                 <div style={{ fontSize: 10, color: '#8c8c8c', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                  {isOutsideCurrentWeek ? 'Allotted Hours (Daily)' : 'Remaining Quota (Weekly)'}
+                  {isOutsideCurrentWeek ? 'Remaining Quota (Current Week)' : 'Remaining Quota (Weekly)'}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                   <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>
