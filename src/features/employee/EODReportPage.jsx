@@ -497,6 +497,28 @@ const EODReportPage = () => {
       };
       await reportService.submitDailyReport(reportData);
       
+      // Sync mock projects locally if in mock mode
+      if (import.meta.env.VITE_USE_MOCK === 'true') {
+        try {
+          const { mockProjects } = await import('../../mocks/mockProjects');
+          data.items.forEach(item => {
+            const tkt = myTickets.find(t => String(t.id) === String(item.ticketId));
+            if (tkt && tkt.projectId) {
+              const proj = mockProjects.find(p => String(p.id) === String(tkt.projectId));
+              if (proj) {
+                const spent = Number(item.hours) || 0;
+                proj.consumedHours = Number(proj.consumedHours || 0) + spent;
+                if (proj.totalHours !== undefined) {
+                  proj.totalHours = Math.max(0, Number(proj.totalHours) - spent);
+                }
+              }
+            }
+          });
+        } catch (mockErr) {
+          console.error('Failed to sync mock projects:', mockErr);
+        }
+      }
+      
       if (data.isAlertIssue && data.alertMessage) {
         const firstItem = data.items?.[0];
         const selectedTicket = myTickets.find(t => t.id === firstItem?.ticketId);
@@ -517,6 +539,7 @@ const EODReportPage = () => {
       notification.success({ message: 'Success', description: `Report submitted.` });
       setViewOnly(true);
       fetchWeeklyStatus(weekDates);
+      await fetchProjects(); // Refresh projects list to update local state available hours!
       await fetchReportForDate(selectedDate);
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to submit report.' });

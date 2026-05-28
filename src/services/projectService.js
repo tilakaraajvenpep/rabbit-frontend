@@ -4,13 +4,19 @@ import { logger } from '../utils/logger';
 
 const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
-const mapProject = (p) => ({
-  ...p,
-  id: p.projectId,
-  name: p.projectName,
-  code: p.projectCode,
-  consumedHours: p.consumedHours || 0
-});
+const mapProject = (p) => {
+  const approvedHours = Number(p.approvedHours) || 0;
+  const availableHours = p.totalHours !== undefined ? Number(p.totalHours) : Math.max(0, approvedHours - (Number(p.consumedHours) || 0));
+  const consumedHours = p.consumedHours !== undefined ? Number(p.consumedHours) : Math.max(0, approvedHours - availableHours);
+  return {
+    ...p,
+    id: p.projectId,
+    name: p.projectName,
+    code: p.projectCode,
+    consumedHours: consumedHours,
+    totalHours: availableHours
+  };
+};
 
 export const projectService = {
   getProjects: async () => {
