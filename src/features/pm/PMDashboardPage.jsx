@@ -150,9 +150,15 @@ const PMDashboardPage = () => {
     setIsMilestoneDrawerVisible(true);
   };
 
+  // Filter projects to only those assigned to the current PM
+  const pmId = currentUser?.id || currentUser?.userId;
+  const myProjects = pmId
+    ? projects.filter(p => p.assignedProjectManagerId === pmId)
+    : projects;
+
   // Calculations for Deadline stats
   const getDeadlineStats = () => {
-    const activeProjs = projects.filter(p => ['Approved', 'InProgress', 'OnHold'].includes(p.status));
+    const activeProjs = myProjects.filter(p => ['Approved', 'InProgress', 'OnHold'].includes(p.status));
     const now = dayjs();
     const startOfMonth = now.startOf('month');
     const endOfMonth = now.endOf('month');
@@ -182,12 +188,6 @@ const PMDashboardPage = () => {
   };
 
   const dlStats = getDeadlineStats();
-
-  // Filter projects to only those assigned to the current PM
-  const pmId = currentUser?.id || currentUser?.userId;
-  const myProjects = pmId
-    ? projects.filter(p => p.assignedProjectManagerId === pmId)
-    : projects;
 
   // Filtering active projects
   const activeProjects = myProjects.filter(p => ['Approved', 'InProgress', 'OnHold'].includes(p.status));
