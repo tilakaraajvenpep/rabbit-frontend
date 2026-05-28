@@ -3,11 +3,13 @@ import { Card, Table, Typography, Space, Button, Modal, Timeline, Tag, Statistic
 import { DollarOutlined, ClockCircleOutlined, HistoryOutlined, ProjectOutlined, ArrowLeftOutlined, EyeOutlined, SyncOutlined } from '@ant-design/icons';
 import { projectService } from '../../services/projectService';
 import PageHeader from '../../components/common/PageHeader';
+import { useThemeStore } from '../../store/themeStore';
 import dayjs from 'dayjs';
 
 const { Text, Title } = Typography;
 
 const CostHistoryPage = () => {
+  const { isDarkMode } = useThemeStore();
   const [projects, setProjects] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,7 +120,7 @@ const CostHistoryPage = () => {
       key: 'initialBudget',
       sorter: (a, b) => Number(a.initialBudget) - Number(b.initialBudget),
       render: (val) => (
-        <Text style={{ color: '#4b5563', fontSize: '14.5px' }}>
+        <Text style={{ color: isDarkMode ? '#d1d5db' : '#4b5563', fontSize: '14.5px' }}>
           ₹{Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </Text>
       )
@@ -284,36 +286,36 @@ const CostHistoryPage = () => {
         bodyStyle={{ maxHeight: '70vh', overflowY: 'auto', paddingTop: '20px' }}
       >
         {selectedProject && (
-          <div style={{ marginBottom: 24, padding: '16px 20px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+          <div style={{ marginBottom: 24, padding: '16px 20px', background: isDarkMode ? '#1f2937' : '#f8fafc', borderRadius: 12, border: isDarkMode ? '1px solid #374151' : '1px solid #e2e8f0' }}>
             <Row gutter={[16, 16]}>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: '12px' }}>Project Code</Text><br />
-                <Text strong style={{ fontSize: '15px' }}>{selectedProject.code}</Text>
+                <Text style={{ fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>Project Code</Text><br />
+                <Text strong style={{ fontSize: '15px', color: isDarkMode ? '#f3f4f6' : '#1f2937' }}>{selectedProject.code}</Text>
               </Col>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: '12px' }}>Client</Text><br />
-                <Text strong style={{ fontSize: '15px' }}>{selectedProject.client || '—'}</Text>
+                <Text style={{ fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>Client</Text><br />
+                <Text strong style={{ fontSize: '15px', color: isDarkMode ? '#f3f4f6' : '#1f2937' }}>{selectedProject.client || '—'}</Text>
               </Col>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: '12px' }}>Initial Budget</Text><br />
-                <Text strong style={{ fontSize: '15px', color: '#4b5563' }}>
+                <Text style={{ fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>Initial Budget</Text><br />
+                <Text strong style={{ fontSize: '15px', color: isDarkMode ? '#d1d5db' : '#4b5563' }}>
                   ₹{Number(selectedProject.initialBudget).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </Text>
               </Col>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: '12px' }}>Final Budget</Text><br />
-                <Text strong style={{ fontSize: '16px', color: '#059669' }}>
+                <Text style={{ fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>Final Budget</Text><br />
+                <Text strong style={{ fontSize: '16px', color: '#10b981' }}>
                   ₹{Number(selectedProject.finalBudget).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </Text>
               </Col>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: '12px' }}>Times Revised</Text><br />
+                <Text style={{ fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>Times Revised</Text><br />
                 <Tag color="purple" style={{ fontWeight: 600, borderRadius: 4 }}>
                   {selectedProject.revisionCount} {selectedProject.revisionCount === 1 ? 'revision' : 'revisions'}
                 </Tag>
               </Col>
               <Col span={12}>
-                <Text type="secondary" style={{ fontSize: '12px' }}>Times Returned</Text><br />
+                <Text style={{ fontSize: '12px', color: isDarkMode ? '#9ca3af' : '#6b7280' }}>Times Returned</Text><br />
                 <Tag color={selectedProject.returnedCount > 0 ? 'volcano' : 'green'} style={{ fontWeight: 600, borderRadius: 4 }}>
                   {selectedProject.returnedCount} {selectedProject.returnedCount === 1 ? 'time' : 'times'}
                 </Tag>
@@ -364,18 +366,18 @@ const CostHistoryPage = () => {
                       </Text>
                       
                       {budgetValue !== null && (
-                        <div style={{ background: '#f8fafc', padding: '8px 12px', borderRadius: 8, marginTop: 4, border: '1px solid #f1f5f9' }}>
+                        <div style={{ background: isDarkMode ? '#111827' : '#f8fafc', padding: '8px 12px', borderRadius: 8, marginTop: 4, border: isDarkMode ? '1px solid #1f2937' : '1px solid #f1f5f9' }}>
                           <Row gutter={8}>
                             <Col span={12}>
-                              <Text type="secondary" style={{ fontSize: 11 }}>Budget Amount:</Text><br/>
-                              <Text strong style={{ color: '#059669' }}>
+                              <Text style={{ fontSize: 11, color: isDarkMode ? '#9ca3af' : '#4b5563' }}>Budget Amount:</Text><br/>
+                              <Text strong style={{ color: '#10b981' }}>
                                 ₹{budgetValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </Text>
                             </Col>
                             {hoursValue !== null && (
                               <Col span={12}>
-                                <Text type="secondary" style={{ fontSize: 11 }}>Allocated Hours:</Text><br/>
-                                <Text strong>{hoursValue} hrs</Text>
+                                <Text style={{ fontSize: 11, color: isDarkMode ? '#9ca3af' : '#4b5563' }}>Allocated Hours:</Text><br/>
+                                <Text strong style={{ color: isDarkMode ? '#f3f4f6' : '#1f2937' }}>{hoursValue} hrs</Text>
                               </Col>
                             )}
                           </Row>
@@ -383,7 +385,7 @@ const CostHistoryPage = () => {
                       )}
 
                       {audit.newData?.comments && (
-                        <Text style={{ fontSize: '13px', fontStyle: 'italic', color: '#475569', marginTop: 4 }}>
+                        <Text style={{ fontSize: '13px', fontStyle: 'italic', color: isDarkMode ? '#d1d5db' : '#475569', marginTop: 4 }}>
                           "{audit.newData.comments}"
                         </Text>
                       )}
