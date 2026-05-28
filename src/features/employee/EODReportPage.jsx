@@ -105,8 +105,22 @@ const EODReportPage = () => {
   const watchedItems = watch('items');
   const totalHours = watchedItems?.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0) || 0;
   
-  // Dynamic quota based on half-day/full-day/permission leave
-  const baseRequiredHours = allocatedHoursPerDay;
+  // 1. Calculate hours reported on OTHER days of this week
+  const hoursReportedOtherDays = weeklyReports
+    .filter(r => r.date !== selectedDate)
+    .reduce((sum, r) => {
+      const dayHours = r.items?.reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
+      return sum + dayHours;
+    }, 0);
+
+  // 2. Base weekly allocated hours
+  const weeklyAllocated = allocatedHoursPerDay;
+
+  // 3. Remaining weekly quota before today's input
+  const remainingBeforeToday = allocatedHoursPerDay > 0 ? Math.max(0, allocatedHoursPerDay - hoursReportedOtherDays) : 24;
+
+  // 4. Dynamic daily quota (REQUIRED_HOURS) capped at remainingBeforeToday
+  const baseRequiredHours = remainingBeforeToday;
   let REQUIRED_HOURS = baseRequiredHours;
   if (currentLeave) {
     if (currentLeave.type === 'FullDay') {
@@ -134,16 +148,11 @@ const EODReportPage = () => {
     }
   }, [totalHours, REQUIRED_HOURS, allocatedHoursPerDay, hasWarnedExceeded]);
 
-  const hoursReportedOtherDays = weeklyReports
-    .filter(r => r.date !== selectedDate)
-    .reduce((sum, r) => {
-      const dayHours = r.items?.reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
-      return sum + dayHours;
-    }, 0);
-
-  const weeklyAllocated = baseRequiredHours;
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
+  
+  // Calculate lock state if they have fully completed their weekly quota
+  const isLocked = (viewOnly && !adminUnlocked) || (allocatedHoursPerDay > 0 && remainingBeforeToday <= 0 && !existingReport);
 
   const fetchTeamLeads = async () => {
     try {
@@ -674,7 +683,7 @@ const EODReportPage = () => {
     return [hStr, mStr].filter(Boolean).join(' ');
   };
 
-  const isLocked = viewOnly && !adminUnlocked;
+
 
   // Render the Tabbed EOD dashboard
   return (
@@ -714,7 +723,7 @@ const EODReportPage = () => {
             }}>
               <div>
                 <div style={{ fontSize: 10, color: '#8c8c8c', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                  Daily Quota (PM Assigned)
+                  Remaining Quota (Weekly)
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                   <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>
@@ -747,7 +756,7 @@ const EODReportPage = () => {
               textAlign: 'center',
             }}>
               <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic' }}>
-                Daily Quota: Not Assigned by PM/HR
+                Weekly Quota: Not Assigned by PM/HR
               </Text>
             </div>
           )}
@@ -977,6 +986,15 @@ const EODReportPage = () => {
             
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {allocatedHoursPerDay > 0 && remainingBeforeToday <= 0 && !existingReport && (
+                  <Alert
+                    message="Weekly Quota Fully Completed"
+                    description="You have already reported the entire weekly allotted hours. No further task logging is permitted for this week."
+                    type="warning"
+                    showIcon
+                    style={{ borderRadius: 8 }}
+                  />
+                )}
                 
                 {/* Daily Tasks Section */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
