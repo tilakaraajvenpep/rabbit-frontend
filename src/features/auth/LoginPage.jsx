@@ -104,7 +104,7 @@ const LoginPage = () => {
       justifyContent: 'center', 
       alignItems: 'center', 
       minHeight: '100vh',
-      background: isDarkMode ? 'linear-gradient(135deg, #0f172a, #1e1b4b)' : 'linear-gradient(135deg, #f8fafc, #e2e8f0)',
+      background: '#ffffff',
       width: '100vw',
       transition: 'all 0.3s ease'
     }}>
