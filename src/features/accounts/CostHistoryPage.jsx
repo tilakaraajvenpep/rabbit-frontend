@@ -64,16 +64,33 @@ const CostHistoryPage = () => {
     });
     const returnedCount = returnedLogs.length;
 
-    // 3. Final approved budget: fallback to budgetTable sum if approvedBudget is 0 or null
+    // 3. Revision Count (How many times budget has been revised/updated)
+    const revisionLogs = projectAudits.filter(log => log.action === 'UPDATE_COST_ANALYSIS');
+    const revisionCount = revisionLogs.length;
+
+    // 4. Final approved budget: fallback to budgetTable sum if approvedBudget is 0 or null
     let finalBudget = Number(project.approvedBudget || 0);
     if (finalBudget === 0 && Array.isArray(project.budgetTable)) {
       finalBudget = project.budgetTable.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
+    }
+
+    // 5. Initial budget: extract from CREATE_COST_ANALYSIS if it exists
+    const createLog = projectAudits.find(log => log.action === 'CREATE_COST_ANALYSIS');
+    let initialBudget = 0;
+    if (createLog && createLog.newData?.totalBudget) {
+      initialBudget = Number(createLog.newData.totalBudget);
+    } else if (createLog && Array.isArray(createLog.newData?.budgetTable)) {
+      initialBudget = createLog.newData.budgetTable.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
+    } else {
+      initialBudget = finalBudget;
     }
 
     return {
       ...project,
       analyzedCount,
       returnedCount,
+      revisionCount,
+      initialBudget: String(initialBudget),
       finalBudget: String(finalBudget),
       audits: projectAudits
     };
@@ -96,13 +113,35 @@ const CostHistoryPage = () => {
       key: 'client',
     },
     {
-      title: 'Budget Analyzed',
-      dataIndex: 'analyzedCount',
-      key: 'analyzedCount',
-      sorter: (a, b) => a.analyzedCount - b.analyzedCount,
+      title: 'Initial Budget',
+      dataIndex: 'initialBudget',
+      key: 'initialBudget',
+      sorter: (a, b) => Number(a.initialBudget) - Number(b.initialBudget),
+      render: (val) => (
+        <Text style={{ color: '#4b5563', fontSize: '14.5px' }}>
+          ₹{Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </Text>
+      )
+    },
+    {
+      title: 'Final Budget',
+      dataIndex: 'finalBudget',
+      key: 'finalBudget',
+      sorter: (a, b) => Number(a.finalBudget) - Number(b.finalBudget),
+      render: (val) => (
+        <Text strong style={{ color: '#059669', fontSize: '15.5px' }}>
+          ₹{Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </Text>
+      )
+    },
+    {
+      title: 'Times Revised',
+      dataIndex: 'revisionCount',
+      key: 'revisionCount',
+      sorter: (a, b) => a.revisionCount - b.revisionCount,
       render: (count) => (
-        <Tag color={count > 0 ? 'blue' : 'default'} style={{ borderRadius: 6, padding: '2px 8px', fontWeight: 600 }}>
-          {count} {count === 1 ? 'time' : 'times'}
+        <Tag color={count > 0 ? 'purple' : 'default'} style={{ borderRadius: 6, padding: '2px 8px', fontWeight: 600 }}>
+          {count} {count === 1 ? 'revision' : 'revisions'}
         </Tag>
       )
     },
@@ -115,17 +154,6 @@ const CostHistoryPage = () => {
         <Tag color={count > 0 ? 'volcano' : 'green'} style={{ borderRadius: 6, padding: '2px 8px', fontWeight: 600 }}>
           {count} {count === 1 ? 'time' : 'times'}
         </Tag>
-      )
-    },
-    {
-      title: 'Final Budget',
-      dataIndex: 'finalBudget',
-      key: 'finalBudget',
-      sorter: (a, b) => Number(a.finalBudget) - Number(b.finalBudget),
-      render: (val) => (
-        <Text strong style={{ color: '#059669', fontSize: '15px' }}>
-          ₹{Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </Text>
       )
     },
     {
@@ -205,9 +233,9 @@ const CostHistoryPage = () => {
             <Col xs={24} sm={8}>
               <Card style={{ borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
                 <Statistic 
-                  title="Total Budget Actions" 
-                  value={auditLogs.filter(l => l.action?.includes('COST') || (l.action === 'UPDATE_PROJECT_STATUS' && (l.newData?.status === 'PendingPMApproval' || l.newData?.status === 'Approved'))).length} 
-                  prefix={<DollarOutlined style={{ color: '#2563eb' }} />} 
+                  title="Total Budget Revisions" 
+                  value={processedData.reduce((acc, curr) => acc + curr.revisionCount, 0)} 
+                  prefix={<DollarOutlined style={{ color: '#8b5cf6' }} />} 
                 />
               </Card>
             </Col>
@@ -215,10 +243,7 @@ const CostHistoryPage = () => {
               <Card style={{ borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
                 <Statistic 
                   title="Revision Returns" 
-                  value={auditLogs.filter(l => {
-                    const status = l.newData?.status || l.status;
-                    return l.action === 'UPDATE_PROJECT_STATUS' && (status === 'ReturnedForRevision' || status === 'ReturnedToAccounts');
-                  }).length} 
+                  value={processedData.reduce((acc, curr) => acc + curr.returnedCount, 0)} 
                   prefix={<HistoryOutlined style={{ color: '#dc2626' }} />} 
                 />
               </Card>
@@ -258,12 +283,51 @@ const CostHistoryPage = () => {
         width={650}
         bodyStyle={{ maxHeight: '70vh', overflowY: 'auto', paddingTop: '20px' }}
       >
+        {selectedProject && (
+          <div style={{ marginBottom: 24, padding: '16px 20px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+            <Row gutter={[16, 16]}>
+              <Col span={12}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>Project Code</Text><br />
+                <Text strong style={{ fontSize: '15px' }}>{selectedProject.code}</Text>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>Client</Text><br />
+                <Text strong style={{ fontSize: '15px' }}>{selectedProject.client || '—'}</Text>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>Initial Budget</Text><br />
+                <Text strong style={{ fontSize: '15px', color: '#4b5563' }}>
+                  ₹{Number(selectedProject.initialBudget).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </Text>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>Final Budget</Text><br />
+                <Text strong style={{ fontSize: '16px', color: '#059669' }}>
+                  ₹{Number(selectedProject.finalBudget).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </Text>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>Times Revised</Text><br />
+                <Tag color="purple" style={{ fontWeight: 600, borderRadius: 4 }}>
+                  {selectedProject.revisionCount} {selectedProject.revisionCount === 1 ? 'revision' : 'revisions'}
+                </Tag>
+              </Col>
+              <Col span={12}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>Times Returned</Text><br />
+                <Tag color={selectedProject.returnedCount > 0 ? 'volcano' : 'green'} style={{ fontWeight: 600, borderRadius: 4 }}>
+                  {selectedProject.returnedCount} {selectedProject.returnedCount === 1 ? 'time' : 'times'}
+                </Tag>
+              </Col>
+            </Row>
+          </div>
+        )}
+
         {selectedProject?.audits && selectedProject.audits.length === 0 ? (
           <Alert message="No historical cost logs found for this project." type="info" showIcon />
         ) : (
           <Timeline mode="left">
             {selectedProject?.audits
-              .sort((a, b) => dayjs(b.createdAt || b.timestamp).unix() - dayjs(a.createdAt || a.timestamp).unix())
+              ?.sort((a, b) => dayjs(b.createdAt || b.timestamp).unix() - dayjs(a.createdAt || a.timestamp).unix())
               .map((audit, idx) => {
                 const statusVal = audit.newData?.status || audit.status;
                 

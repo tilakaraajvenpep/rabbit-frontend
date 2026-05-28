@@ -215,7 +215,12 @@ const PendingReviewPage = () => {
     setLoading(true);
     try {
       const response = await projectService.getProjects();
-      setProjects(response.data);
+      const allProjects = response.data || [];
+      // Keep only projects relevant to the Accounts Review and Analysis flow
+      const relevantProjects = allProjects.filter(p =>
+        ['PendingReview', 'ReturnedForRevision', 'ReturnedToAccounts', 'Approved'].includes(p.status)
+      );
+      setProjects(relevantProjects);
     } catch {
       notification.error({ message: 'Error', description: 'Failed to load pending projects.' });
     } finally {

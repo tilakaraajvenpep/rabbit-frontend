@@ -56,11 +56,10 @@ const ProfitLossPage = () => {
     try {
       const res = await projectService.getProjects();
       const allProj = res.data || [];
-      // Filter out Draft projects as they don't have budget info yet
-      const activeProj = allProj.filter(p => p.status !== 'Draft');
-      setProjects(activeProj);
-      if (activeProj.length > 0) {
-        setSelectedProjectId(activeProj[0].id || activeProj[0].projectId);
+      // Display all current projects in the system
+      setProjects(allProj);
+      if (allProj.length > 0) {
+        setSelectedProjectId(allProj[0].id || allProj[0].projectId);
       }
     } catch (err) {
       console.error('Failed to load projects:', err);
