@@ -106,7 +106,11 @@ const EODReportPage = () => {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const watchedItems = watch('items');
-  const totalHours = watchedItems?.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0) || 0;
+  const totalHours = watchedItems?.reduce((acc, curr) => {
+    const hrs = Number(curr?.hoursInput) || 0;
+    const mins = Number(curr?.minutesInput) || 0;
+    return acc + hrs + (mins / 60);
+  }, 0) || 0;
   
   // 1. Calculate hours reported on OTHER days of this week
   const hoursReportedOtherDays = weeklyReports
@@ -422,44 +426,104 @@ const EODReportPage = () => {
         setMyAccessRequests(arRes?.data || []);
       } catch (_) {}
 
-      const hasReport = !!res.data;
+      // Force fetch projects if they aren't loaded yet
+      let projectsList = allProjects;
+      if (projectsList.length === 0) {
+        const resProj = await projectService.getProjects();
+        projectsList = resProj.data || [];
+        setAllProjects(projectsList);
+      }
 
       // Force fetch tickets if they aren't loaded yet to map properly
       let ticketsList = myTickets;
       if (ticketsList.length === 0) {
         const ticketsRes = await ticketService.getTickets();
-        ticketsList = ticketsRes.data || [];
-        setAllMyTickets(ticketsList);
+        const rawTickets = ticketsRes.data || [];
+        setAllMyTickets(rawTickets);
+        
+        let filteredTickets = rawTickets.filter(t => t.status !== 'Done');
+        if (role === 'TeamLead' || role === 'ProjectManager' || role === 'TenantAdmin') {
+          const myUserId = currentUser?.userId || currentUser?.id;
+          filteredTickets = filteredTickets.filter(t => 
+            (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
+            (t.assignedTo && String(t.assignedTo) === String(myUserId))
+          );
+        }
+        setMyTickets(filteredTickets);
+        ticketsList = filteredTickets;
       }
+
+      const hasReport = !!res.data;
 
       if (hasReport) {
         const mappedItems = (res.data.items || []).map(item => {
           const ticket = ticketsList.find(t => String(t.id) === String(item.ticketId));
+          const pId = ticket ? ticket.projectId : '';
+          const totalH = Number(item.hoursSpent) || 0;
+          const hVal = Math.floor(totalH);
+          const mVal = Math.round((totalH - hVal) * 60);
           return {
-            projectId: ticket ? ticket.projectId : '',
+            projectId: pId,
             ticketId: item.ticketId,
-            hours: item.hoursSpent,
+            hoursInput: hVal,
+            minutesInput: mVal,
             workDone: item.workDone
           };
         });
+
+        // Add empty rows for projects that are allocated to the user but not in the report
+        const userId = currentUser.userId || currentUser.id;
+        const reportedProjectIds = new Set(mappedItems.map(i => String(i.projectId)));
+        
+        projectsList.forEach(p => {
+          const empHours = p.employeeAllocatedHours?.[userId];
+          if (empHours !== undefined && Number(empHours) > 0 && !reportedProjectIds.has(String(p.id))) {
+            mappedItems.push({
+              projectId: p.id,
+              ticketId: '',
+              hoursInput: 0,
+              minutesInput: 0,
+              workDone: ''
+            });
+          }
+        });
+
         const mappedReport = {
           ...res.data,
           items: mappedItems
         };
-        const firstProjId = mappedItems[0]?.projectId;
-        if (firstProjId) {
-          setSelectedTopProjectId(firstProjId);
-        } else {
-          setSelectedTopProjectId(null);
-        }
         reset(mappedReport);
         setExistingReport(mappedReport);
         setViewOnly(true);
       } else {
-        setSelectedTopProjectId(null);
-        reset({ items: [{ projectId: '', ticketId: '', hours: 0, workDone: '' }], blockers: '', isAlertIssue: false, alertMessage: '' });
+        const defaultItems = [];
+        const userId = currentUser.userId || currentUser.id;
+        projectsList.forEach(p => {
+          const empHours = p.employeeAllocatedHours?.[userId];
+          if (empHours !== undefined && Number(empHours) > 0) {
+            defaultItems.push({
+              projectId: p.id,
+              ticketId: '',
+              hoursInput: 0,
+              minutesInput: 0,
+              workDone: ''
+            });
+          }
+        });
+        if (defaultItems.length === 0) {
+          projectsList.forEach(p => {
+            defaultItems.push({
+              projectId: p.id,
+              ticketId: '',
+              hoursInput: 0,
+              minutesInput: 0,
+              workDone: ''
+            });
+          });
+        }
+        reset({ items: defaultItems, blockers: '', isAlertIssue: false, alertMessage: '' });
         setExistingReport(null);
-        
+
         const isFullDayLeave = leaveOnDate && leaveOnDate.type === 'FullDay';
         // Outside current week with no report = locked unless approved access
         if (isHoliday || (outsideCurrentWeek && !approvedAccess) || isFullDayLeave) {
@@ -557,7 +621,36 @@ const EODReportPage = () => {
   };
 
   const onSubmit = async (data) => {
-    const submittedTotal = data.items.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0);
+    const mappedItems = data.items
+      .map(item => {
+        const hrs = Number(item.hoursInput) || 0;
+        const mins = Number(item.minutesInput) || 0;
+        const decimalHours = Number((hrs + mins / 60).toFixed(4));
+        return {
+          ...item,
+          hours: decimalHours
+        };
+      })
+      .filter(item => item.hours > 0);
+
+    if (mappedItems.length === 0) {
+      notification.warning({
+        message: 'No Hours Logged',
+        description: 'Please log hours and minutes for at least one project task.'
+      });
+      return;
+    }
+
+    const invalidItems = mappedItems.filter(item => !item.ticketId || !item.workDone);
+    if (invalidItems.length > 0) {
+      notification.error({
+        message: 'Validation Error',
+        description: 'Please select a Ticket (Task Category) and enter a Message (Work Done) for all projects where you have logged hours.'
+      });
+      return;
+    }
+
+    const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
     if (submittedTotal > REQUIRED_HOURS) {
       // Block submission and show the dedicated additional-hours request modal
       setBlockedSubmitTotal(submittedTotal);
@@ -569,9 +662,9 @@ const EODReportPage = () => {
     try {
       const reportData = {
         reportDate: selectedDate,
-        items: data.items.map(item => ({
+        items: mappedItems.map(item => ({
           ticketId: Number(item.ticketId),
-          hoursSpent: Number(item.hours),
+          hoursSpent: item.hours,
           workDone: item.workDone
         }))
       };
@@ -581,7 +674,7 @@ const EODReportPage = () => {
       if (import.meta.env.VITE_USE_MOCK === 'true') {
         try {
           const { mockProjects } = await import('../../mocks/mockProjects');
-          data.items.forEach(item => {
+          mappedItems.forEach(item => {
             const tkt = myTickets.find(t => String(t.id) === String(item.ticketId));
             if (tkt && tkt.projectId) {
               const proj = mockProjects.find(p => String(p.id) === String(tkt.projectId));
@@ -600,7 +693,7 @@ const EODReportPage = () => {
       }
       
       if (data.isAlertIssue && data.alertMessage) {
-        const firstItem = data.items?.[0];
+        const firstItem = mappedItems?.[0];
         const selectedTicket = myTickets.find(t => t.id === firstItem?.ticketId);
         const resolvedProjectId = selectedTicket 
           ? Number(selectedTicket.projectId) 
@@ -736,756 +829,666 @@ const EODReportPage = () => {
 
   // Render the Tabbed EOD dashboard
   return (
-    <div style={{ height: 'calc(100vh - 100px)', display: 'flex', gap: 16, overflow: 'hidden' }}>
+    <div style={{ padding: '20px 24px', background: isDarkMode ? '#0f172a' : '#f8fafc', minHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
       
-      {/* LEFT SIDEBAR: Weekly Stats & Daily Timeline */}
-      <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
-        
-        {/* Compact Weekly Summary Card */}
-        <Card
-          size="small"
-          style={{
-            borderRadius: 12,
-            background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.06) 100%)',
-            border: '1px solid rgba(99,102,241,0.15)',
-          }}
-          bodyStyle={{ padding: 12 }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <ClockCircleOutlined style={{ fontSize: 16, color: '#6366f1' }} />
-            <Text strong style={{ fontSize: 13 }}>Weekly Overview</Text>
-          </div>
+      {/* Header Container */}
+      <div style={{
+        background: isDarkMode ? '#1e293b' : '#ffffff',
+        border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+        padding: '16px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderRadius: 12,
+        boxShadow: '0 1px 3px 0 rgba(0,0,0,0.05), 0 1px 2px 0 rgba(0,0,0,0.03)',
+        marginBottom: 20
+      }}>
+        {/* Left Section: Selected Date & Status Pill */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 160 }}>
+          <span style={{ fontSize: 22, fontWeight: 800, color: isDarkMode ? '#f8fafc' : '#1e293b', fontFamily: 'Inter, sans-serif' }}>
+            {dayjs(selectedDate).format('DD MMMM YYYY')}
+          </span>
+          {(() => {
+            const dateStr = selectedDate;
+            const status = weeklyStatus[dateStr];
+            const reportForDate = weeklyReports.find(r => r.date === dateStr);
+            const hours = reportForDate ? Number(reportForDate.totalHours) : 0;
+            const displayHours = totalHours;
+            const { bg, text, label } = getStatusColorAndLabel(dayjs(selectedDate), status, displayHours);
+            return (
+              <span style={{
+                background: bg,
+                color: text,
+                padding: '4px 12px',
+                borderRadius: 20,
+                fontSize: 12,
+                fontWeight: 700,
+                display: 'inline-block',
+                width: 'fit-content',
+                textAlign: 'center'
+              }}>
+                {label}
+              </span>
+            );
+          })()}
+        </div>
 
-          {/* Daily Quota Card */}
-          {allocatedHoursPerDay > 0 ? (
-            <div style={{
-              background: totalHours >= REQUIRED_HOURS
-                ? 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.08))'
-                : 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.12))',
-              border: `1.5px solid ${totalHours >= REQUIRED_HOURS ? 'rgba(16,185,129,0.4)' : 'rgba(99,102,241,0.35)'}`,
-              borderRadius: 10,
-              padding: '10px 12px',
-              marginBottom: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}>
-              <div>
-                <div style={{ fontSize: 10, color: '#8c8c8c', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                  {isOutsideCurrentWeek ? 'Remaining Quota (Current Week)' : 'Remaining Quota (Weekly)'}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                  <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>
-                    {formatHoursAndMinutes(REQUIRED_HOURS)}
-                  </span>
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 10, color: '#8c8c8c', marginBottom: 2 }}>Logged</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b' }}>
-                  {formatHoursAndMinutes(totalHours)}
-                </div>
-                <div style={{
-                  fontSize: 10, fontWeight: 700, marginTop: 2,
-                  color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#f59e0b',
-                  background: totalHours >= REQUIRED_HOURS ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
-                  borderRadius: 20, padding: '1px 7px', display: 'inline-block'
-                }}>
-                  {totalHours >= REQUIRED_HOURS ? '✓ Goal Met' : `${formatHoursAndMinutes(REQUIRED_HOURS - totalHours)} left`}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc',
-              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
-              borderRadius: 12,
-              padding: '12px',
-              marginBottom: 10,
-              textAlign: 'center',
-            }}>
-              <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic' }}>
-                Weekly Quota: Not Assigned by PM/HR
-              </Text>
-            </div>
-          )}
-          {/* ──────────────────────────────────────────────────────────── */}
-
-          {/* Daily Progress Bar */}
-          {allocatedHoursPerDay > 0 && (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text type="secondary" style={{ fontSize: 10 }}>Today's Progress</Text>
-                <Text style={{ fontSize: 10, fontWeight: 700, color: totalHours >= REQUIRED_HOURS ? '#10b981' : '#6366f1' }}>
-                  {REQUIRED_HOURS > 0 ? Math.round(Math.min((totalHours / REQUIRED_HOURS) * 100, 100)) : 100}%
-                </Text>
-              </div>
-              <Progress
-                percent={REQUIRED_HOURS > 0 ? Math.round(Math.min((totalHours / REQUIRED_HOURS) * 100, 100)) : 100}
-                size="small"
-                showInfo={false}
-                strokeColor={totalHours >= REQUIRED_HOURS
-                  ? { '0%': '#10b981', '100%': '#34d399' }
-                  : { '0%': '#6366f1', '100%': '#8b5cf6' }}
-              />
-            </div>
-          )}
-
-          {/* This-week stat */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Text type="secondary" style={{ fontSize: 10 }}>This Week</Text>
-            <Text strong style={{ fontSize: 12, color: '#6366f1' }}>{formatHoursAndMinutes(loggedThisWeek)}</Text>
-          </div>
-
-          {weeklyAllocated > 0 && (
-            <Progress
-              percent={Math.round(Math.min((loggedThisWeek / weeklyAllocated) * 100, 100))}
-              size="small"
-              strokeColor={{ '0%': '#6366f1', '100%': '#10b981' }}
-              format={(p) => <span style={{ fontSize: 10, color: '#8c8c8c' }}>{p}% of Quota</span>}
-            />
-          )}
-        </Card>
-
-        {/* My Project Allocations Card */}
-        <Card
-          size="small"
-          style={{
-            borderRadius: 12,
-            border: `1.5px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#e2e8f0'}`,
-            background: isDarkMode ? '#1e1e24' : '#fff'
-          }}
-          bodyStyle={{ padding: 12 }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <ProjectOutlined style={{ fontSize: 16, color: '#10b981' }} />
-            <Text strong style={{ fontSize: 13 }}>My Project Allocations</Text>
-          </div>
-          {allProjects.filter(p => {
-            const allocated = p.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
-            return allocated !== undefined && Number(allocated) > 0;
-          }).length === 0 ? (
-            <div style={{ fontSize: 11, color: '#8c8c8c', fontStyle: 'italic', textAlign: 'center' }}>
-              No hours allocated by HR yet.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {allProjects.filter(p => {
-                const allocated = p.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
-                return allocated !== undefined && Number(allocated) > 0;
-              }).map(p => {
-                const allocated = Number(p.employeeAllocatedHours?.[currentUser.userId || currentUser.id]) || 0;
-                const logged = allMyTickets
-                  .filter(t => String(t.projectId) === String(p.id || p.projectId))
-                  .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
-                const timeLeft = Math.max(0, allocated - logged);
-                return (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }} title={p.name || p.projectName}>
-                      {p.name || p.projectName}
-                    </div>
-                    <Tag color="green" style={{ margin: 0, fontSize: 10 }}>
-                      {formatHoursAndMinutes(allocated)} (Left: {formatHoursAndMinutes(timeLeft)})
-                    </Tag>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
-
-
-        {/* Vertical Calendar Timeline Card */}
-        <Card 
-          size="small" 
-          title={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <span style={{ fontSize: 12 }}>Daily Timeline</span>
-              <Space size={4}>
-                <Button size="small" shape="circle" icon={<LeftOutlined />} onClick={handlePrevWeek} />
-                <Button size="small" shape="circle" icon={<RightOutlined />} onClick={handleNextWeek} />
-              </Space>
-            </div>
-          }
-          style={{ flex: 1, borderRadius: 12, display: 'flex', flexDirection: 'column', minHeight: 0 }}
-          bodyStyle={{ padding: '8px', flex: 1, overflowY: 'auto' }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Middle Section: Horizontal Date Strip */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Button
+            shape="circle"
+            icon={<LeftOutlined />}
+            onClick={handlePrevWeek}
+            style={{ background: isDarkMode ? '#334155' : '#e2e8f0', border: 'none', color: isDarkMode ? '#cbd5e1' : '#4b5563', width: 36, height: 36 }}
+          />
+          
+          <div style={{ display: 'flex', gap: 8 }}>
             {weekDates.map(date => {
               const isSelected = selectedDate === date.format('YYYY-MM-DD');
               const dateStr = date.format('YYYY-MM-DD');
               const status = weeklyStatus[dateStr];
-              const isIncomplete = status === 'incomplete';
-              const isRestricted = status === 'restricted';
-              const isHolidayDate = status === 'holiday';
-              const isOptional = status === 'optional';
               
-              let bg = 'transparent';
-              let border = `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : '#f0f0f0'}`;
-              let opacity = 1;
-              let indicatorColor = '#d9d9d9';
-              
-              if (isSelected) {
-                bg = isDarkMode ? 'rgba(99, 102, 241, 0.15)' : '#eef2ff';
-                border = `1px solid #6366f1`;
-                indicatorColor = '#6366f1';
-              } else if (isHolidayDate) {
-                bg = isDarkMode ? 'rgba(140,140,140,0.05)' : '#fafafa';
-                opacity = 0.7;
-              } else if (isOptional) {
-                bg = isDarkMode ? 'rgba(114, 46, 209, 0.05)' : '#f9f0ff';
-                border = '1px solid #e8d2ff';
-                indicatorColor = '#722ed1';
-              } else if (isIncomplete) {
-                bg = isDarkMode ? 'rgba(255, 77, 79, 0.08)' : '#fff1f0';
-                border = '1px solid #ffa39e';
-                indicatorColor = '#ff4d4f';
-              } else if (status === 'submitted') {
-                indicatorColor = '#52c41a';
-              }
+              const reportForDate = weeklyReports.find(r => r.date === dateStr);
+              const hours = reportForDate ? Number(reportForDate.totalHours) : 0;
+              const displayHours = isSelected ? totalHours : hours;
+
+              const { bg, text } = getStatusColorAndLabel(date, status, displayHours);
+
+              const boxStyle = isSelected 
+                ? {
+                    background: '#ffffff',
+                    border: '2px solid #00b493',
+                    color: '#0f172a',
+                    boxShadow: '0 4px 12px rgba(0, 180, 147, 0.15)'
+                  }
+                : {
+                    background: bg,
+                    border: '1px solid transparent',
+                    color: text
+                  };
 
               return (
                 <div
-                  key={date.toString()}
-                  onClick={() => setSelectedDate(dateStr)}
+                  key={dateStr}
+                  onClick={() => {
+                    if (status !== 'restricted') {
+                      setSelectedDate(dateStr);
+                      setAdminUnlocked(false);
+                    }
+                  }}
                   style={{
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
+                    justifyContent: 'center',
+                    padding: '8px 16px',
                     borderRadius: 8,
-                    background: bg,
-                    border,
-                    opacity,
-                    cursor: isRestricted ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s'
+                    cursor: status === 'restricted' ? 'not-allowed' : 'pointer',
+                    minWidth: 72,
+                    textAlign: 'center',
+                    transition: 'all 0.2s ease',
+                    opacity: status === 'restricted' ? 0.4 : 1,
+                    ...boxStyle
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 4, height: 24, borderRadius: 2, background: indicatorColor }} />
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: isSelected ? 700 : 500 }}>{date.format('dddd')}</div>
-                      <div style={{ fontSize: 10, color: '#8c8c8c' }}>{date.format('DD MMM YYYY')}</div>
-                    </div>
-                  </div>
-                  <div style={{ scale: '0.85', origin: 'right' }}>
-                    {status === 'holiday' && <Tag style={{ margin: 0 }}>Holiday</Tag>}
-                    {status === 'optional' && <Tag color="purple" style={{ margin: 0 }}>Optional</Tag>}
-                    {status === 'leave' && <Tag color="orange" style={{ margin: 0 }}>Leave</Tag>}
-                    {status === 'submitted' && <Tag color="success" style={{ margin: 0 }}>Submitted</Tag>}
-                    {status === 'incomplete' && <Tag color="error" style={{ margin: 0 }}>Missing</Tag>}
-                  </div>
+                  <span style={{ fontSize: 18, fontWeight: 800 }}>{date.format('D')}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', opacity: 0.85, letterSpacing: '0.5px' }}>{date.format('ddd')}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, marginTop: 4 }}>{formatHourStrip(displayHours)}</span>
                 </div>
               );
             })}
           </div>
-        </Card>
-      </div>
 
-      {/* RIGHT WORKSPACE: Interactive Tabbed Form Console */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: isDarkMode ? 'rgba(255, 255, 255, 0.01)' : '#fff', border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#eef2f6'}`, borderRadius: 12, overflow: 'hidden' }}>
-        
-        {/* Workspace Title bar */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#eef2f6'}`, background: isDarkMode ? 'rgba(255,255,255,0.01)' : '#f8fafc' }}>
-          <div>
-            <Title level={5} style={{ margin: 0, fontSize: 14 }}>Workspace &bull; {dayjs(selectedDate).format('DD MMMM YYYY')}</Title>
-            <Text type="secondary" style={{ fontSize: 11 }}>Logged today: <Text strong>{totalHours.toFixed(1)}h / {REQUIRED_HOURS}h</Text></Text>
-          </div>
-          
-          <Space>
-            {!isLocked && (
-              <Button
-                size="small"
-                icon={<CalendarOutlined />}
-                onClick={() => handleOpenApplyLeaveModal(selectedDate)}
-                style={{ color: '#10b981', borderColor: '#10b981', fontSize: 11 }}
-              >
-                Apply Leave
-              </Button>
-            )}
-            <Tag color={totalHours >= REQUIRED_HOURS ? 'success' : 'warning'} style={{ margin: 0 }}>
-              {totalHours >= REQUIRED_HOURS ? 'Daily Goal Met' : 'Goal Incomplete'}
-            </Tag>
-          </Space>
+          <Button
+            shape="circle"
+            icon={<RightOutlined />}
+            onClick={handleNextWeek}
+            style={{ background: isDarkMode ? '#334155' : '#e2e8f0', border: 'none', color: isDarkMode ? '#cbd5e1' : '#4b5563', width: 36, height: 36 }}
+          />
         </div>
 
+        {/* Right Section: Action Buttons */}
+        <div style={{ display: 'flex', gap: 10, minWidth: 160, justifyContent: 'flex-end' }}>
+          {viewOnly ? (
+            <>
+              {!isLocked && (
+                <Button
+                  type="primary"
+                  onClick={() => setViewOnly(false)}
+                  style={{ background: '#00b493', borderColor: '#00b493', borderRadius: 8, height: 38, fontWeight: 600 }}
+                >
+                  Edit Tasks
+                </Button>
+              )}
+              <Button
+                onClick={() => navigate(-1)}
+                style={{ borderRadius: 8, height: 38 }}
+              >
+                Back
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="primary"
+                onClick={() => {
+                  const defaultItems = [];
+                  const userId = currentUser.userId || currentUser.id;
+                  allProjects.forEach(p => {
+                    const empHours = p.employeeAllocatedHours?.[userId];
+                    if (empHours !== undefined && Number(empHours) > 0) {
+                      defaultItems.push({
+                        projectId: p.id,
+                        ticketId: '',
+                        hoursInput: 0,
+                        minutesInput: 0,
+                        workDone: ''
+                      });
+                    }
+                  });
+                  if (defaultItems.length === 0) {
+                    allProjects.forEach(p => {
+                      defaultItems.push({
+                        projectId: p.id,
+                        ticketId: '',
+                        hoursInput: 0,
+                        minutesInput: 0,
+                        workDone: ''
+                      });
+                    });
+                  }
+                  reset({ items: defaultItems, blockers: '', isAlertIssue: false, alertMessage: '' });
+                }}
+                style={{ background: '#ff5b60', borderColor: '#ff5b60', borderRadius: 8, height: 38, fontWeight: 600 }}
+              >
+                Reset
+              </Button>
+              
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={submitting}
+                style={{ background: '#00b493', borderColor: '#00b493', borderRadius: 8, height: 38, fontWeight: 600 }}
+              >
+                Submit
+              </Button>
+
+              {existingReport && (
+                <Button
+                  onClick={() => {
+                    setViewOnly(true);
+                    reset(existingReport);
+                  }}
+                  style={{ borderRadius: 8, height: 38 }}
+                >
+                  Cancel
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <Form onFinish={handleSubmit(onSubmit)} layout="vertical">
+        {/* Conditional Notifications */}
         {currentLeave && (
           <Alert
             message={currentLeave.type === 'FullDay' ? 'Full Day Leave Approved' : 'Half Day Leave Approved'}
             description={`Your required EOD quota has been reduced.`}
             type="warning"
             showIcon
-            size="small"
-            style={{ margin: 8, borderRadius: 8 }}
+            style={{ marginBottom: 20, borderRadius: 8 }}
+          />
+        )}
+        
+        {allocatedHoursPerDay > 0 && remainingBeforeToday <= 0 && !existingReport && (
+          <Alert
+            message="Weekly Quota Fully Completed"
+            description="You have already reported the entire weekly allotted hours. No further task logging is permitted for this week."
+            type="warning"
+            showIcon
+            style={{ marginBottom: 20, borderRadius: 8 }}
           />
         )}
 
-        {dayjs(selectedDate).day() === 0 ? (
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <Result icon={<CheckCircleOutlined style={{ color: '#faad14', fontSize: 40 }} />} title="Happy Sunday!" subTitle="Rest & Recharge. No EOD reporting required today." />
+        {/* Main Workspace Table */}
+        {isSunday ? (
+          <div style={{ background: isDarkMode ? '#1e293b' : '#ffffff', padding: 36, borderRadius: 12, textAlign: 'center', border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}` }}>
+            <Result icon={<CheckCircleOutlined style={{ color: '#faad14', fontSize: 48 }} />} title="Happy Sunday!" subTitle="Rest & Recharge. No EOD reporting required today." />
           </div>
-        ) : isOutsideCurrentWeek && !existingReport && !hasAccessForDate ? (() => {
-          const existingReq = myAccessRequests.find(r => r.targetDate === selectedDate);
-          return (
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
-              <Result
-                status={existingReq?.status === 'Rejected' ? 'error' : 'warning'}
-                title={existingReq?.status === 'Pending' ? 'Access Pending' : existingReq?.status === 'Rejected' ? 'Access Rejected' : 'Reporting Restricted'}
-                subTitle={
-                  <Space direction="vertical" style={{ width: '100%', textAlign: 'center' }}>
-                    <span style={{ fontSize: 12 }}>
-                      Reporting for this date is outside the current work week.
+        ) : showRestrictionResult ? (
+          <div style={{ background: isDarkMode ? '#1e293b' : '#ffffff', padding: 36, borderRadius: 12, border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}` }}>
+            <Result
+              status={hasAccessPending?.status === 'Rejected' ? 'error' : 'warning'}
+              title={hasAccessPending?.status === 'Pending' ? 'Access Pending' : hasAccessPending?.status === 'Rejected' ? 'Access Rejected' : 'Reporting Restricted'}
+              subTitle={
+                <Space direction="vertical" style={{ width: '100%', textAlign: 'center' }}>
+                  <span style={{ fontSize: 13 }}>
+                    Reporting for this date is outside the current work week.
+                  </span>
+                  {hasAccessPending?.status === 'Pending' && (
+                    <Alert message="Access request is pending review by HR/PM." type="info" showIcon style={{ textAlign: 'left', borderRadius: 8, padding: 8, fontSize: 11 }} />
+                  )}
+                  {hasAccessPending?.status === 'Rejected' && (
+                    <Alert message={`Rejected. ${hasAccessPending.reviewerComments ? `Reason: ${hasAccessPending.reviewerComments}` : ''}`} type="error" showIcon style={{ textAlign: 'left', borderRadius: 8, padding: 8, fontSize: 11 }} />
+                  )}
+                  {!hasAccessPending && (
+                    <span style={{ fontSize: 12, color: '#8c8c8c' }}>
+                      Submit an access request to HR / PM to unlock reporting.
                     </span>
-                    {existingReq?.status === 'Pending' && (
-                      <Alert message="Access request is pending review by HR/PM." type="info" showIcon style={{ textAlign: 'left', borderRadius: 8, padding: 8, fontSize: 11 }} />
-                    )}
-                    {existingReq?.status === 'Rejected' && (
-                      <Alert message={`Rejected. ${existingReq.reviewerComments ? `Reason: ${existingReq.reviewerComments}` : ''}`} type="error" showIcon style={{ textAlign: 'left', borderRadius: 8, padding: 8, fontSize: 11 }} />
-                    )}
-                    {!existingReq && (
-                      <span style={{ fontSize: 11, color: '#8c8c8c' }}>
-                        Submit an access request to HR / PM to unlock reporting.
-                      </span>
-                    )}
-                  </Space>
-                }
-                extra={
-                  <Space>
-                    <Button size="small" type="default" onClick={handleGoToToday}>
-                      Go to Today
+                  )}
+                </Space>
+              }
+              extra={
+                <Space>
+                  <Button size="small" type="default" onClick={handleGoToToday}>
+                    Go to Today
+                  </Button>
+                  {!hasAccessPending || hasAccessPending.status === 'Rejected' ? (
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<CalendarOutlined />}
+                      onClick={() => {
+                         accessRequestForm.resetFields();
+                         accessRequestForm.setFieldsValue({ targetDate: dayjs(selectedDate) });
+                         setIsAccessRequestModalOpen(true);
+                      }}
+                    >
+                      Request Access
                     </Button>
-                    {!existingReq || existingReq.status === 'Rejected' ? (
-                      <Button
-                        size="small"
-                        type="primary"
-                        icon={<CalendarOutlined />}
-                        onClick={() => {
-                           accessRequestForm.resetFields();
-                           accessRequestForm.setFieldsValue({ targetDate: dayjs(selectedDate) });
-                           setIsAccessRequestModalOpen(true);
-                        }}
-                      >
-                        Request Access
-                      </Button>
-                    ) : null}
-                  </Space>
-                }
-              />
-            </div>
-          );
-        })() : currentLeave && currentLeave.type === 'FullDay' ? (
-          <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <Result icon={<CheckCircleOutlined style={{ color: '#818cf8', fontSize: 40 }} />} title="Approved Full Day Leave" subTitle="No EOD report is required today." />
+                  ) : null}
+                </Space>
+              }
+            />
+          </div>
+        ) : isFullDayLeave ? (
+          <div style={{ background: isDarkMode ? '#1e293b' : '#ffffff', padding: 36, borderRadius: 12, textAlign: 'center', border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}` }}>
+            <Result icon={<CheckCircleOutlined style={{ color: '#818cf8', fontSize: 48 }} />} title="Approved Full Day Leave" subTitle="No EOD report is required today." />
           </div>
         ) : (
-          <Form layout="vertical" onFinish={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-            
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {allocatedHoursPerDay > 0 && remainingBeforeToday <= 0 && !existingReport && (
-                  <Alert
-                    message="Weekly Quota Fully Completed"
-                    description="You have already reported the entire weekly allotted hours. No further task logging is permitted for this week."
-                    type="warning"
-                    showIcon
-                    style={{ borderRadius: 8 }}
-                  />
-                )}
+          <div style={{
+            background: isDarkMode ? '#1e293b' : '#ffffff',
+            border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+            borderRadius: 12,
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)',
+            overflow: 'hidden'
+          }}>
+            {/* Table Header Row */}
+            <div style={{
+              display: 'flex',
+              background: isDarkMode ? '#1e293b' : '#f3f4f6',
+              padding: '14px 20px',
+              fontWeight: 700,
+              fontSize: 13,
+              color: isDarkMode ? '#94a3b8' : '#4b5563',
+              borderBottom: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`
+            }}>
+              <div style={{ flex: 3.2 }}>Project</div>
+              <div style={{ flex: 1.2, paddingLeft: 8 }}>Hours</div>
+              <div style={{ flex: 1.2, paddingLeft: 8 }}>Minutes</div>
+              <div style={{ flex: 2.2, paddingLeft: 8 }}>Task Category</div>
+              <div style={{ flex: 3.2, paddingLeft: 8 }}>Message</div>
+              <div style={{ flex: 0.8, textAlign: 'center' }}>Action</div>
+            </div>
+
+            {/* Table Body Rows */}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {fields.map((field, index) => {
+                const proj = allProjects.find(p => String(p.id) === String(field.projectId));
+                const projName = proj ? (proj.name || proj.projectName) : 'Unknown Project';
+                const empHours = proj?.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
                 
-                {/* Top Project Selector & Info */}
-                <Card
-                  size="small"
-                  style={{
-                    borderRadius: 12,
-                    border: `1.5px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#6366f1'}`,
-                    background: isDarkMode ? 'rgba(99, 102, 241, 0.05)' : '#f5f7ff',
-                  }}
-                  bodyStyle={{ padding: 16 }}
-                >
-                  <Row gutter={16} align="middle">
-                    <Col span={10}>
-                      <Form.Item label={<Text strong style={{ fontSize: 13 }}>Select Project to Report</Text>} required style={{ marginBottom: 0 }}>
-                        <Select
-                          disabled={isLocked || !!existingReport}
-                          placeholder="Select Project"
-                          value={selectedTopProjectId}
-                          onChange={(val) => {
-                            setSelectedTopProjectId(val);
-                            reset({
-                              items: [{ projectId: val, ticketId: '', hours: 0, workDone: '' }],
-                              blockers: watch('blockers'),
-                              isAlertIssue: watch('isAlertIssue'),
-                              alertMessage: watch('alertMessage')
+                // Available Hours Calculation
+                let timeLeftText = '0 Hrs';
+                let hasQuota = false;
+                if (empHours !== undefined && empHours !== null) {
+                  hasQuota = true;
+                  const totalLoggedForProject = allMyTickets
+                    .filter(t => String(t.projectId) === String(field.projectId))
+                    .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+                  
+                  const existingReportProjectHours = existingReport?.items?.reduce((sum, item) => {
+                    if (String(item.projectId) === String(field.projectId)) {
+                      return sum + (Number(item.hours) || 0);
+                    }
+                    return sum;
+                  }, 0) || 0;
+                  
+                  const currentProjectHoursInForm = watchedItems?.reduce((sum, item) => {
+                    if (String(item.projectId) === String(field.projectId)) {
+                      const h = Number(item.hoursInput) || 0;
+                      const m = Number(item.minutesInput) || 0;
+                      return sum + h + (m / 60);
+                    }
+                    return sum;
+                  }, 0) || 0;
+                  
+                  const previouslyLogged = Math.max(0, totalLoggedForProject - existingReportProjectHours);
+                  const timeLeft = Math.max(0, Number(empHours) - previouslyLogged - currentProjectHoursInForm);
+                  
+                  timeLeftText = formatHoursAndMinutes(timeLeft);
+                } else if (proj?.totalHours) {
+                  timeLeftText = `${proj.totalHours} Hrs (Project Total)`;
+                }
+
+                // Check if this is the first row for this project
+                const firstProjRowIdx = watchedItems?.findIndex(item => String(item.projectId) === String(field.projectId));
+                const isFirstRow = index === firstProjRowIdx;
+
+                return (
+                  <div key={field.id} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '16px 20px',
+                    borderBottom: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+                    background: isDarkMode ? '#1e293b' : '#ffffff'
+                  }}>
+                    {/* Project Column */}
+                    <div style={{ flex: 3.2, display: 'flex', flexDirection: 'column', paddingRight: 8 }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: isDarkMode ? '#f1f5f9' : '#1e293b' }}>
+                        {projName}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#ef4444', marginTop: 4 }}>
+                        Avail. Hr : {timeLeftText}
+                      </span>
+                    </div>
+
+                    {/* Hours Column */}
+                    <div style={{ flex: 1.2, paddingLeft: 8 }}>
+                      <Controller
+                        name={`items.${index}.hoursInput`}
+                        control={control}
+                        render={({ field: inputField }) => (
+                          <InputNumber
+                            {...inputField}
+                            disabled={isLocked || viewOnly}
+                            min={0}
+                            max={24}
+                            placeholder="Task Hours"
+                            style={{ width: '100%', borderRadius: 6 }}
+                          />
+                        )}
+                      />
+                    </div>
+
+                    {/* Minutes Column */}
+                    <div style={{ flex: 1.2, paddingLeft: 8 }}>
+                      <Controller
+                        name={`items.${index}.minutesInput`}
+                        control={control}
+                        render={({ field: inputField }) => (
+                          <InputNumber
+                            {...inputField}
+                            disabled={isLocked || viewOnly}
+                            min={0}
+                            max={59}
+                            placeholder="Task Min"
+                            style={{ width: '100%', borderRadius: 6 }}
+                          />
+                        )}
+                      />
+                    </div>
+
+                    {/* Task Category (Ticket) Column */}
+                    <div style={{ flex: 2.2, paddingLeft: 8, display: 'flex', flexDirection: 'column' }}>
+                      <Controller
+                        name={`items.${index}.ticketId`}
+                        control={control}
+                        render={({ field: inputField }) => (
+                          <Select
+                            {...inputField}
+                            disabled={isLocked || viewOnly}
+                            placeholder="Select Task Category"
+                            style={{ width: '100%' }}
+                            onChange={(val) => {
+                              inputField.onChange(val);
+                              // Auto populate hours/minutes if ticket has timer values
+                              const ticket = myTickets.find(t => t.id === val);
+                              if (ticket && ticket.timerAccumulatedSeconds) {
+                                const decimalHrs = (ticket.timerAccumulatedSeconds || 0) / 3600;
+                                const hVal = Math.floor(decimalHrs);
+                                const mVal = Math.round((decimalHrs - hVal) * 60);
+                                setValue(`items.${index}.hoursInput`, hVal);
+                                setValue(`items.${index}.minutesInput`, mVal);
+                              }
+                            }}
+                          >
+                            {myTickets
+                              .filter(t => String(t.projectId) === String(field.projectId))
+                              .map(t => (
+                                <Select.Option key={t.id} value={t.id}>
+                                  {t.code} — {t.title}
+                                </Select.Option>
+                              ))}
+                          </Select>
+                        )}
+                      />
+                      {!viewOnly && !isLocked && (
+                        <Button 
+                          type="link" 
+                          size="small" 
+                          icon={<PlusOutlined />} 
+                          onClick={() => {
+                            setActiveTicketRowIndex(index);
+                            setIsTicketModalOpen(true);
+                          }}
+                          style={{ padding: 0, fontSize: 11, height: 'auto', marginTop: 4, width: 'fit-content', textAlign: 'left' }}
+                        >
+                          Create Ticket
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Message Column */}
+                    <div style={{ flex: 3.2, paddingLeft: 8 }}>
+                      <Controller
+                        name={`items.${index}.workDone`}
+                        control={control}
+                        render={({ field: inputField }) => (
+                          <Input
+                            {...inputField}
+                            disabled={isLocked || viewOnly}
+                            placeholder="Message"
+                            style={{ width: '100%', borderRadius: 6 }}
+                          />
+                        )}
+                      />
+                    </div>
+
+                    {/* Action Column */}
+                    <div style={{ flex: 0.8, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                      {isFirstRow ? (
+                        <Button
+                          type="primary"
+                          shape="circle"
+                          icon={<PlusOutlined />}
+                          disabled={isLocked || viewOnly}
+                          onClick={() => {
+                            append({
+                              projectId: field.projectId,
+                              ticketId: '',
+                              hoursInput: 0,
+                              minutesInput: 0,
+                              workDone: ''
                             });
                           }}
-                          style={{ width: '100%' }}
-                        >
-                          {allProjects.map(p => {
-                            const eHours = p.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
-                            const labelHours = eHours !== undefined 
-                              ? `${formatHoursAndMinutes(Number(eHours))} (My Quota)` 
-                              : `${formatHoursAndMinutes(Number(p.totalHours || 0))} (Total)`;
-                            return (
-                              <Select.Option key={p.id} value={p.id}>
-                                {p.name || p.projectName} — {labelHours}
-                              </Select.Option>
-                            );
-                          })}
-                        </Select>
-                      </Form.Item>
-                    </Col>
-                    
-                    {selectedTopProjectId && (() => {
-                      const selectedProj = allProjects.find(p => String(p.id || p.projectId) === String(selectedTopProjectId));
-                      const empHours = selectedProj?.employeeAllocatedHours?.[currentUser.userId || currentUser.id];
-                      
-                      let timeLeftAfterReporting = 0;
-                      if (empHours !== undefined && empHours !== null) {
-                        const totalLoggedForProject = allMyTickets
-                          .filter(t => String(t.projectId) === String(selectedTopProjectId))
-                          .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
-                        
-                        const existingReportProjectHours = existingReport?.items?.reduce((sum, item) => {
-                          if (String(item.projectId) === String(selectedTopProjectId)) {
-                            return sum + (Number(item.hours) || 0);
-                          }
-                          return sum;
-                        }, 0) || 0;
-                        
-                        const currentProjectHoursInForm = watchedItems?.reduce((sum, item) => {
-                          if (String(item.projectId) === String(selectedTopProjectId)) {
-                            return sum + (Number(item.hours) || 0);
-                          }
-                          return sum;
-                        }, 0) || 0;
-                        
-                        const previouslyLogged = Math.max(0, totalLoggedForProject - existingReportProjectHours);
-                        timeLeftAfterReporting = Math.max(0, Number(empHours) - previouslyLogged - currentProjectHoursInForm);
-                      }
-
-                      return (
-                        <Col span={14}>
-                          <div style={{ padding: '4px 8px', borderRadius: 8, background: isDarkMode ? '#1e1e24' : '#fff', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
-                            <Row gutter={8}>
-                              <Col span={12}>
-                                <div style={{ fontSize: 10, color: '#8c8c8c' }}>PROJECT BUDGETED HOURS</div>
-                                <div style={{ fontSize: 13, fontWeight: 700 }}>{selectedProj?.totalHours || '0.00'} hrs</div>
-                              </Col>
-                              <Col span={12}>
-                                {empHours !== undefined ? (
-                                  <>
-                                    <div style={{ fontSize: 10, color: '#8c8c8c' }}>YOUR QUOTA / TIME LEFT</div>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>
-                                      {formatHoursAndMinutes(Number(empHours))} / <span style={{ color: timeLeftAfterReporting <= 0 ? '#ff4d4f' : '#6366f1' }}>{formatHoursAndMinutes(timeLeftAfterReporting)}</span>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div style={{ fontSize: 11, color: '#ff4d4f', fontStyle: 'italic', marginTop: 10 }}>
-                                    No quota assigned by HR.
-                                  </div>
-                                )}
-                              </Col>
-                            </Row>
-                          </div>
-                        </Col>
-                      );
-                    })()}
-                  </Row>
-                </Card>
-
-                {/* Daily Tasks Section */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: isDarkMode ? '#fff' : '#1e1b4b' }}>
-                      Daily Tasks & Hours Logged
-                    </span>
-                    {!isLocked && selectedTopProjectId && (
-                      <Button 
-                        type="dashed" 
-                        size="small" 
-                        icon={<PlusOutlined />}
-                        onClick={() => append({ projectId: selectedTopProjectId, ticketId: '', hours: 0, workDone: '' })}
-                        style={{ borderRadius: 6 }}
-                      >
-                        Add Task
-                      </Button>
-                    )}
-                  </div>
-
-                  {!selectedTopProjectId ? (
-                    <div style={{ textAlign: 'center', padding: '24px 0', border: `1px dashed ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#d9d9d9'}`, borderRadius: 12 }}>
-                      <Text type="secondary">Please select a project at the top to start reporting daily tasks.</Text>
-                    </div>
-                  ) : (
-                    fields.map((field, index) => {
-                      const currentItemProjectId = watchedItems?.[index]?.projectId;
-                      const currentItemTicketId = watchedItems?.[index]?.ticketId;
-                      const ticketData = myTickets.find(t => t.id === currentItemTicketId);
-
-                      return (
-                        <Card
-                          key={field.id}
-                          size="small"
-                          title={
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                              <span style={{ fontWeight: 700, fontSize: 13 }}>Task {index + 1}</span>
-                              {!isLocked && fields.length > 1 && (
-                                <Button 
-                                  type="text" 
-                                  danger 
-                                  size="small" 
-                                  icon={<DeleteOutlined />} 
-                                  onClick={() => remove(index)}
-                                />
-                              )}
-                            </div>
-                          }
-                          style={{
-                            borderRadius: 12,
-                            border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
-                            background: isDarkMode ? '#1e1e24' : '#fff'
+                          style={{ background: '#00b493', borderColor: '#00b493' }}
+                        />
+                      ) : (
+                        <Button
+                          type="primary"
+                          danger
+                          shape="circle"
+                          icon={<DeleteOutlined />}
+                          disabled={isLocked || viewOnly}
+                          onClick={() => {
+                            remove(index);
                           }}
-                        >
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <Row gutter={12}>
-                              <Col span={24}>
-                                <Form.Item label="Ticket" required help={errors.items?.[index]?.ticketId?.message} validateStatus={errors.items?.[index]?.ticketId ? 'error' : ''} style={{ marginBottom: 0 }}>
-                                  <Controller
-                                    name={`items.${index}.ticketId`}
-                                    control={control}
-                                    rules={{ required: !isLocked ? 'Required' : false }}
-                                    render={({ field: selectField }) => {
-                                      const projectTickets = myTickets.filter(t => String(t.projectId) === String(selectedTopProjectId));
-                                      return (
-                                        <Select
-                                          {...selectField}
-                                          disabled={isLocked || !selectedTopProjectId}
-                                          placeholder="Select Ticket"
-                                          showSearch
-                                          optionFilterProp="children"
-                                          onChange={(val) => {
-                                            selectField.onChange(val);
-                                            const ticket = myTickets.find(t => t.id === val);
-                                            if (ticket) {
-                                              setValue(`items.${index}.hours`, parseFloat(((ticket.timerAccumulatedSeconds || 0) / 3600).toFixed(2)));
-                                            } else {
-                                              setValue(`items.${index}.hours`, 0);
-                                            }
-                                          }}
-                                        >
-                                          {projectTickets.map(t => (
-                                            <Select.Option key={t.id} value={t.id} disabled={selectedTicketIds.includes(t.id) && currentItemTicketId !== t.id}>
-                                              {t.code} — {t.title}
-                                            </Select.Option>
-                                          ))}
-                                        </Select>
-                                      );
-                                    }}
-                                  />
-                                </Form.Item>
-                              </Col>
-                            </Row>
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-                            <Row gutter={12} align="middle">
-                              <Col span={14}>
-                                <Form.Item label="Work Hours (Hours & Minutes)" required help={errors.items?.[index]?.hours?.message} validateStatus={errors.items?.[index]?.hours ? 'error' : ''} style={{ marginBottom: 0 }}>
-                                  <Controller
-                                    name={`items.${index}.hours`}
-                                    control={control}
-                                    rules={{
-                                      required: !isLocked ? 'Required' : false,
-                                      min: !isLocked ? { value: 0.01, message: 'Min 1 min' } : undefined
-                                    }}
-                                    render={({ field: numField }) => {
-                                      const decimalVal = Number(numField.value) || 0;
-                                      const hVal = Math.floor(decimalVal);
-                                      const mVal = Math.round((decimalVal - hVal) * 60);
-
-                                      return (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                          <InputNumber
-                                            value={hVal}
-                                            min={0}
-                                            max={24}
-                                            disabled={isLocked || !currentItemTicketId}
-                                            onChange={(val) => {
-                                              const h = Number(val) || 0;
-                                              const newDec = h + (mVal / 60);
-                                              numField.onChange(Number(newDec.toFixed(4)));
-                                            }}
-                                            placeholder="Hrs"
-                                            style={{ width: '50%' }}
-                                            controls
-                                          />
-                                          <span style={{ color: isDarkMode ? '#8c8c8c' : '#555', fontSize: 11 }}>h</span>
-                                          <InputNumber
-                                            value={mVal}
-                                            min={0}
-                                            max={59}
-                                            disabled={isLocked || !currentItemTicketId}
-                                            onChange={(val) => {
-                                              const m = Number(val) || 0;
-                                              const newDec = hVal + (m / 60);
-                                              numField.onChange(Number(newDec.toFixed(4)));
-                                            }}
-                                            placeholder="Mins"
-                                            style={{ width: '50%' }}
-                                            controls
-                                          />
-                                          <span style={{ color: isDarkMode ? '#8c8c8c' : '#555', fontSize: 11 }}>m</span>
-                                        </div>
-                                      );
-                                    }}
-                                  />
-                                </Form.Item>
-                              </Col>
-
-                              <Col span={10}>
-                                {!isLocked && (
-                                  <Space style={{ marginTop: 8 }}>
-                                    <Button
-                                      size="small"
-                                      icon={<PlusOutlined />}
-                                      onClick={() => {
-                                        setActiveTicketRowIndex(index);
-                                        setIsTicketModalOpen(true);
-                                      }}
-                                    >
-                                      Create New Ticket
-                                    </Button>
-                                  </Space>
-                                )}
-                              </Col>
-                            </Row>
-
-                            <Form.Item label="Work Done" required help={errors.items?.[index]?.workDone?.message} validateStatus={errors.items?.[index]?.workDone ? 'error' : ''} style={{ marginBottom: 0 }}>
-                              <Controller
-                                name={`items.${index}.workDone`}
-                                control={control}
-                                rules={{ required: !isLocked ? 'Required' : false, minLength: { value: 5, message: 'Too short' } }}
-                                render={({ field: txtField }) => <TextArea {...txtField} disabled={isLocked} rows={3} placeholder="Describe completed work..." />}
-                              />
-                            </Form.Item>
-                          </div>
-                        </Card>
-                      );
-                    })
-                  )}
-                </div>
-
-                {/* Divider */}
-                <div style={{ height: 1, background: isDarkMode ? 'rgba(255,255,255,0.08)' : '#e2e8f0', margin: '8px 0' }} />
-
-                {/* Blockers & Alerts Section */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: isDarkMode ? '#fff' : '#1e1b4b' }}>
-                    Final Checks, Blockers & Alerts
-                  </span>
-
-                  <Card size="small" style={{ borderRadius: 12, background: isDarkMode ? 'rgba(255,255,255,0.01)' : '#f8fafc', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}` }}>
-                    <Row align="middle" justify="space-between">
-                      <Text>Logged Work Today:</Text>
-                      <Text strong style={{ fontSize: 14, color: totalHours >= REQUIRED_HOURS ? '#52c41a' : '#faad14' }}>
-                        {totalHours.toFixed(1)} hrs
-                      </Text>
-                    </Row>
-                  </Card>
-
-                  <Form.Item label="Blockers" style={{ marginBottom: 0 }}>
-                    <Controller name="blockers" control={control} render={({ field }) => <TextArea {...field} disabled={isLocked} rows={2} placeholder="Any blockers faced?" />} />
-                  </Form.Item>
-
-                  <Card title={<Space><AlertOutlined style={{ color: 'red' }} /><span>Raise Alert Issue?</span></Space>} size="small" style={{ borderRadius: 12 }} bodyStyle={{ padding: 10 }}>
-                    <Controller 
-                      name="isAlertIssue" 
-                      control={control} 
+            {/* Blockers & Alerts Section inside main view */}
+            <div style={{
+              padding: '20px 24px',
+              background: isDarkMode ? '#1e293b' : '#f8fafc',
+              borderTop: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}>
+              <Row gutter={24}>
+                <Col span={12}>
+                  <Form.Item label={<Text strong style={{ fontSize: 13, color: isDarkMode ? '#cbd5e1' : '#475569' }}>Blockers Faced</Text>} style={{ marginBottom: 0 }}>
+                    <Controller
+                      name="blockers"
+                      control={control}
                       render={({ field }) => (
-                        <Radio.Group {...field} disabled={isLocked} style={{ marginBottom: field.value ? 8 : 0 }}>
-                          <Radio value={false}>No</Radio>
-                          <Radio value={true}>Yes</Radio>
-                        </Radio.Group>
-                      )} 
+                        <TextArea
+                          {...field}
+                          disabled={isLocked || viewOnly}
+                          rows={3}
+                          placeholder="Describe any blockers you faced today..."
+                          style={{ borderRadius: 8 }}
+                        />
+                      )}
                     />
-                    {watch('isAlertIssue') && (
-                      <Controller 
-                        name="alertMessage" 
-                        control={control} 
-                        rules={{ required: watch('isAlertIssue') ? 'Required' : false }}
-                        render={({ field }) => (
-                          <Form.Item validateStatus={errors.alertMessage ? 'error' : ''} help={errors.alertMessage?.message} style={{ marginBottom: 0 }}>
-                            <TextArea {...field} disabled={isLocked} rows={2} placeholder="Describe the critical alert..." />
-                          </Form.Item>
-                        )} 
+                  </Form.Item>
+                </Col>
+                
+                <Col span={12}>
+                  <Card
+                    title={<Space><AlertOutlined style={{ color: '#ef4444' }} /><span style={{ fontSize: 13, fontWeight: 700 }}>Raise Critical Alert?</span></Space>}
+                    size="small"
+                    style={{
+                      borderRadius: 8,
+                      background: isDarkMode ? 'rgba(239,68,68,0.05)' : '#fff8f8',
+                      border: `1px solid ${isDarkMode ? 'rgba(239,68,68,0.15)' : '#ffe4e6'}`
+                    }}
+                    bodyStyle={{ padding: 12 }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <Controller
+                        name="isAlertIssue"
+                        control={control}
+                        render={({ field: checkField }) => (
+                          <Radio.Group
+                            {...checkField}
+                            disabled={isLocked || viewOnly}
+                            onChange={(e) => {
+                              checkField.onChange(e.target.value);
+                              if (!e.target.value) {
+                                setValue('alertMessage', '');
+                              }
+                            }}
+                          >
+                            <Radio value={false}>No Issue</Radio>
+                            <Radio value={true}>Yes, Alert Team</Radio>
+                          </Radio.Group>
+                        )}
                       />
-                    )}
+                      {watch('isAlertIssue') && (
+                        <Controller
+                          name="alertMessage"
+                          control={control}
+                          render={({ field: msgField }) => (
+                            <TextArea
+                              {...msgField}
+                              disabled={isLocked || viewOnly}
+                              rows={2}
+                              placeholder="What is the critical blocker/alert? (Will notify PM/TL)"
+                              style={{ marginTop: 4, borderRadius: 6 }}
+                            />
+                          )}
+                        />
+                      )}
+                    </div>
                   </Card>
+                </Col>
+              </Row>
 
-                  {/* Additional Hours History logs in collapsible collapse */}
-                  <Collapse 
-                    ghost
-                    style={{ marginTop: 8 }}
-                    expandIconPosition="end"
-                    items={[{
-                      key: 'history',
-                      label: <span style={{ fontWeight: 700, color: '#ec4899' }}>Additional Hours History Logs ({myTimerRequests.length})</span>,
-                      children: (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <Button size="small" onClick={fetchTimerRequests} type="link">Refresh Logs</Button>
-                          </div>
-                          <Table
-                            columns={requestColumns}
-                            dataSource={myTimerRequests}
-                            rowKey={(r) => r.request?.requestId || Math.random()}
-                            size="small"
-                            pagination={{ pageSize: 5 }}
-                          />
+              {/* Request Logs list */}
+              {myTimerRequests.length > 0 && (
+                <Collapse 
+                  ghost
+                  style={{
+                    background: isDarkMode ? '#111827' : '#ffffff',
+                    borderRadius: 8,
+                    border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+                    marginTop: 10
+                  }}
+                  expandIconPosition="end"
+                  items={[{
+                    key: 'history',
+                    label: <span style={{ fontWeight: 700, color: '#ec4899', fontSize: 12 }}>Additional Hours Request History Logs ({myTimerRequests.length})</span>,
+                    children: (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <Button size="small" onClick={fetchTimerRequests} type="link">Refresh Logs</Button>
                         </div>
-                      )
-                    }]}
-                  />
-                </div>
+                        <Table
+                          columns={requestColumns}
+                          dataSource={myTimerRequests}
+                          rowKey={(r) => r.request?.requestId || Math.random()}
+                          size="small"
+                          pagination={{ pageSize: 5 }}
+                        />
+                      </div>
+                    )
+                  }]}
+                />
+              )}
+            </div>
+
+            {/* Legend Footer */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 20,
+              padding: '16px 24px',
+              borderTop: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+              background: isDarkMode ? '#1e293b' : '#ffffff'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#e5e7eb', display: 'inline-block' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#4b5563' }}>Holiday</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#4b5563' }}>Fullday Leave</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#38bdf8', display: 'inline-block' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#4b5563' }}>Halfday Leave</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#facc15', display: 'inline-block' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#4b5563' }}>Permission</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#00b493', display: 'inline-block' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#4b5563' }}>Completed</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#ff5b60', display: 'inline-block' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#4b5563' }}>Incomplete</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: '#f97316', display: 'inline-block' }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#4b5563' }}>Partially Complete</span>
               </div>
             </div>
 
-            {/* Bottom Actions footer */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 16px', background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f8fafc', borderTop: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#eef2f6'}` }}>
-              <Space>
-                <Button size="small" onClick={() => navigate(-1)}>Back</Button>
-                {viewOnly && !isLocked && existingReport && (
-                  <Button size="small" type="default" onClick={() => setViewOnly(false)}>
-                    Edit Tasks
-                  </Button>
-                )}
-                {!isLocked && existingReport && (
-                  <Button 
-                    size="small"
-                    onClick={() => {
-                      setViewOnly(true);
-                      reset(existingReport);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                )}
-                {!isLocked && (
-                  <Button 
-                    size="small" 
-                    type="primary" 
-                    icon={<SendOutlined />} 
-                    htmlType="submit" 
-                    loading={submitting} 
-                    disabled={totalHours === 0}
-                  >
-                    {existingReport ? 'Update Report' : 'Submit Report'}
-                  </Button>
-                )}
-              </Space>
-            </div>
-          </Form>
+          </div>
         )}
-      </div>
-
+      </Form>
 
       {/* Modal for Creating New Ticket */}
       <Modal
