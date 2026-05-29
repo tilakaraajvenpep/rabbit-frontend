@@ -196,25 +196,7 @@ const EODReportPage = () => {
     }
   }, [selectedTopProjectId, watchedItems, append, viewOnly, loading]);
 
-  useEffect(() => {
-    if (!viewOnly && weeklyQuota > 0) {
-      const totalThisWeek = hoursReportedOtherDays + totalHours;
-      if (totalThisWeek > weeklyQuota) {
-        if (!hasWarnedExceeded) {
-          const remaining = Math.max(0, weeklyQuota - hoursReportedOtherDays);
-          notification.warning({
-            key: 'exceed-quota-warning',
-            message: 'Exceeds Total Allocated Hours',
-            description: `Your weekly allocation is ${weeklyQuota.toFixed(1)}h. You can only log up to ${remaining.toFixed(1)}h today.`,
-            duration: 5
-          });
-          setHasWarnedExceeded(true);
-        }
-      } else {
-        setHasWarnedExceeded(false);
-      }
-    }
-  }, [totalHours, weeklyQuota, hoursReportedOtherDays, hasWarnedExceeded, viewOnly]);
+  // Quota is informational only — no real-time warning enforced
 
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
@@ -749,25 +731,7 @@ const EODReportPage = () => {
     }
 
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
-
-    // Hard cap: recalculate remaining from weeklyQuota directly at submit time
-    if (weeklyQuota > 0) {
-      const alreadyLoggedOtherDays = weeklyReports
-        .filter(r => r.date !== selectedDate)
-        .reduce((sum, r) => {
-          return sum + (r.items?.reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0);
-        }, 0);
-      const totalIfSubmit = alreadyLoggedOtherDays + submittedTotal;
-      if (totalIfSubmit > weeklyQuota) {
-        const canLogToday = Math.max(0, weeklyQuota - alreadyLoggedOtherDays);
-        notification.error({
-          message: 'Cannot Submit — Exceeds Weekly Allocation',
-          description: `Your total weekly allocation is ${weeklyQuota.toFixed(1)}h. Already logged this week: ${alreadyLoggedOtherDays.toFixed(1)}h. You can log at most ${canLogToday.toFixed(1)}h today.`,
-          duration: 7
-        });
-        return;
-      }
-    }
+    // No hard cap — quota is informational only
 
     setSubmitting(true);
     try {
@@ -1265,7 +1229,7 @@ const EODReportPage = () => {
                         )} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                           <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
-                            <InputNumber {...f} min={0} max={weeklyQuota > 0 ? Math.ceil(Math.max(0, REQUIRED_HOURS)) : undefined} size="small" style={{ width: 58 }} disabled={viewOnly} placeholder="0" />
+                            <InputNumber {...f} min={0} size="small" style={{ width: 58 }} disabled={viewOnly} placeholder="0" />
                           )} />
                           <span style={{ fontSize: 11, color: t2, fontWeight: 600 }}>h</span>
                           <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
