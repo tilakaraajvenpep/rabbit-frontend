@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Table, Avatar, Badge, Spin, Typography, Space, DatePicker, notification, Input, Statistic, Button, Form, Modal, Select, InputNumber } from 'antd';
-import { UserOutlined, TeamOutlined, MailOutlined, CalendarOutlined, SearchOutlined, UserAddOutlined } from '@ant-design/icons';
+import { UserOutlined, TeamOutlined, MailOutlined, CalendarOutlined, SearchOutlined, UserAddOutlined, DeleteOutlined } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { projectService } from '../../services/projectService';
 import PageHeader from '../../components/common/PageHeader';
@@ -74,6 +74,31 @@ const HRTeamPage = () => {
     }
   };
 
+  const handleDeleteUser = (record) => {
+    Modal.confirm({
+      title: 'Delete User',
+      content: `Are you sure you want to delete ${record.name || record.fullName}? This action cannot be undone.`,
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: async () => {
+        try {
+          await adminService.deleteUser(record.id);
+          notification.success({
+            message: 'Success',
+            description: 'User deleted successfully.'
+          });
+          fetchUsers();
+        } catch (error) {
+          notification.error({
+            message: 'Error',
+            description: error.response?.data?.message || 'Failed to delete user.'
+          });
+        }
+      }
+    });
+  };
+
   const filteredUsers = users.filter(u => 
     u.name?.toLowerCase().includes(searchText.toLowerCase()) ||
     u.fullName?.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -131,6 +156,20 @@ const HRTeamPage = () => {
       key: 'isActive',
       render: (isActive) => (
         <Badge status={isActive !== false ? 'success' : 'error'} text={isActive !== false ? 'Active' : 'Inactive'} />
+      )
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Button 
+          type="link" 
+          danger 
+          icon={<DeleteOutlined />} 
+          onClick={() => handleDeleteUser(record)}
+        >
+          Delete
+        </Button>
       )
     }
   ];
