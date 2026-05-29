@@ -164,9 +164,7 @@ const EODReportPage = () => {
   const weeklyAllocated = weeklyQuota;
 
   // 3. Remaining weekly quota before today's input
-  const remainingBeforeToday = isOutsideCurrentWeek
-    ? (currentWeekRemainingHours !== null ? currentWeekRemainingHours : (weeklyQuota > 0 ? (weeklyQuota / 5) : 24))
-    : (weeklyQuota > 0 ? Math.max(0, weeklyQuota - hoursReportedOtherDays) : 24);
+  const remainingBeforeToday = weeklyQuota > 0 ? Math.max(0, weeklyQuota - hoursReportedOtherDays) : 24;
 
   // 4. Dynamic daily quota (REQUIRED_HOURS) capped at remainingBeforeToday
   const baseRequiredHours = remainingBeforeToday;
