@@ -1347,14 +1347,38 @@ const EODReportPage = () => {
           onFinish={async (vals) => {
             setAccessRequestSubmitting(true);
             try {
-              await reportAccessService.createRequest({ targetDate: selectedDate, reason: vals.reason, requestType: accessRequestType });
-              notification.success({ message: 'Access Request Submitted' });
+              if (vals.dateRange && vals.dateRange.length === 2) {
+                const start = dayjs(vals.dateRange[0]);
+                const end = dayjs(vals.dateRange[1]);
+                const daysDiff = end.diff(start, 'day');
+                
+                for (let i = 0; i <= daysDiff; i++) {
+                  const target = start.add(i, 'day').format('YYYY-MM-DD');
+                  await reportAccessService.createRequest({ targetDate: target, reason: vals.reason, requestType: accessRequestType });
+                }
+                notification.success({ 
+                  message: 'Access Requests Submitted', 
+                  description: `Requested access from ${start.format('YYYY-MM-DD')} to ${end.format('YYYY-MM-DD')}.` 
+                });
+              } else {
+                await reportAccessService.createRequest({ targetDate: selectedDate, reason: vals.reason, requestType: accessRequestType });
+                notification.success({ message: 'Access Request Submitted' });
+              }
               setIsAccessRequestModalOpen(false);
-            } catch { notification.error({ message: 'Failed to submit' }); }
-            finally { setAccessRequestSubmitting(false); }
+              fetchWeeklyStatus(weekDates);
+              await fetchReportForDate(selectedDate);
+            } catch { 
+              notification.error({ message: 'Failed to submit access requests' }); 
+            } finally { 
+              setAccessRequestSubmitting(false); 
+            }
           }}>
+          <Form.Item name="dateRange" label="Target Date Range" rules={[{ required: true, message: 'Please select target date range' }]}
+            initialValue={[dayjs(selectedDate), dayjs(selectedDate)]}>
+            <DatePicker.RangePicker style={{ width: '100%' }} />
+          </Form.Item>
           <Form.Item name="reason" label="Reason for access" rules={[{ required: true }]}><TextArea rows={3} /></Form.Item>
-          <Button type="primary" htmlType="submit" loading={accessRequestSubmitting} block>Submit Request</Button>
+          <Button type="primary" htmlType="submit" loading={accessRequestSubmitting} block style={{ background: accent, borderColor: accent }}>Submit Request</Button>
         </Form>
       </Modal>
     </div>
