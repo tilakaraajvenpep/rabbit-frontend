@@ -160,12 +160,13 @@ const EODReportPage = () => {
     }, 0);
 
   // 2. Base weekly allocated hours
-  const weeklyAllocated = allocatedHoursPerDay;
+  const weeklyQuota = Number(currentUser?.allocatedHours) || Number(currentUser?.prevAllocatedHours) || allocatedHoursPerDay || 0;
+  const weeklyAllocated = weeklyQuota;
 
   // 3. Remaining weekly quota before today's input
   const remainingBeforeToday = isOutsideCurrentWeek
-    ? (currentWeekRemainingHours !== null ? currentWeekRemainingHours : (allocatedHoursPerDay > 0 ? (allocatedHoursPerDay / 5) : 24))
-    : (allocatedHoursPerDay > 0 ? Math.max(0, allocatedHoursPerDay - hoursReportedOtherDays) : 24);
+    ? (currentWeekRemainingHours !== null ? currentWeekRemainingHours : (weeklyQuota > 0 ? (weeklyQuota / 5) : 24))
+    : (weeklyQuota > 0 ? Math.max(0, weeklyQuota - hoursReportedOtherDays) : 24);
 
   // 4. Dynamic daily quota (REQUIRED_HOURS) capped at remainingBeforeToday
   const baseRequiredHours = remainingBeforeToday;
@@ -198,15 +199,15 @@ const EODReportPage = () => {
   }, [selectedTopProjectId, watchedItems, append, viewOnly, loading]);
 
   useEffect(() => {
-    if (!viewOnly && allocatedHoursPerDay > 0) {
+    if (!viewOnly && weeklyQuota > 0) {
       const totalThisWeek = hoursReportedOtherDays + totalHours;
-      if (totalThisWeek > allocatedHoursPerDay) {
+      if (totalThisWeek > weeklyQuota) {
         if (!hasWarnedExceeded) {
-          const remaining = Math.max(0, allocatedHoursPerDay - hoursReportedOtherDays);
+          const remaining = Math.max(0, weeklyQuota - hoursReportedOtherDays);
           notification.warning({
             key: 'exceed-quota-warning',
             message: 'Exceeds Total Allocated Hours',
-            description: `Your weekly allocation is ${allocatedHoursPerDay.toFixed(1)}h. You can only log up to ${remaining.toFixed(1)}h today.`,
+            description: `Your weekly allocation is ${weeklyQuota.toFixed(1)}h. You can only log up to ${remaining.toFixed(1)}h today.`,
             duration: 5
           });
           setHasWarnedExceeded(true);
@@ -215,13 +216,13 @@ const EODReportPage = () => {
         setHasWarnedExceeded(false);
       }
     }
-  }, [totalHours, allocatedHoursPerDay, hoursReportedOtherDays, hasWarnedExceeded, viewOnly]);
+  }, [totalHours, weeklyQuota, hoursReportedOtherDays, hasWarnedExceeded, viewOnly]);
 
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
   
   // Calculate lock state if they have fully completed their weekly quota
-  const isLocked = (viewOnly && !adminUnlocked) || (allocatedHoursPerDay > 0 && remainingBeforeToday <= 0 && !existingReport);
+  const isLocked = (viewOnly && !adminUnlocked) || (weeklyQuota > 0 && remainingBeforeToday <= 0 && !existingReport);
 
   const fetchTeamLeads = async () => {
     try {
@@ -751,19 +752,19 @@ const EODReportPage = () => {
 
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
 
-    // Hard cap: recalculate remaining from allocatedHoursPerDay directly at submit time
-    if (allocatedHoursPerDay > 0) {
+    // Hard cap: recalculate remaining from weeklyQuota directly at submit time
+    if (weeklyQuota > 0) {
       const alreadyLoggedOtherDays = weeklyReports
         .filter(r => r.date !== selectedDate)
         .reduce((sum, r) => {
           return sum + (r.items?.reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0);
         }, 0);
       const totalIfSubmit = alreadyLoggedOtherDays + submittedTotal;
-      if (totalIfSubmit > allocatedHoursPerDay) {
-        const canLogToday = Math.max(0, allocatedHoursPerDay - alreadyLoggedOtherDays);
+      if (totalIfSubmit > weeklyQuota) {
+        const canLogToday = Math.max(0, weeklyQuota - alreadyLoggedOtherDays);
         notification.error({
           message: 'Cannot Submit — Exceeds Weekly Allocation',
-          description: `Your total weekly allocation is ${allocatedHoursPerDay.toFixed(1)}h. Already logged this week: ${alreadyLoggedOtherDays.toFixed(1)}h. You can log at most ${canLogToday.toFixed(1)}h today.`,
+          description: `Your total weekly allocation is ${weeklyQuota.toFixed(1)}h. Already logged this week: ${alreadyLoggedOtherDays.toFixed(1)}h. You can log at most ${canLogToday.toFixed(1)}h today.`,
           duration: 7
         });
         return;
@@ -1266,7 +1267,7 @@ const EODReportPage = () => {
                         )} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                           <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
-                            <InputNumber {...f} min={0} max={allocatedHoursPerDay > 0 ? Math.ceil(Math.max(0, REQUIRED_HOURS)) : undefined} size="small" style={{ width: 58 }} disabled={viewOnly} placeholder="0" />
+                            <InputNumber {...f} min={0} max={weeklyQuota > 0 ? Math.ceil(Math.max(0, REQUIRED_HOURS)) : undefined} size="small" style={{ width: 58 }} disabled={viewOnly} placeholder="0" />
                           )} />
                           <span style={{ fontSize: 11, color: t2, fontWeight: 600 }}>h</span>
                           <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
