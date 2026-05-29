@@ -1006,23 +1006,25 @@ const EODReportPage = () => {
     'day'
   );
 
+  const projectHoursOtherDays = currentRealWeekReports
+    .filter(r => r.date !== selectedDate)
+    .reduce((sum, r) => {
+      const dayHours = r.items
+        ?.filter(item => {
+          const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+          const pId = tkt ? tkt.projectId : item.projectId;
+          return String(pId) === String(selectedTopProjectId);
+        })
+        .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
+      return sum + dayHours;
+    }, 0);
+
+  const projectRemainingBeforeToday = Math.max(0, projectAllocatedHours - projectHoursOtherDays);
+
   let projectHoursToday = 0;
   let projectRemaining = 0;
   
   if (isSelectedInRealWeek) {
-    const projectHoursOtherDays = currentRealWeekReports
-      .filter(r => r.date !== selectedDate)
-      .reduce((sum, r) => {
-        const dayHours = r.items
-          ?.filter(item => {
-            const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-            const pId = tkt ? tkt.projectId : item.projectId;
-            return String(pId) === String(selectedTopProjectId);
-          })
-          .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
-        return sum + dayHours;
-      }, 0);
-
     projectHoursToday = (watchedItems || [])
       .filter(item => String(item.projectId) === String(selectedTopProjectId))
       .reduce((s, item) => s + (Number(item.hoursInput) || 0) + (Number(item.minutesInput) || 0) / 60, 0);
@@ -1256,11 +1258,11 @@ const EODReportPage = () => {
                         )} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                           <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
-                            <InputNumber {...f} min={0} size="small" style={{ width: 58 }} disabled={viewOnly} placeholder="0" />
+                            <InputNumber {...f} min={0} size="small" style={{ width: 58 }} disabled={viewOnly || projectAllocatedHours === 0 || (projectRemainingBeforeToday <= 0 && !f.value)} placeholder="0" />
                           )} />
                           <span style={{ fontSize: 11, color: t2, fontWeight: 600 }}>h</span>
                           <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
-                            <InputNumber {...f} min={0} max={59} size="small" style={{ width: 58 }} disabled={viewOnly} placeholder="0" />
+                            <InputNumber {...f} min={0} max={59} size="small" style={{ width: 58 }} disabled={viewOnly || projectAllocatedHours === 0 || (projectRemainingBeforeToday <= 0 && !f.value)} placeholder="0" />
                           )} />
                           <span style={{ fontSize: 11, color: t2, fontWeight: 600 }}>m</span>
                         </div>
@@ -1289,8 +1291,21 @@ const EODReportPage = () => {
 
                 {/* Add task for this project */}
                 {!viewOnly && (
-                  <button type="button" onClick={() => append({ projectId: selectedTopProjectId, ticketId: '', hoursInput: 0, minutesInput: 0, workDone: '' })}
-                    style={{ width: '100%', height: 44, border: `2px dashed ${accent}60`, borderRadius: 10, background: 'transparent', color: accent, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <button type="button"
+                    disabled={projectAllocatedHours === 0 || projectRemainingBeforeToday <= 0}
+                    onClick={() => append({ projectId: selectedTopProjectId, ticketId: '', hoursInput: 0, minutesInput: 0, workDone: '' })}
+                    style={{
+                      width: '100%', height: 44,
+                      border: `2px dashed ${accent}60`,
+                      borderRadius: 10,
+                      background: 'transparent',
+                      color: accent,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: (projectAllocatedHours === 0 || projectRemainingBeforeToday <= 0) ? 'not-allowed' : 'pointer',
+                      opacity: (projectAllocatedHours === 0 || projectRemainingBeforeToday <= 0) ? 0.5 : 1,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                    }}>
                     <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Another Task for this Project
                   </button>
                 )}
