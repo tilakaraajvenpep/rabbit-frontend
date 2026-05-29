@@ -34,5 +34,10 @@ export const reportAccessService = {
   forwardToAccounts: async (id, comments = '') => {
     const res = await apiClient.patch(`/report-access/${id}/forward-accounts`, { comments });
     return res.data;
+  },
+
+  getHistoryRequests: async () => {
+    const res = await apiClient.get('/report-access/history');
+    return res.data;
   }
 };

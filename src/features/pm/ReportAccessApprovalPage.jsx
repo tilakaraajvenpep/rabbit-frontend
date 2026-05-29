@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Space, Typography, Tag, Modal, Input, message, Spin, Empty } from 'antd';
+import { Card, Table, Button, Space, Typography, Tag, Modal, Input, message, Spin, Empty, Tabs, Badge } from 'antd';
 import { CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined, SendOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { reportAccessService } from '../../services/reportAccessService';
 import PageHeader from '../../components/common/PageHeader';
@@ -39,6 +39,8 @@ const ReportAccessApprovalPage = () => {
   const { role } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   
   // Modal Actions State
   const [isRespondModalOpen, setIsRespondModalOpen] = useState(false);
@@ -49,6 +51,7 @@ const ReportAccessApprovalPage = () => {
 
   useEffect(() => {
     fetchRequests();
+    fetchHistory();
   }, []);
 
   const fetchRequests = async () => {
@@ -60,6 +63,18 @@ const ReportAccessApprovalPage = () => {
       message.error('Failed to load pending access requests');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await reportAccessService.getHistoryRequests();
+      setHistory(res.data || []);
+    } catch (err) {
+      message.error('Failed to load history logs');
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -89,6 +104,7 @@ const ReportAccessApprovalPage = () => {
       }
       setIsRespondModalOpen(false);
       fetchRequests();
+      fetchHistory();
     } catch (err) {
       message.error(err?.response?.data?.message || 'Failed to submit response');
     } finally {
@@ -246,6 +262,57 @@ const ReportAccessApprovalPage = () => {
     }
   ];
 
+  const historyColumns = [
+    {
+      title: 'Employee Name',
+      dataIndex: 'employeeName',
+      key: 'employeeName',
+      render: (name, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{name}</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>{record.employeeEmail}</Text>
+        </Space>
+      )
+    },
+    {
+      title: 'Target Date',
+      dataIndex: 'targetDate',
+      key: 'targetDate',
+      render: (date) => (
+        <Tag color="blue" icon={<CalendarOutlined />} style={{ borderRadius: 6, fontWeight: 600, padding: '2px 8px' }}>
+          {dayjs(date).format('DD MMM YYYY')} ({dayjs(date).format('dddd')})
+        </Tag>
+      )
+    },
+    {
+      title: 'Reason',
+      dataIndex: 'reason',
+      key: 'reason',
+      render: (r) => <Text type="secondary">{r}</Text>
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status) => {
+        const conf = {
+          PendingTL: { color: 'orange', label: 'Pending TL' },
+          PendingPM: { color: 'blue', label: 'Pending PM' },
+          PendingAccounts: { color: 'purple', label: 'Pending Accounts' },
+          Approved: { color: 'green', label: 'Approved' },
+          Rejected: { color: 'red', label: 'Rejected' },
+        }[status] || { color: 'default', label: status };
+        return <Tag color={conf.color} style={{ borderRadius: 10, fontWeight: 700, textTransform: 'uppercase', fontSize: 10, border: 'none', padding: '2px 10px' }}>{conf.label}</Tag>;
+      }
+    },
+    {
+      title: 'Remarks / Comments',
+      dataIndex: 'reviewerComments',
+      key: 'reviewerComments',
+      render: (c) => c ? <Text italic type="secondary">"{c}"</Text> : <Text type="secondary">—</Text>
+    }
+  ];
+
   const cardBase = { 
     borderRadius: 16, 
     overflow: 'hidden', 
@@ -276,26 +343,67 @@ const ReportAccessApprovalPage = () => {
         </div>
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '80px 0' }}>
-          <Spin size="large" tip="Loading requests..." />
-        </div>
-      ) : requests.length === 0 ? (
-        <div style={{ ...cardBase, padding: '60px 24px', textAlign: 'center' }}>
-          <CheckCircleOutlined style={{ fontSize: 48, color: '#10b981', marginBottom: 12 }} />
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Queue Clear!</div>
-          <Text type="secondary">No pending report access requests to review.</Text>
-        </div>
-      ) : (
-        <Card style={cardBase}>
-          <Table 
-            columns={columns}
-            dataSource={requests}
-            rowKey={(r) => r.requestId}
-            pagination={{ pageSize: 10 }}
-          />
-        </Card>
-      )}
+      {/* Tabs Layout */}
+      <Tabs
+        defaultActiveKey="1"
+        style={{ marginTop: 8 }}
+        items={[
+          {
+            key: '1',
+            label: (
+              <span style={{ fontWeight: 700, padding: '0 8px' }}>
+                Pending Requests <Badge count={requests.length} style={{ backgroundColor: '#6366f1', marginLeft: 4 }} />
+              </span>
+            ),
+            children: loading ? (
+              <div style={{ textAlign: 'center', padding: '80px 0' }}>
+                <Spin size="large" tip="Loading requests..." />
+              </div>
+            ) : requests.length === 0 ? (
+              <div style={{ ...cardBase, padding: '60px 24px', textAlign: 'center' }}>
+                <CheckCircleOutlined style={{ fontSize: 48, color: '#10b981', marginBottom: 12 }} />
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Queue Clear!</div>
+                <Text type="secondary">No pending report access requests to review.</Text>
+              </div>
+            ) : (
+              <Card style={cardBase}>
+                <Table 
+                  columns={columns}
+                  dataSource={requests}
+                  rowKey={(r) => r.requestId}
+                  pagination={{ pageSize: 10 }}
+                />
+              </Card>
+            )
+          },
+          {
+            key: '2',
+            label: (
+              <span style={{ fontWeight: 700, padding: '0 8px' }}>
+                History Logs <Badge count={history.length} style={{ backgroundColor: '#ec4899', marginLeft: 4 }} />
+              </span>
+            ),
+            children: historyLoading ? (
+              <div style={{ textAlign: 'center', padding: '80px 0' }}>
+                <Spin size="large" tip="Loading history..." />
+              </div>
+            ) : history.length === 0 ? (
+              <div style={{ ...cardBase, padding: '60px 24px', textAlign: 'center' }}>
+                <Empty description="No historical requests found." />
+              </div>
+            ) : (
+              <Card style={cardBase}>
+                <Table 
+                  columns={historyColumns}
+                  dataSource={history}
+                  rowKey={(r) => r.requestId}
+                  pagination={{ pageSize: 10 }}
+                />
+              </Card>
+            )
+          }
+        ]}
+      />
 
       {/* Dynamic Respond/Forward Modal */}
       <Modal
