@@ -335,7 +335,7 @@ const EmployeeKanbanPage = () => {
                                 </div>
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <HoursProgress consumed={ticket.consumedHours} total={ticket.estimatedHours} />
+
                                 </div>
 
                                 <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
@@ -412,10 +412,7 @@ const EmployeeKanbanPage = () => {
               </Col>
             </Row>
 
-            <div>
-              <Text type="secondary" block style={{ marginBottom: 6 }}>Estimated Budget vs Actual Consumed</Text>
-              <HoursProgress consumed={selectedTicket.consumedHours} total={selectedTicket.estimatedHours} />
-            </div>
+
 
             {selectedTicket.description && (
               <div>

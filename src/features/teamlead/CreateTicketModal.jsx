@@ -16,7 +16,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
       title: '',
       description: '',
       priority: 'Medium',
-      estimatedHours: 4,
+      estimatedHours: 0,
       assignedTo: '',
       dueDate: null,
       milestone: ''
@@ -48,7 +48,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
         title: data.title,
         description: data.description,
         priority: data.priority,
-        estimatedHours: data.estimatedHours,
+        estimatedHours: 0,
         assignedToUserId: data.assignedTo,
         dueDate: data.dueDate && dayjs(data.dueDate).isValid() ? dayjs(data.dueDate).toISOString() : null,
         milestone: data.milestone
@@ -94,31 +94,20 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
           />
         </Form.Item>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Form.Item label="Priority">
-            <Controller
-              name="priority"
-              control={control}
-              render={({ field }) => (
-                <Select {...field} style={{ width: '100%' }}>
-                  <Select.Option value="Critical">Critical</Select.Option>
-                  <Select.Option value="High">High</Select.Option>
-                  <Select.Option value="Medium">Medium</Select.Option>
-                  <Select.Option value="Low">Low</Select.Option>
-                </Select>
-              )}
-            />
-          </Form.Item>
-
-          <Form.Item label="Estimated Hours" required>
-            <Controller
-              name="estimatedHours"
-              control={control}
-              rules={{ required: true, min: 0.5 }}
-              render={({ field }) => <InputNumber {...field} style={{ width: '100%' }} min={0.5} step={0.5} />}
-            />
-          </Form.Item>
-        </div>
+        <Form.Item label="Priority">
+          <Controller
+            name="priority"
+            control={control}
+            render={({ field }) => (
+              <Select {...field} style={{ width: '100%' }}>
+                <Select.Option value="Critical">Critical</Select.Option>
+                <Select.Option value="High">High</Select.Option>
+                <Select.Option value="Medium">Medium</Select.Option>
+                <Select.Option value="Low">Low</Select.Option>
+              </Select>
+            )}
+          />
+        </Form.Item>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Form.Item label="Assigned Employee" required>

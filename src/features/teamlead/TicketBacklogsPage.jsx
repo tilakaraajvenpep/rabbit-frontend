@@ -299,10 +299,7 @@ const TicketBacklogsPage = () => {
               </Text>
             </div>
 
-            <div>
-              <Text type="secondary" block style={{ marginBottom: 6 }}>Estimated Budget Hours</Text>
-              <Text strong>{selectedTicket.estimatedHours} hrs</Text>
-            </div>
+
 
             {selectedTicket.description && (
               <div>

@@ -141,8 +141,8 @@ const ProjectDetailPage = () => {
       }
     },
     { title: 'Priority', dataIndex: 'priority', key: 'priority', render: (p) => <PriorityBadge priority={p} /> },
+
     { title: 'Status', dataIndex: 'status', key: 'status', render: (s) => <StatusBadge status={s} /> },
-    { title: 'Est. Hours', dataIndex: 'estimatedHours', key: 'estHours' },
     { title: 'Consumed', dataIndex: 'consumedHours', key: 'consHours' },
   ];
 

@@ -257,17 +257,6 @@ const CrossTeamPage = () => {
           {statusLabel(r.ticketStatus)}
         </Tag>
       )
-    },
-    {
-      title: 'Est. Hours',
-      dataIndex: 'estimatedHours',
-      key: 'hours',
-      width: 100,
-      render: (h) => (
-        <Text strong style={{ color: token.colorPrimary }}>
-          {Number(h).toFixed(1)}h
-        </Text>
-      )
     }
   ];
 

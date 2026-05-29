@@ -193,9 +193,7 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
                 Not Assigned
               </span>
             )}
-            <Tag color="purple" style={{ fontSize: '10px', borderRadius: 4, margin: 0, fontWeight: 500 }}>
-              {ticket.estimatedHours}h
-            </Tag>
+
           </Space>
           {ticket.dueDate && (
             <Tag 
@@ -578,7 +576,7 @@ const KanbanBoard = () => {
         title: values.title,
         description: values.description,
         priority: values.priority,
-        estimatedHours: values.estimatedHours,
+        estimatedHours: Number(editingTicket.estimatedHours) || 0,
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
         assignedToUserId: values.assignedToUserId || null,
       });
@@ -739,10 +737,7 @@ const KanbanBoard = () => {
                 <Text>{currentAssignee?.name || 'Unassigned'}</Text>
               </Space>
             </Space>
-            <Space direction="vertical">
-              <Text strong>Estimated Hours</Text>
-              <Text>{selectedTicket.estimatedHours} hrs</Text>
-            </Space>
+
             <Space direction="vertical">
               <Text strong>Due Date</Text>
               <Text>
@@ -826,20 +821,14 @@ const KanbanBoard = () => {
             <Input.TextArea rows={3} placeholder="Description (optional)" />
           </Form.Item>
 
-          <div style={{ display: 'flex', gap: 16 }}>
-            <Form.Item name="priority" label="Priority" style={{ flex: 1 }} rules={[{ required: true }]}>
-              <Select options={[
-                { value: 'Critical', label: '🔴 Critical' },
-                { value: 'High', label: '🟠 High' },
-                { value: 'Medium', label: '🔵 Medium' },
-                { value: 'Low', label: '🟢 Low' },
-              ]} />
-            </Form.Item>
-
-            <Form.Item name="estimatedHours" label="Estimated Hours" style={{ flex: 1 }} rules={[{ required: true }]}>
-              <InputNumber min={0} step={0.5} style={{ width: '100%' }} addonAfter="hrs" />
-            </Form.Item>
-          </div>
+          <Form.Item name="priority" label="Priority" rules={[{ required: true }]}>
+            <Select options={[
+              { value: 'Critical', label: '🔴 Critical' },
+              { value: 'High', label: '🟠 High' },
+              { value: 'Medium', label: '🔵 Medium' },
+              { value: 'Low', label: '🟢 Low' },
+            ]} />
+          </Form.Item>
 
           <div style={{ display: 'flex', gap: 16 }}>
             <Form.Item name="dueDate" label="Due Date" style={{ flex: 1 }}>

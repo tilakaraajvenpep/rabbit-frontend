@@ -102,25 +102,11 @@ const HROffboardingPage = () => {
       }
     },
     {
-      title: 'Budgeted Hours',
-      dataIndex: 'estimatedHoursVal',
-      key: 'estimatedHoursVal',
-      width: 140,
-      render: (hours) => <Text>{hours.toFixed(2)} hrs</Text>
-    },
-    {
       title: 'Consumed Hours',
       dataIndex: 'spentHoursVal',
       key: 'spentHoursVal',
       width: 140,
       render: (hours) => <Text type="secondary">{hours.toFixed(2)} hrs</Text>
-    },
-    {
-      title: 'Remaining Hours',
-      dataIndex: 'remainingHoursVal',
-      key: 'remainingHoursVal',
-      width: 140,
-      render: (hours) => <Text type="danger" strong>{hours.toFixed(2)} hrs</Text>
     }
   ];
 

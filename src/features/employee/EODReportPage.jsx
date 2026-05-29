@@ -592,7 +592,7 @@ const EODReportPage = () => {
         title: values.title,
         description: values.description || '',
         priority: 'Medium',
-        estimatedHours: values.estimatedHours || 8,
+        estimatedHours: 0,
         assignedToUserId: currentUser.userId || currentUser.id,
         dueDate: dayjs().add(7, 'day').toISOString()
       };
@@ -601,7 +601,7 @@ const EODReportPage = () => {
       
       const newTicket = {
         ...res.data,
-        estimatedHours: Number(res.data.estimatedHours) || values.estimatedHours,
+        estimatedHours: 0,
         consumedHours: 0,
         timerAccumulatedSeconds: 0
       };
@@ -1881,9 +1881,6 @@ const EODReportPage = () => {
           </Form.Item>
           <Form.Item name="description" label="Description">
             <TextArea placeholder="Optional details..." />
-          </Form.Item>
-          <Form.Item name="estimatedHours" label="Estimated Hours" initialValue={8}>
-            <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>

@@ -104,7 +104,7 @@ const CrossTeamSharePage = () => {
         title: `Borrowed: ${values.title}`,
         description: fullDescription,
         priority: values.priority || 'Medium',
-        estimatedHours: parseFloat(String(values.estimatedHours)),
+        estimatedHours: 0,
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
         assignedToUserId: selectedEmployee.id || selectedEmployee.userId,
         milestone: values.milestone || 'Cross-Team Sharing'
@@ -290,22 +290,9 @@ const CrossTeamSharePage = () => {
               <Input.TextArea rows={4} placeholder="Please detail the precise tasks this employee will help you complete..." />
             </Form.Item>
 
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item 
-                  name="estimatedHours" 
-                  label="Estimated Hours" 
-                  rules={[{ required: true, message: 'Please enter estimated hours' }]}
-                >
-                  <Input type="number" step="0.5" suffix={<FieldTimeOutlined />} placeholder="E.g., 16" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item name="dueDate" label="Due Date">
-                  <DatePicker style={{ width: '100%' }} suffixIcon={<CalendarOutlined />} />
-                </Form.Item>
-              </Col>
-            </Row>
+            <Form.Item name="dueDate" label="Due Date">
+              <DatePicker style={{ width: '100%' }} suffixIcon={<CalendarOutlined />} />
+            </Form.Item>
 
             <Form.Item name="priority" label="Priority" initialValue="Medium">
               <Select>

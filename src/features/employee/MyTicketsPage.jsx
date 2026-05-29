@@ -137,16 +137,6 @@ const MyTicketsPage = () => {
           </Space>
         );
       }
-    },
-    {
-      title: 'Estimation (Budget Hours)',
-      key: 'estimation',
-      width: 240,
-      render: (_, record) => (
-        <div style={{ minWidth: 160 }}>
-          <HoursProgress consumed={record.consumedHours} total={record.estimatedHours} />
-        </div>
-      )
     }
   ];
 
@@ -249,10 +239,7 @@ const MyTicketsPage = () => {
               </Col>
             </Row>
 
-            <div>
-              <Text type="secondary" block style={{ marginBottom: 6 }}>Estimated Budget vs Actual Consumed</Text>
-              <HoursProgress consumed={selectedTicket.consumedHours} total={selectedTicket.estimatedHours} />
-            </div>
+
 
             <div>
               <Text type="secondary" block style={{ marginBottom: 6 }}>Timesheet Record</Text>
