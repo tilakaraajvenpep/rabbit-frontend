@@ -177,10 +177,6 @@
                   <span style={{ fontWeight: 700, fontSize: 14, color: t1 }}>Task Entries</span>
                   <span style={{ fontSize: 12, color: t2 }}>{fields.length} task{fields.length !== 1 ? 's' : ''}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: t2 }}>Logged:</span>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: emerald }}>{fmtH(totalHours)}</span>
-                </div>
               </div>
 
               {/* Scrollable task list */}

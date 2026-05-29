@@ -1197,10 +1197,6 @@ const EODReportPage = () => {
                     );
                   })()}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: t2 }}>Logged Today:</span>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: emerald }}>{fmtH(totalHours)}</span>
-                </div>
               </div>
 
               {/* Scrollable task list */}
