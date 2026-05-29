@@ -28,8 +28,8 @@ import StatusBadge from '../../components/common/StatusBadge';
 const { TextArea } = Input;
 const { Title, Text } = Typography;
 
-/* Helper to compute proportional milestone hours */
-const getProportionalMilestoneHours = (m, allMils, totalHrs) => {
+/* Helper to extract milestone hours mentioned in the document */
+const getExtractedMilestoneHours = (m) => {
   // If explicitly defined on this milestone
   const hrsVal = m.hours !== undefined && m.hours !== null ? m.hours : m.estimatedHours;
   if (hrsVal !== undefined && hrsVal !== null && Number(hrsVal) > 0) {
@@ -44,18 +44,7 @@ const getProportionalMilestoneHours = (m, allMils, totalHrs) => {
     return Number(match[1]);
   }
 
-  // Fallback 1: proportional calculation
-  const totalAmount = (allMils || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-  if (totalAmount > 0 && m.amount && totalHrs > 0) {
-    return Math.round((Number(m.amount) || 0) / totalAmount * totalHrs);
-  }
-
-  // Fallback 2: split equally
-  if (totalHrs > 0 && (allMils || []).length > 0) {
-    return Math.round(totalHrs / (allMils || []).length);
-  }
-
-  return 0;
+  return undefined;
 };
 
 const CostAnalysisPage = () => {
@@ -109,10 +98,7 @@ const CostAnalysisPage = () => {
       if (p.budgetTable) setBudgetItems(p.budgetTable);
       if (p.milestones) {
         setMilestones(p.milestones.map(m => {
-          const hoursVal = m.hours !== undefined && m.hours !== null ? m.hours : m.estimatedHours;
-          const calculatedHours = hoursVal !== undefined && hoursVal !== null && Number(hoursVal) > 0
-            ? Number(hoursVal)
-            : getProportionalMilestoneHours(m, p.milestones, Number(p.totalHours || p.approvedHours || 0));
+          const calculatedHours = getExtractedMilestoneHours(m);
           return {
             ...m,
             hours: calculatedHours || undefined,
@@ -172,10 +158,9 @@ const CostAnalysisPage = () => {
       const res = await projectService.extractScopeDetails(id, latestDoc.documentId);
       const { budgetTable, milestones: extMilestones, totalHours: extHours, bufferHours: extBuffer, estimatedCompletionDate: extDate } = res.data;
 
-      const targetTotalHours = Number(extHours) || 0;
       setBudgetItems(budgetTable || []);
       setMilestones((extMilestones || []).map((m, idx) => {
-        const computedHours = getProportionalMilestoneHours(m, extMilestones || [], targetTotalHours);
+        const computedHours = getExtractedMilestoneHours(m);
         return {
           ...m,
           key: m.key || idx + 1,

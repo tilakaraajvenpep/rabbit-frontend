@@ -183,21 +183,8 @@ const HRAllocateProjectHoursPage = () => {
       return `${match[1]} hrs`;
     }
 
-    // Fallback 1: calculate proportionally based on milestone amount
-    const totalAmount = milestones.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    if (totalAmount > 0 && m.amount && projectTotal > 0) {
-      const calculatedHours = Math.round((Number(m.amount) || 0) / totalAmount * projectTotal);
-      return `${calculatedHours} hrs`;
-    }
-    
-    // Fallback 2: split total hours equally
-    if (projectTotal > 0 && milestones.length > 0) {
-      const equalHours = Math.round(projectTotal / milestones.length);
-      return `${equalHours} hrs`;
-    }
-    
-    return '0 hrs';
-  }, [milestones, projectTotal]);
+    return 'nil';
+  }, []);
 
   return (
     <div style={{ background: bg, minHeight: '100vh', paddingBottom: 48 }}>
