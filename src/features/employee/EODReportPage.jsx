@@ -198,13 +198,15 @@ const EODReportPage = () => {
   }, [selectedTopProjectId, watchedItems, append, viewOnly, loading]);
 
   useEffect(() => {
-    if (!viewOnly && allocatedHoursPerDay > 0 && REQUIRED_HOURS > 0) {
-      if (totalHours > REQUIRED_HOURS) {
+    if (!viewOnly && allocatedHoursPerDay > 0) {
+      const totalThisWeek = hoursReportedOtherDays + totalHours;
+      if (totalThisWeek > allocatedHoursPerDay) {
         if (!hasWarnedExceeded) {
+          const remaining = Math.max(0, allocatedHoursPerDay - hoursReportedOtherDays);
           notification.warning({
             key: 'exceed-quota-warning',
-            message: 'Allocated Hours Exceeded',
-            description: `You've logged ${totalHours.toFixed(1)}h but your remaining quota is ${REQUIRED_HOURS.toFixed(1)}h. Please reduce your hours before submitting.`,
+            message: 'Exceeds Total Allocated Hours',
+            description: `Your weekly allocation is ${allocatedHoursPerDay.toFixed(1)}h. You can only log up to ${remaining.toFixed(1)}h today.`,
             duration: 5
           });
           setHasWarnedExceeded(true);
@@ -213,7 +215,7 @@ const EODReportPage = () => {
         setHasWarnedExceeded(false);
       }
     }
-  }, [totalHours, REQUIRED_HOURS, allocatedHoursPerDay, hasWarnedExceeded, viewOnly]);
+  }, [totalHours, allocatedHoursPerDay, hoursReportedOtherDays, hasWarnedExceeded, viewOnly]);
 
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
@@ -748,13 +750,24 @@ const EODReportPage = () => {
     }
 
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
-    if (allocatedHoursPerDay > 0 && submittedTotal > REQUIRED_HOURS) {
-      notification.error({
-        message: 'Cannot Submit — Exceeds Allocated Hours',
-        description: `You logged ${submittedTotal.toFixed(1)}h but your remaining quota is only ${REQUIRED_HOURS.toFixed(1)}h. Reduce your hours or request additional hours from HR/PM first.`,
-        duration: 6
-      });
-      return;
+
+    // Hard cap: recalculate remaining from allocatedHoursPerDay directly at submit time
+    if (allocatedHoursPerDay > 0) {
+      const alreadyLoggedOtherDays = weeklyReports
+        .filter(r => r.date !== selectedDate)
+        .reduce((sum, r) => {
+          return sum + (r.items?.reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0);
+        }, 0);
+      const totalIfSubmit = alreadyLoggedOtherDays + submittedTotal;
+      if (totalIfSubmit > allocatedHoursPerDay) {
+        const canLogToday = Math.max(0, allocatedHoursPerDay - alreadyLoggedOtherDays);
+        notification.error({
+          message: 'Cannot Submit — Exceeds Weekly Allocation',
+          description: `Your total weekly allocation is ${allocatedHoursPerDay.toFixed(1)}h. Already logged this week: ${alreadyLoggedOtherDays.toFixed(1)}h. You can log at most ${canLogToday.toFixed(1)}h today.`,
+          duration: 7
+        });
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -1253,7 +1266,7 @@ const EODReportPage = () => {
                         )} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                           <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
-                            <InputNumber {...f} min={0} size="small" style={{ width: 58 }} disabled={viewOnly} placeholder="0" />
+                            <InputNumber {...f} min={0} max={allocatedHoursPerDay > 0 ? Math.ceil(Math.max(0, REQUIRED_HOURS)) : undefined} size="small" style={{ width: 58 }} disabled={viewOnly} placeholder="0" />
                           )} />
                           <span style={{ fontSize: 11, color: t2, fontWeight: 600 }}>h</span>
                           <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
