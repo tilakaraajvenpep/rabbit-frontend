@@ -942,11 +942,7 @@ const EODReportPage = () => {
 
     const hasReport = status === 'submitted' || hours > 0;
     if (hasReport) {
-      if (hours >= REQUIRED_HOURS) {
-        return { bg: '#00b493', text: '#ffffff', label: 'Completed' };
-      } else {
-        return { bg: '#f97316', text: '#ffffff', label: 'Partially Complete' };
-      }
+      return { bg: '#00b493', text: '#ffffff', label: 'Completed' };
     }
 
     if (status === 'incomplete' || (isPast && !hasReport)) {
