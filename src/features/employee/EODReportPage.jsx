@@ -201,8 +201,12 @@ const EODReportPage = () => {
     if (!viewOnly && allocatedHoursPerDay > 0 && REQUIRED_HOURS > 0) {
       if (totalHours > REQUIRED_HOURS) {
         if (!hasWarnedExceeded) {
-          setBlockedSubmitTotal(totalHours);
-          setIsHoursBlockedModalOpen(true);
+          notification.warning({
+            key: 'exceed-quota-warning',
+            message: 'Allocated Hours Exceeded',
+            description: `You've logged ${totalHours.toFixed(1)}h but your remaining quota is ${REQUIRED_HOURS.toFixed(1)}h. Please reduce your hours before submitting.`,
+            duration: 5
+          });
           setHasWarnedExceeded(true);
         }
       } else {
@@ -744,10 +748,12 @@ const EODReportPage = () => {
     }
 
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
-    if (submittedTotal > REQUIRED_HOURS) {
-      // Block submission and show the dedicated additional-hours request modal
-      setBlockedSubmitTotal(submittedTotal);
-      setIsHoursBlockedModalOpen(true);
+    if (allocatedHoursPerDay > 0 && submittedTotal > REQUIRED_HOURS) {
+      notification.error({
+        message: 'Cannot Submit — Exceeds Allocated Hours',
+        description: `You logged ${submittedTotal.toFixed(1)}h but your remaining quota is only ${REQUIRED_HOURS.toFixed(1)}h. Reduce your hours or request additional hours from HR/PM first.`,
+        duration: 6
+      });
       return;
     }
 
