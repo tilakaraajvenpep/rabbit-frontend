@@ -184,7 +184,7 @@ const ScopeUploadPage = () => {
               pagination={false}
               rowKey={(record, idx) => idx}
               columns={[
-                { title: 'Item/Phase Description', dataIndex: 'description', key: 'description' },
+                { title: 'Item/Phase Description', dataIndex: 'item', key: 'item' },
                 { 
                   title: 'Estimated Cost', 
                   dataIndex: 'cost', 
@@ -207,8 +207,8 @@ const ScopeUploadPage = () => {
                 { title: 'Milestone Title', dataIndex: 'title', key: 'title' },
                 { 
                   title: 'Target Date', 
-                  dataIndex: 'targetDate', 
-                  key: 'targetDate',
+                  dataIndex: 'date', 
+                  key: 'date',
                   render: (date) => date ? dayjs(date).format('DD MMM YYYY') : '-'
                 },
                 { 
