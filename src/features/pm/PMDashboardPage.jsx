@@ -503,12 +503,6 @@ const PMDashboardPage = () => {
       }
     },
     {
-      title: 'Allocated Hours',
-      dataIndex: 'estimatedHours',
-      key: 'estimatedHours',
-      render: (h) => <Text strong>{h} hrs</Text>
-    },
-    {
       title: 'Consumed Hours',
       dataIndex: 'consumedHours',
       key: 'consumedHours',
