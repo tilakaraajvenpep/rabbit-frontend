@@ -1206,6 +1206,19 @@ const EODReportPage = () => {
 
               {/* Scrollable task list */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {(projectAllocatedHours === 0 || projectRemainingBeforeToday <= 0) && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message="No hours to report"
+                    description={
+                      projectAllocatedHours === 0
+                        ? "You have 0 allocated hours for this project. Please contact your Team Lead or PM to allocate hours."
+                        : "You have 0 remaining hours to report for this project. Please request additional hours if needed."
+                    }
+                    style={{ borderRadius: 10 }}
+                  />
+                )}
                 {fields.map((field, index) => {
                   const item = watchedItems?.[index] || {};
                   const rowProjId = item.projectId || selectedTopProjectId;
