@@ -179,6 +179,21 @@ const EODReportPage = () => {
   const selectedTicketIds = watchedItems?.map(item => item.ticketId).filter(id => !!id) || [];
 
   useEffect(() => {
+    if (selectedTopProjectId && !viewOnly && !loading) {
+      const hasTasks = watchedItems?.some(item => String(item?.projectId) === String(selectedTopProjectId));
+      if (!hasTasks) {
+        append({
+          projectId: selectedTopProjectId,
+          ticketId: '',
+          hoursInput: 0,
+          minutesInput: 0,
+          workDone: ''
+        });
+      }
+    }
+  }, [selectedTopProjectId, watchedItems, append, viewOnly, loading]);
+
+  useEffect(() => {
     if (!viewOnly && allocatedHoursPerDay > 0 && REQUIRED_HOURS > 0) {
       if (totalHours > REQUIRED_HOURS) {
         if (!hasWarnedExceeded) {
@@ -425,6 +440,7 @@ const EODReportPage = () => {
    const fetchReportForDate = async (date) => {
      setLoading(true);
      setHasWarnedExceeded(false);
+     setSelectedTopProjectId(null);
      try {
       let leaveOnDate = null;
       try {
@@ -1024,40 +1040,21 @@ const EODReportPage = () => {
             </div>
           </div>
 
-          {/* Hours summary */}
-          <div style={{ padding: '12px', borderBottom: `1px solid ${border}` }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: t2, marginBottom: 8 }}>Hours Summary</div>
-            {[
-              { label: 'Weekly Quota', val: fmtH(allocatedHoursPerDay), color: accent },
-              { label: 'Logged Today', val: fmtH(totalHours), color: '#f59e0b' },
-              { label: 'Remaining', val: fmtH(Math.max(0, REQUIRED_HOURS - totalHours)), color: emerald },
-            ].map((row, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: t2 }}>{row.label}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: row.color }}>{row.val}</span>
-              </div>
-            ))}
-            {REQUIRED_HOURS > 0 && (
-              <Progress size="small" showInfo={false} percent={Math.min(100, Math.round((totalHours / REQUIRED_HOURS) * 100))}
-                strokeColor={totalHours > REQUIRED_HOURS ? '#ef4444' : accent} style={{ marginTop: 4 }} />
-            )}
-          </div>
-
           {/* Project selector */}
-          <div style={{ padding: '12px', borderBottom: `1px solid ${border}` }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: t2, marginBottom: 8 }}>Project</div>
-            <Select placeholder="Select project" value={selectedTopProjectId} onChange={v => setSelectedTopProjectId(v)}
-              style={{ width: '100%' }} size="small" showSearch
+          <div style={{ padding: '16px 12px', borderBottom: `1px solid ${border}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: t2, marginBottom: 8 }}>Project Selection</div>
+            <Select placeholder="Choose a Project to Report" value={selectedTopProjectId} onChange={v => setSelectedTopProjectId(v)}
+              style={{ width: '100%' }} size="middle" showSearch
               filterOption={(inp, opt) => (opt?.label ?? '').toLowerCase().includes(inp.toLowerCase())}
               options={allProjects.map(p => ({ value: p.id, label: p.name || p.projectName }))} />
             {selectedProject && (
-              <div style={{ marginTop: 10, background: isDarkMode ? '#0b0d15' : '#f8f9ff', borderRadius: 8, padding: '10px 12px', border: `1px solid ${border}` }}>
+              <div style={{ marginTop: 12, background: isDarkMode ? '#0b0d15' : '#f8f9ff', borderRadius: 8, padding: '12px', border: `1px solid ${border}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                  <span style={{ fontSize: 11, color: t2 }}>Allocated</span>
+                  <span style={{ fontSize: 11, color: t2 }}>Allocated Hours</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{fmtH(projectAllocatedHours)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: t2 }}>Remaining</span>
+                  <span style={{ fontSize: 11, color: t2 }}>Remaining Hours</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: projectRemaining > 0 ? emerald : '#ef4444' }}>{fmtH(projectRemaining)}</span>
                 </div>
                 <Progress size="small" showInfo={false}
@@ -1095,16 +1092,29 @@ const EODReportPage = () => {
                   onClick={() => setIsAccessRequestModalOpen(true)}>Request Access</Button>
               )}
             </div>
+          ) : !selectedTopProjectId ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', padding: 24, textAlign: 'center' }}>
+              <Result
+                icon={<ProjectOutlined style={{ color: accent, fontSize: 56 }} />}
+                title={<span style={{ color: t1, fontSize: 20, fontWeight: 800 }}>No Project Selected</span>}
+                subTitle={<span style={{ color: t2, fontSize: 14 }}>Please select a project from the sidebar dropdown list to start logging tasks.</span>}
+              />
+            </div>
           ) : (
             <>
               {/* Tasks header */}
               <div style={{ padding: '10px 20px', background: card, borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontWeight: 700, fontSize: 14, color: t1 }}>Task Entries</span>
-                  <span style={{ fontSize: 12, color: t2 }}>{fields.length} task{fields.length !== 1 ? 's' : ''}</span>
+                  {(() => {
+                    const projectTasksCount = (watchedItems || []).filter(item => String(item.projectId) === String(selectedTopProjectId)).length;
+                    return (
+                      <span style={{ fontSize: 12, color: t2 }}>{projectTasksCount} task{projectTasksCount !== 1 ? 's' : ''} for this project</span>
+                    );
+                  })()}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: t2 }}>Logged:</span>
+                  <span style={{ fontSize: 12, color: t2 }}>Logged Today:</span>
                   <span style={{ fontSize: 14, fontWeight: 800, color: totalHours > REQUIRED_HOURS ? '#ef4444' : emerald }}>{fmtH(totalHours)}</span>
                   {REQUIRED_HOURS > 0 && <span style={{ fontSize: 12, color: t2 }}>/ {fmtH(REQUIRED_HOURS)}</span>}
                 </div>
@@ -1115,6 +1125,12 @@ const EODReportPage = () => {
                 {fields.map((field, index) => {
                   const item = watchedItems?.[index] || {};
                   const rowProjId = item.projectId || selectedTopProjectId;
+                  
+                  // Only display tasks registered to the active project selection
+                  if (String(rowProjId) !== String(selectedTopProjectId)) {
+                    return null;
+                  }
+
                   const rowTickets = rowProjId
                     ? myTickets.filter(t => String(t.projectId) === String(rowProjId))
                     : myTickets;
@@ -1123,13 +1139,10 @@ const EODReportPage = () => {
                       {/* Row top */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
                         <div style={{ width: 22, height: 22, borderRadius: '50%', background: `${accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: accent, flexShrink: 0 }}>{index + 1}</div>
-                        {/* Project per row */}
-                        <Controller control={control} name={`items.${index}.projectId`} render={({ field: f }) => (
-                          <Select {...f} placeholder="Project" size="small" style={{ width: 180 }} disabled={viewOnly}
-                            options={allProjects.map(p => ({ value: p.id, label: p.name || p.projectName }))}
-                            onChange={v => { f.onChange(v); setValue(`items.${index}.ticketId`, ''); }} showSearch
-                            filterOption={(inp, opt) => (opt?.label ?? '').toLowerCase().includes(inp.toLowerCase())} />
-                        )} />
+                        {/* Display Premium Project Tag instead of select dropdown */}
+                        <Tag color="geekblue" style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 4, border: 'none' }}>
+                          {selectedProject?.name || selectedProject?.projectName}
+                        </Tag>
                         <div style={{ flex: 1 }} />
                         {/* Alert toggle */}
                         <Controller control={control} name="isAlertIssue" render={({ field: af }) => (
@@ -1192,9 +1205,9 @@ const EODReportPage = () => {
                   );
                 })}
 
-                {/* Add task */}
+                {/* Add task for this project */}
                 {!viewOnly && (
-                  <button onClick={() => append({ projectId: selectedTopProjectId || allProjects[0]?.id || '', ticketId: '', hoursInput: 0, minutesInput: 0, workDone: '' })}
+                  <button type="button" onClick={() => append({ projectId: selectedTopProjectId, ticketId: '', hoursInput: 0, minutesInput: 0, workDone: '' })}
                     style={{ width: '100%', height: 44, border: `2px dashed ${accent}60`, borderRadius: 10, background: 'transparent', color: accent, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                     <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Another Task for this Project
                   </button>
