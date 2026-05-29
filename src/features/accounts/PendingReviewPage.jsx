@@ -20,10 +20,15 @@ const { Text, Title } = Typography;
 
 /* ── status config ─────────────────────────────────────────────── */
 const STATUS_CONFIG = {
+  Draft:               { label: 'Draft',                color: '#6b7280', bg: 'rgba(107,114,128,0.12)', icon: <FolderOpenOutlined />  },
   PendingReview:       { label: 'Pending Review',       color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  icon: <ClockCircleOutlined /> },
+  PendingPMApproval:   { label: 'Pending PM Approval',  color: '#0284c7', bg: 'rgba(2,132,199,0.12)',   icon: <ClockCircleOutlined /> },
   Approved:            { label: 'Approved',             color: '#10b981', bg: 'rgba(16,185,129,0.12)',  icon: <CheckCircleOutlined /> },
   ReturnedToAccounts:  { label: 'Returned by PM',       color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   icon: <WarningOutlined />     },
   ReturnedForRevision: { label: 'Returned to Sales',    color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)',  icon: <RollbackOutlined />    },
+  InProgress:          { label: 'In Progress',          color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  icon: <SyncOutlined />        },
+  OnHold:              { label: 'On Hold',              color: '#d97706', bg: 'rgba(217,119,6,0.12)',   icon: <ClockCircleOutlined /> },
+  Completed:           { label: 'Completed',            color: '#059669', bg: 'rgba(5,150,105,0.12)',   icon: <CheckCircleOutlined /> },
   default:             { label: 'Unknown',              color: '#64748b', bg: 'rgba(100,116,139,0.12)', icon: <SyncOutlined />        },
 };
 
@@ -47,6 +52,7 @@ const StatusPill = ({ status }) => {
 const TABS = [
   { key: 'All',               label: 'All Projects',       filterStatus: null                  },
   { key: 'PendingReview',     label: 'Pending Review',     filterStatus: 'PendingReview'       },
+  { key: 'PendingPMApproval',  label: 'Pending PM Approval', filterStatus: 'PendingPMApproval'  },
   { key: 'ReturnedToAccounts',label: 'Returned by PM',     filterStatus: 'ReturnedToAccounts'  },
   { key: 'ReturnedForRevision',label: 'Returned to Sales', filterStatus: 'ReturnedForRevision' },
 ];
@@ -207,7 +213,7 @@ const PendingReviewPage = () => {
   const { isDarkMode } = useThemeStore();
   const [projects, setProjects]   = useState([]);
   const [loading, setLoading]     = useState(true);
-  const [activeTab, setActiveTab] = useState('PendingReview');
+  const [activeTab, setActiveTab] = useState('All');
 
   useEffect(() => { fetchPendingProjects(); }, []);
 
@@ -216,11 +222,8 @@ const PendingReviewPage = () => {
     try {
       const response = await projectService.getProjects();
       const allProjects = response.data || [];
-      // Keep only projects relevant to the Accounts Review and Analysis flow
-      const relevantProjects = allProjects.filter(p =>
-        ['PendingReview', 'ReturnedForRevision', 'ReturnedToAccounts', 'Approved'].includes(p.status)
-      );
-      setProjects(relevantProjects);
+      // Keep all projects so Accounts has total visibility as requested
+      setProjects(allProjects);
     } catch {
       notification.error({ message: 'Error', description: 'Failed to load pending projects.' });
     } finally {
@@ -249,6 +252,7 @@ const PendingReviewPage = () => {
   const counts = {
     All:                projects.length,
     PendingReview:      projects.filter(p => p.status === 'PendingReview').length,
+    PendingPMApproval:  projects.filter(p => p.status === 'PendingPMApproval').length,
     ReturnedToAccounts: projects.filter(p => p.status === 'ReturnedToAccounts').length,
     ReturnedForRevision:projects.filter(p => p.status === 'ReturnedForRevision').length,
   };
@@ -258,10 +262,11 @@ const PendingReviewPage = () => {
   );
 
   const statCards = [
-    { key: 'All',                label: 'All Projects',      color: '#6366f1', icon: <FolderOpenOutlined style={{ fontSize: 22 }} />        },
-    { key: 'PendingReview',      label: 'Pending Review',    color: '#f59e0b', icon: <ClockCircleOutlined style={{ fontSize: 22 }} />       },
-    { key: 'ReturnedToAccounts', label: 'Returned by PM',    color: '#ef4444', icon: <ExclamationCircleOutlined style={{ fontSize: 22 }} /> },
-    { key: 'ReturnedForRevision',label: 'Returned to Sales', color: '#8b5cf6', icon: <RollbackOutlined style={{ fontSize: 22 }} />          },
+    { key: 'All',                label: 'All Projects',      color: '#6366f1', icon: <FolderOpenOutlined style={{ fontSize: 20 }} />        },
+    { key: 'PendingReview',      label: 'Pending Review',    color: '#f59e0b', icon: <ClockCircleOutlined style={{ fontSize: 20 }} />       },
+    { key: 'PendingPMApproval',  label: 'Pending PM Approval',color: '#0284c7', icon: <ClockCircleOutlined style={{ fontSize: 20 }} />       },
+    { key: 'ReturnedToAccounts', label: 'Returned by PM',    color: '#ef4444', icon: <ExclamationCircleOutlined style={{ fontSize: 20 }} /> },
+    { key: 'ReturnedForRevision',label: 'Returned to Sales', color: '#8b5cf6', icon: <RollbackOutlined style={{ fontSize: 20 }} />          },
   ];
 
   return (
@@ -269,11 +274,11 @@ const PendingReviewPage = () => {
       <PageHeader title="Pending Review" />
 
       {/* ── STAT CARDS ── */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 28 }}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 28, display: 'flex', flexWrap: 'wrap' }}>
         {statCards.map(card => {
           const isActive = activeTab === card.key;
           return (
-            <Col xs={12} sm={12} md={6} key={card.key}>
+            <Col xs={24} sm={12} md={8} style={{ flex: '1 0 18%', minWidth: 200 }} key={card.key}>
               <div
                 onClick={() => setActiveTab(card.key)}
                 style={{
@@ -287,6 +292,7 @@ const PendingReviewPage = () => {
                   border: `1.5px solid ${isActive ? card.color : (isDarkMode ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)')}`,
                   boxShadow: isActive ? `0 8px 28px -6px ${card.color}35` : '0 2px 10px rgba(0,0,0,0.03)',
                   transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)',
+                  height: '100%'
                 }}
               >
                 {/* Soft radial glow */}
@@ -298,7 +304,7 @@ const PendingReviewPage = () => {
                     pointerEvents: 'none',
                   }} />
                 )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', height: '100%' }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: isDarkMode ? '#a1a1aa' : '#71717a', marginBottom: 6 }}>
                       {card.label}
@@ -308,7 +314,7 @@ const PendingReviewPage = () => {
                     </div>
                   </div>
                   <div style={{
-                    width: 48, height: 48, borderRadius: 12,
+                    width: 44, height: 44, borderRadius: 10,
                     background: isActive ? `${card.color}20` : (isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: isActive ? card.color : (isDarkMode ? '#71717a' : '#94a3b8'),
