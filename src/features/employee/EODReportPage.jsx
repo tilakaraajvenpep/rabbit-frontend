@@ -53,6 +53,7 @@ const EODReportPage = () => {
   const [weeklyReports, setWeeklyReports] = useState([]);
   const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(0);
   const [currentWeekRemainingHours, setCurrentWeekRemainingHours] = useState(null);
+  const [currentRealWeekReports, setCurrentRealWeekReports] = useState([]);
   const [hasWarnedExceeded, setHasWarnedExceeded] = useState(false);
   const [accessRequestType, setAccessRequestType] = useState('single');
 
@@ -288,6 +289,7 @@ const EODReportPage = () => {
       const end = today.startOf('week').add(7, 'day').format('YYYY-MM-DD');
       const res = await reportService.getReportsByRange(currentUser.id, start, end);
       const reports = res.data || [];
+      setCurrentRealWeekReports(reports);
       const logged = reports.reduce((sum, r) => {
         const dayHours = r.items?.reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
         return sum + dayHours;
@@ -973,25 +975,48 @@ const EODReportPage = () => {
   const selectedProject = allProjects.find(p => String(p.id) === String(selectedTopProjectId));
   const projectAllocatedHours = selectedProject ? Number(selectedProject.employeeAllocatedHours?.[userId] || 0) : 0;
 
-  // Calculate hours logged for this project on ALL OTHER days of the current week strip from weeklyReports
-  const projectHoursOtherDays = weeklyReports
-    .filter(r => r.date !== selectedDate)
-    .reduce((sum, r) => {
-      const dayHours = r.items
-        ?.filter(item => {
-          const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-          const pId = tkt ? tkt.projectId : item.projectId;
-          return String(pId) === String(selectedTopProjectId);
-        })
-        .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
-      return sum + dayHours;
-    }, 0);
+  // 1. Calculate hours logged in the CURRENT REAL-WORLD week
+  const projectHoursCurrentRealWeek = currentRealWeekReports.reduce((sum, r) => {
+    const dayHours = r.items
+      ?.filter(item => {
+        const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+        const pId = tkt ? tkt.projectId : item.projectId;
+        return String(pId) === String(selectedTopProjectId);
+      })
+      .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
+    return sum + dayHours;
+  }, 0);
 
-  const projectHoursToday = (watchedItems || [])
-    .filter(item => String(item.projectId) === String(selectedTopProjectId))
-    .reduce((s, item) => s + (Number(item.hoursInput) || 0) + (Number(item.minutesInput) || 0) / 60, 0);
+  // 2. Check if selectedDate is in the current real-world week
+  const isSelectedInRealWeek = dayjs(selectedDate).isBetween(
+    dayjs().startOf('week').add(1, 'day').subtract(1, 'day'),
+    dayjs().startOf('week').add(7, 'day').add(1, 'day'),
+    'day'
+  );
 
-  const projectRemaining = Math.max(0, projectAllocatedHours - (projectHoursOtherDays + projectHoursToday));
+  let projectRemaining = 0;
+  if (isSelectedInRealWeek) {
+    const projectHoursOtherDays = currentRealWeekReports
+      .filter(r => r.date !== selectedDate)
+      .reduce((sum, r) => {
+        const dayHours = r.items
+          ?.filter(item => {
+            const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+            const pId = tkt ? tkt.projectId : item.projectId;
+            return String(pId) === String(selectedTopProjectId);
+          })
+          .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
+        return sum + dayHours;
+      }, 0);
+
+    const projectHoursToday = (watchedItems || [])
+      .filter(item => String(item.projectId) === String(selectedTopProjectId))
+      .reduce((s, item) => s + (Number(item.hoursInput) || 0) + (Number(item.minutesInput) || 0) / 60, 0);
+
+    projectRemaining = Math.max(0, projectAllocatedHours - (projectHoursOtherDays + projectHoursToday));
+  } else {
+    projectRemaining = Math.max(0, projectAllocatedHours - projectHoursCurrentRealWeek);
+  }
 
   const bg = isDarkMode ? '#0d0f18' : '#f1f3f9';
   const card = isDarkMode ? '#161925' : '#ffffff';
