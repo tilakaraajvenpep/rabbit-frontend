@@ -58,6 +58,7 @@ const EODReportPage = () => {
   const [currentWeekRemainingHours, setCurrentWeekRemainingHours] = useState(null);
   const [currentRealWeekReports, setCurrentRealWeekReports] = useState([]);
   const [hasWarnedExceeded, setHasWarnedExceeded] = useState(false);
+  const [hasWarned24, setHasWarned24] = useState(false);
   const [accessRequestType, setAccessRequestType] = useState('single');
 
   // Timer Requests State
@@ -199,17 +200,29 @@ const EODReportPage = () => {
 
   useEffect(() => {
     if (!viewOnly && allocatedHoursPerDay > 0 && REQUIRED_HOURS > 0) {
-      if (totalHours > REQUIRED_HOURS) {
-        if (!hasWarnedExceeded) {
-          setBlockedSubmitTotal(totalHours);
-          setIsHoursBlockedModalOpen(true);
-          setHasWarnedExceeded(true);
+      if (totalHours > 24) {
+        if (!hasWarned24) {
+          notification.error({
+            key: 'exceed-24-warning',
+            message: 'Invalid Hours',
+            description: 'Total logged hours for a single day cannot exceed 24 hours.'
+          });
+          setHasWarned24(true);
         }
       } else {
-        setHasWarnedExceeded(false);
+        setHasWarned24(false);
+        if (totalHours > REQUIRED_HOURS) {
+          if (!hasWarnedExceeded) {
+            setBlockedSubmitTotal(totalHours);
+            setIsHoursBlockedModalOpen(true);
+            setHasWarnedExceeded(true);
+          }
+        } else {
+          setHasWarnedExceeded(false);
+        }
       }
     }
-  }, [totalHours, REQUIRED_HOURS, allocatedHoursPerDay, hasWarnedExceeded, viewOnly]);
+  }, [totalHours, REQUIRED_HOURS, allocatedHoursPerDay, hasWarnedExceeded, hasWarned24, viewOnly]);
 
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
@@ -744,6 +757,14 @@ const EODReportPage = () => {
     }
 
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
+    if (submittedTotal > 24) {
+      notification.error({
+        message: 'Validation Error',
+        description: 'Total logged hours in a single day cannot exceed 24 hours.'
+      });
+      return;
+    }
+
     if (submittedTotal > REQUIRED_HOURS) {
       // Block submission and show the dedicated additional-hours request modal
       setBlockedSubmitTotal(submittedTotal);
