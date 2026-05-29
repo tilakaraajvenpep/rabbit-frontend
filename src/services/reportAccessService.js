@@ -24,5 +24,15 @@ export const reportAccessService = {
   respond: async (id, approved, comments = '') => {
     const res = await apiClient.patch(`/report-access/${id}/respond`, { approved, comments });
     return res.data;
+  },
+
+  forwardToPM: async (id, comments = '') => {
+    const res = await apiClient.patch(`/report-access/${id}/forward-pm`, { comments });
+    return res.data;
+  },
+
+  forwardToAccounts: async (id, comments = '') => {
+    const res = await apiClient.patch(`/report-access/${id}/forward-accounts`, { comments });
+    return res.data;
   }
 };
