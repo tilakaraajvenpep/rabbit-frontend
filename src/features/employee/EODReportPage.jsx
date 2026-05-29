@@ -732,16 +732,6 @@ const EODReportPage = () => {
 
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
 
-    // Single constraint: cannot report beyond total allocated hours
-    if (weeklyQuota > 0 && submittedTotal > weeklyQuota) {
-      notification.error({
-        message: 'Exceeds Allocated Hours',
-        description: `You can report at most ${weeklyQuota.toFixed(1)}h. You entered ${submittedTotal.toFixed(1)}h.`,
-        duration: 6
-      });
-      return;
-    }
-
     setSubmitting(true);
     try {
       const reportData = {
