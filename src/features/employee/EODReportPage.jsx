@@ -13,6 +13,9 @@ import {
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
+import isBetween from 'dayjs/plugin/isBetween';
+dayjs.extend(isBetween);
+
 import { reportService } from '../../services/reportService';
 import { ticketService } from '../../services/ticketService';
 import { analyticsService } from '../../services/analyticsService';
