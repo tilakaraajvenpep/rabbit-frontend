@@ -150,6 +150,11 @@ const EODReportPage = () => {
     const mins = Number(curr?.minutesInput) || 0;
     return acc + hrs + (mins / 60);
   }, 0) || 0;
+
+  // Early derivation of selected project's allocated hours (used for constraint check)
+  const _userId = currentUser?.userId || currentUser?.id;
+  const _selectedProject = allProjects.find(p => String(p.id) === String(selectedTopProjectId));
+  const projectAllocatedHoursEarly = _selectedProject ? Number(_selectedProject.employeeAllocatedHours?.[_userId] || 0) : 0;
   
   // 1. Calculate hours reported on OTHER days of this week
   const hoursReportedOtherDays = weeklyReports
@@ -196,13 +201,13 @@ const EODReportPage = () => {
     }
   }, [selectedTopProjectId, watchedItems, append, viewOnly, loading]);
 
-  // Constraint: if total entered hours exceed the allocated hours, show the TL permission modal
+  // Constraint: block when entered hours exceed this project's allocated hours
   useEffect(() => {
-    if (!viewOnly && allocatedHoursPerDay > 0 && totalHours > allocatedHoursPerDay) {
+    if (!viewOnly && projectAllocatedHoursEarly > 0 && totalHours > projectAllocatedHoursEarly) {
       setBlockedSubmitTotal(totalHours);
       setIsHoursBlockedModalOpen(true);
     }
-  }, [totalHours, allocatedHoursPerDay, viewOnly]);
+  }, [totalHours, projectAllocatedHoursEarly, viewOnly]);
 
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
@@ -738,8 +743,8 @@ const EODReportPage = () => {
 
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
 
-    // Single constraint: block if total hours exceed project-allocated hours
-    if (allocatedHoursPerDay > 0 && submittedTotal > allocatedHoursPerDay) {
+    // Single constraint: block if hours exceed the selected project's allocated hours
+    if (projectAllocatedHoursEarly > 0 && submittedTotal > projectAllocatedHoursEarly) {
       setBlockedSubmitTotal(submittedTotal);
       setIsHoursBlockedModalOpen(true);
       return;
@@ -1363,7 +1368,7 @@ const EODReportPage = () => {
         <Result
           icon={<ExclamationCircleFilled style={{ color: '#ff4d4f' }} />}
           title="Permission Required"
-          subTitle={`You have entered ${fmtH(blockedSubmitTotal)} which exceeds your allocated hours of ${fmtH(allocatedHoursPerDay)}. Please get permission from your Team Leader to report additional hours.`}
+          subTitle={`You have entered ${fmtH(blockedSubmitTotal)} which exceeds your allocated hours of ${fmtH(projectAllocatedHoursEarly)}. Please get permission from your Team Leader to report additional hours.`}
         />
       </Modal>
 
