@@ -28,6 +28,36 @@ import StatusBadge from '../../components/common/StatusBadge';
 const { TextArea } = Input;
 const { Title, Text } = Typography;
 
+/* Helper to compute proportional milestone hours */
+const getProportionalMilestoneHours = (m, allMils, totalHrs) => {
+  // If explicitly defined on this milestone
+  const hrsVal = m.hours !== undefined && m.hours !== null ? m.hours : m.estimatedHours;
+  if (hrsVal !== undefined && hrsVal !== null && Number(hrsVal) > 0) {
+    return Number(hrsVal);
+  }
+  
+  // Try to parse hours from title or description
+  const searchStr = `${m.title || ''} ${m.name || ''} ${m.description || ''}`;
+  const hoursRegex = /(\d+)\s*(?:hrs|hours|hour)/i;
+  const match = searchStr.match(hoursRegex);
+  if (match) {
+    return Number(match[1]);
+  }
+
+  // Fallback 1: proportional calculation
+  const totalAmount = (allMils || []).reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  if (totalAmount > 0 && m.amount && totalHrs > 0) {
+    return Math.round((Number(m.amount) || 0) / totalAmount * totalHrs);
+  }
+
+  // Fallback 2: split equally
+  if (totalHrs > 0 && (allMils || []).length > 0) {
+    return Math.round(totalHrs / (allMils || []).length);
+  }
+
+  return 0;
+};
+
 const CostAnalysisPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -78,10 +108,17 @@ const CostAnalysisPage = () => {
       if (p.bufferHours) setBufferHours(Number(p.bufferHours));
       if (p.budgetTable) setBudgetItems(p.budgetTable);
       if (p.milestones) {
-        setMilestones(p.milestones.map(m => ({
-          ...m,
-          date: m.date ? dayjs(m.date) : null
-        })));
+        setMilestones(p.milestones.map(m => {
+          const hoursVal = m.hours !== undefined && m.hours !== null ? m.hours : m.estimatedHours;
+          const calculatedHours = hoursVal !== undefined && hoursVal !== null && Number(hoursVal) > 0
+            ? Number(hoursVal)
+            : getProportionalMilestoneHours(m, p.milestones, Number(p.totalHours || p.approvedHours || 0));
+          return {
+            ...m,
+            hours: calculatedHours || undefined,
+            date: m.date ? dayjs(m.date) : null
+          };
+        }));
       }
 
       // 2. Load documents
@@ -135,12 +172,17 @@ const CostAnalysisPage = () => {
       const res = await projectService.extractScopeDetails(id, latestDoc.documentId);
       const { budgetTable, milestones: extMilestones, totalHours: extHours, bufferHours: extBuffer, estimatedCompletionDate: extDate } = res.data;
 
+      const targetTotalHours = Number(extHours) || 0;
       setBudgetItems(budgetTable || []);
-      setMilestones((extMilestones || []).map((m, idx) => ({
-        ...m,
-        key: m.key || idx + 1,
-        date: m.date ? dayjs(m.date) : null
-      })));
+      setMilestones((extMilestones || []).map((m, idx) => {
+        const computedHours = getProportionalMilestoneHours(m, extMilestones || [], targetTotalHours);
+        return {
+          ...m,
+          key: m.key || idx + 1,
+          hours: computedHours || undefined,
+          date: m.date ? dayjs(m.date) : null
+        };
+      }));
       
       if (extHours) setTotalHours(Number(extHours));
       if (extBuffer) setBufferHours(Number(extBuffer));

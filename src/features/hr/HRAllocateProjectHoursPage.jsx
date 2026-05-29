@@ -374,25 +374,9 @@ const HRAllocateProjectHoursPage = () => {
                             </Tag>
                           </div>
                           
-                          {(m.description || m.date || m.amount) && (
-                            <div style={{ paddingLeft: 36, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                              {m.description && (
-                                <div style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
-                                  {m.description}
-                                </div>
-                              )}
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 4 }}>
-                                {m.date && (
-                                  <span style={{ fontSize: 11, color: isDarkMode ? '#6b7280' : '#9ca3af' }}>
-                                    📅 Target: {new Date(m.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
-                                  </span>
-                                )}
-                                {m.amount && (
-                                  <span style={{ fontSize: 11, color: isDarkMode ? '#6b7280' : '#9ca3af', fontWeight: 500 }}>
-                                    💰 Release: ₹ {Number(m.amount).toLocaleString('en-IN')}
-                                  </span>
-                                )}
-                              </div>
+                          {m.description && (
+                            <div style={{ paddingLeft: 36, fontSize: 12, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
+                              {m.description}
                             </div>
                           )}
                         </div>
