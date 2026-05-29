@@ -590,6 +590,13 @@ const EODReportPage = () => {
         // Outside current week with no report = locked unless approved access
         if (isHoliday || (outsideCurrentWeek && !approvedAccess) || isFullDayLeave) {
           setViewOnly(true);
+          if (outsideCurrentWeek && !approvedAccess && !isHoliday) {
+            Modal.warning({
+              title: 'Permission Required',
+              content: 'You should get permission from HR or PM to report for that day.',
+              okButtonProps: { style: { background: '#6366f1', borderColor: '#6366f1' } }
+            });
+          }
         } else {
           setViewOnly(false);
         }
@@ -604,13 +611,27 @@ const EODReportPage = () => {
   const handleCreateTicket = async (values) => {
     setNewTicketLoading(true);
     try {
+      let dateInfo = '';
+      let targetDueDate = dayjs().add(7, 'day').toISOString();
+
+      if (values.dateType === 'single' && values.singleDate) {
+        const formattedDate = dayjs(values.singleDate).format('YYYY-MM-DD');
+        dateInfo = `\n[Applicable Date: ${formattedDate}]`;
+        targetDueDate = dayjs(values.singleDate).toISOString();
+      } else if (values.dateType === 'range' && values.dateRange && values.dateRange.length === 2) {
+        const from = dayjs(values.dateRange[0]).format('YYYY-MM-DD');
+        const to = dayjs(values.dateRange[1]).format('YYYY-MM-DD');
+        dateInfo = `\n[Applicable Date Range: ${from} to ${to}]`;
+        targetDueDate = dayjs(values.dateRange[1]).toISOString();
+      }
+
       const payload = {
         title: values.title,
-        description: values.description || '',
+        description: (values.description || '') + dateInfo,
         priority: 'Medium',
         estimatedHours: 0,
         assignedToUserId: currentUser.userId || currentUser.id,
-        dueDate: dayjs().add(7, 'day').toISOString()
+        dueDate: targetDueDate
       };
       const res = await ticketService.createTicket(values.projectId, payload);
       const newTicketId = res.data.id;
@@ -1246,8 +1267,34 @@ const EODReportPage = () => {
             <Select options={allProjects.map(p => ({ value: p.id, label: p.name || p.projectName }))} />
           </Form.Item>
           <Form.Item name="title" label="Ticket Title" rules={[{ required: true }]}><Input /></Form.Item>
+          
+          <Form.Item name="dateType" label="Target Date Mode" initialValue="single" rules={[{ required: true }]}>
+            <Radio.Group optionType="button" buttonStyle="solid">
+              <Radio value="single">Single Date</Radio>
+              <Radio value="range">Date Range</Radio>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.dateType !== curr.dateType}>
+            {({ getFieldValue }) => {
+              const type = getFieldValue('dateType') || 'single';
+              if (type === 'single') {
+                return (
+                  <Form.Item name="singleDate" label="Target Date" rules={[{ required: true, message: 'Please select a date' }]}>
+                    <DatePicker style={{ width: '100%' }} />
+                  </Form.Item>
+                );
+              }
+              return (
+                <Form.Item name="dateRange" label="Target Date Range" rules={[{ required: true, message: 'Please select date range' }]}>
+                  <DatePicker.RangePicker style={{ width: '100%' }} />
+                </Form.Item>
+              );
+            }}
+          </Form.Item>
+
           <Form.Item name="description" label="Description"><TextArea rows={3} /></Form.Item>
-          <Button type="primary" htmlType="submit" loading={newTicketLoading} block>Create Ticket</Button>
+          <Button type="primary" htmlType="submit" loading={newTicketLoading} block style={{ background: accent, borderColor: accent }}>Create Ticket</Button>
         </Form>
       </Modal>
 
