@@ -591,10 +591,15 @@ const EODReportPage = () => {
         if (isHoliday || (outsideCurrentWeek && !approvedAccess) || isFullDayLeave) {
           setViewOnly(true);
           if (outsideCurrentWeek && !approvedAccess && !isHoliday) {
-            Modal.warning({
+            Modal.confirm({
               title: 'Permission Required',
               content: 'You should get permission from HR or PM to report for that day.',
-              okButtonProps: { style: { background: '#6366f1', borderColor: '#6366f1' } }
+              okText: 'Request Access Now',
+              cancelText: 'OK',
+              okButtonProps: { style: { background: '#6366f1', borderColor: '#6366f1' } },
+              onOk: () => {
+                setIsAccessRequestModalOpen(true);
+              }
             });
           }
         } else {
@@ -971,10 +976,26 @@ const EODReportPage = () => {
   const userId = currentUser?.userId || currentUser?.id;
   const selectedProject = allProjects.find(p => String(p.id) === String(selectedTopProjectId));
   const projectAllocatedHours = selectedProject ? Number(selectedProject.employeeAllocatedHours?.[userId] || 0) : 0;
+
+  // Calculate hours logged for this project on ALL OTHER days of the current week strip from weeklyReports
+  const projectHoursOtherDays = weeklyReports
+    .filter(r => r.date !== selectedDate)
+    .reduce((sum, r) => {
+      const dayHours = r.items
+        ?.filter(item => {
+          const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+          const pId = tkt ? tkt.projectId : item.projectId;
+          return String(pId) === String(selectedTopProjectId);
+        })
+        .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
+      return sum + dayHours;
+    }, 0);
+
   const projectHoursToday = (watchedItems || [])
     .filter(item => String(item.projectId) === String(selectedTopProjectId))
     .reduce((s, item) => s + (Number(item.hoursInput) || 0) + (Number(item.minutesInput) || 0) / 60, 0);
-  const projectRemaining = Math.max(0, projectAllocatedHours - projectHoursToday);
+
+  const projectRemaining = Math.max(0, projectAllocatedHours - (projectHoursOtherDays + projectHoursToday));
 
   const bg = isDarkMode ? '#0d0f18' : '#f1f3f9';
   const card = isDarkMode ? '#161925' : '#ffffff';
@@ -1099,10 +1120,6 @@ const EODReportPage = () => {
           {isSunday ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Result icon={<CheckCircleOutlined style={{ color: '#faad14' }} />} title="Happy Sunday!" subTitle="No EOD reporting required today. Rest & recharge." />
-            </div>
-          ) : isNextWeek ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Result icon={<CalendarOutlined style={{ color: accent }} />} title="Future Date" subTitle="You cannot log reports for future weeks." />
             </div>
           ) : showRestrictionResult ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
