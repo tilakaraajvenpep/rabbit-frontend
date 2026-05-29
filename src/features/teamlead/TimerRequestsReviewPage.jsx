@@ -217,37 +217,18 @@ const TimerRequestsReviewPage = () => {
 
         return (
           <Space size={6}>
-            <Tooltip title={!canApprove ? `Insufficient project buffer hours (Available: ${bufHours}h, Requested: ${reqHours}h). Must forward to Project Manager.` : 'Approve using project buffer hours'}>
-              <span>
-                <Button
-                  size="small"
-                  onClick={() => { setSelectedRequest(record); setIsApproval(true); setTlComment(''); setIsRespondModalOpen(true); }}
-                  disabled={!canApprove}
-                  style={{
-                    background: canApprove ? 'linear-gradient(135deg,#10b981,#059669)' : '#e2e8f0',
-                    border: 'none',
-                    color: canApprove ? '#fff' : '#94a3b8',
-                    borderRadius: 8,
-                    fontWeight: 600,
-                    fontSize: 12,
-                    cursor: canApprove ? 'pointer' : 'not-allowed'
-                  }}
-                  icon={<CheckCircleOutlined />}
-                >Approve</Button>
-              </span>
-            </Tooltip>
+            <Button
+              size="small"
+              onClick={() => { setSelectedRequest(record); setForwardComment(''); setIsForwardModalOpen(true); }}
+              style={{ background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
+              icon={<SendOutlined />}
+            >Forward PM</Button>
             <Button
               size="small"
               onClick={() => { setSelectedRequest(record); setIsApproval(false); setTlComment(''); setIsRespondModalOpen(true); }}
               style={{ background: 'linear-gradient(135deg,#ef4444,#dc2626)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
               icon={<CloseCircleOutlined />}
             >Reject</Button>
-            <Button
-              size="small"
-              onClick={() => { setSelectedRequest(record); setForwardComment(''); setIsForwardModalOpen(true); }}
-              style={{ background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
-              icon={<SendOutlined />}
-            >Forward PM</Button>
           </Space>
         );
       },
