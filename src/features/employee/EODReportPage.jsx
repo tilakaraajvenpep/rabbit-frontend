@@ -1459,8 +1459,11 @@ const EODReportPage = () => {
               setIsAccessRequestModalOpen(false);
               fetchWeeklyStatus(weekDates);
               await fetchReportForDate(selectedDate);
-            } catch { 
-              notification.error({ message: 'Failed to submit access requests' }); 
+            } catch (err) { 
+              notification.error({ 
+                message: 'Failed to submit access requests',
+                description: err.response?.data?.message || 'Error occurred while submitting request.'
+              }); 
             } finally { 
               setAccessRequestSubmitting(false); 
             }
