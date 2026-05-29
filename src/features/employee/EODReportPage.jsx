@@ -196,7 +196,13 @@ const EODReportPage = () => {
     }
   }, [selectedTopProjectId, watchedItems, append, viewOnly, loading]);
 
-  // Quota is informational only — no real-time warning enforced
+  // Constraint: if total entered hours exceed the allocated hours, show the TL permission modal
+  useEffect(() => {
+    if (!viewOnly && allocatedHoursPerDay > 0 && totalHours > allocatedHoursPerDay) {
+      setBlockedSubmitTotal(totalHours);
+      setIsHoursBlockedModalOpen(true);
+    }
+  }, [totalHours, allocatedHoursPerDay, viewOnly]);
 
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
@@ -731,6 +737,13 @@ const EODReportPage = () => {
     }
 
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
+
+    // Single constraint: block if total hours exceed project-allocated hours
+    if (allocatedHoursPerDay > 0 && submittedTotal > allocatedHoursPerDay) {
+      setBlockedSubmitTotal(submittedTotal);
+      setIsHoursBlockedModalOpen(true);
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -1331,14 +1344,27 @@ const EODReportPage = () => {
         </Form>
       </Modal>
 
-      <Modal title="Hours Exceeded — Action Required" open={isHoursBlockedModalOpen} onCancel={() => setIsHoursBlockedModalOpen(false)}
+      <Modal
+        title={<span style={{ color: '#ff4d4f', fontWeight: 700 }}>⚠️ Allocated Hours Exceeded</span>}
+        open={isHoursBlockedModalOpen}
+        onCancel={() => setIsHoursBlockedModalOpen(false)}
         footer={[
-          <Button key="cancel" onClick={() => setIsHoursBlockedModalOpen(false)}>Cancel</Button>,
-          <Button key="req" type="primary" danger onClick={() => { setIsHoursBlockedModalOpen(false); const t = watchedItems?.[0]; handleOpenRequestModal('ExceededLimit', { id: t?.ticketId, title: 'EOD Report' }); }}>Request Additional Hours</Button>
-        ]}>
-        <Result icon={<ExclamationCircleFilled style={{ color: '#ff4d4f' }} />}
-          title={`${fmtH(blockedSubmitTotal)} exceeds your quota`}
-          subTitle="You must request additional hours approval before submitting." />
+          <Button key="cancel" onClick={() => setIsHoursBlockedModalOpen(false)}>Go Back</Button>,
+          <Button key="req" type="primary" danger
+            onClick={() => {
+              setIsHoursBlockedModalOpen(false);
+              const t = watchedItems?.[0];
+              handleOpenRequestModal('ExceededLimit', { id: t?.ticketId, title: 'EOD Report' });
+            }}>
+            Request Permission from Team Leader
+          </Button>
+        ]}
+      >
+        <Result
+          icon={<ExclamationCircleFilled style={{ color: '#ff4d4f' }} />}
+          title="Permission Required"
+          subTitle={`You have entered ${fmtH(blockedSubmitTotal)} which exceeds your allocated hours of ${fmtH(allocatedHoursPerDay)}. Please get permission from your Team Leader to report additional hours.`}
+        />
       </Modal>
 
       <Modal title="Request Additional Hours" open={isRequestModalOpen} onCancel={() => setIsRequestModalOpen(false)} footer={null} destroyOnClose>
