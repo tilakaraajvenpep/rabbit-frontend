@@ -18,7 +18,8 @@ import {
   SearchOutlined,
   DashboardOutlined,
   ArrowRightOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  EditOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -65,6 +66,43 @@ const PMDashboardPage = () => {
   // Milestones drawer state
   const [isMilestoneDrawerVisible, setIsMilestoneDrawerVisible] = useState(false);
   const [selectedProjectForMilestones, setSelectedProjectForMilestones] = useState(null);
+
+  // Reassign Team Lead Modal state
+  const [isReassignModalVisible, setIsReassignModalVisible] = useState(false);
+  const [selectedProjectForReassign, setSelectedProjectForReassign] = useState(null);
+  const [selectedNewTLId, setSelectedNewTLId] = useState(null);
+  const [submittingReassign, setSubmittingReassign] = useState(false);
+
+  const handleOpenReassignModal = (project) => {
+    setSelectedProjectForReassign(project);
+    setSelectedNewTLId(project.assignedTeamLeadId || null);
+    setIsReassignModalVisible(true);
+  };
+
+  const handleConfirmReassign = async () => {
+    if (!selectedNewTLId) {
+      notification.warning({ message: 'Validation', description: 'Please select a Team Lead.' });
+      return;
+    }
+    setSubmittingReassign(true);
+    try {
+      await projectService.updateProjectStatus(selectedProjectForReassign.id, {
+        status: selectedProjectForReassign.status,
+        assignedTeamLeadId: Number(selectedNewTLId),
+        note: 'Team Lead reassigned by Project Manager.'
+      });
+      notification.success({ 
+        message: 'Team Lead Reassigned', 
+        description: 'Successfully reassigned the project and its tickets to the new Team Lead.' 
+      });
+      setIsReassignModalVisible(false);
+      fetchData();
+    } catch (error) {
+      notification.error({ message: 'Error', description: 'Failed to reassign Team Lead.' });
+    } finally {
+      setSubmittingReassign(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -277,15 +315,27 @@ const PMDashboardPage = () => {
       title: 'Allotted To',
       dataIndex: 'assignedTeamLeadId',
       key: 'assignedTeamLeadId',
-      width: 180,
-      render: (tlId) => {
+      width: 220,
+      render: (tlId, record) => {
         const tl = teamLeads.find(t => t.id === tlId);
-        return tl ? (
-          <Tag color="geekblue" style={{ border: 'none', borderRadius: 4, padding: '3px 8px', fontWeight: 500 }}>
-            {tl.name || tl.fullName}
-          </Tag>
-        ) : (
-          <Text type="secondary" italic>Unassigned</Text>
+        return (
+          <Space>
+            {tl ? (
+              <Tag color="geekblue" style={{ border: 'none', borderRadius: 4, padding: '3px 8px', fontWeight: 500 }}>
+                {tl.name || tl.fullName}
+              </Tag>
+            ) : (
+              <Text type="secondary" italic>Unassigned</Text>
+            )}
+            <Tooltip title="Reassign Team Lead">
+              <Button 
+                type="text" 
+                size="small" 
+                icon={<EditOutlined style={{ color: '#1890ff' }} />} 
+                onClick={() => handleOpenReassignModal(record)}
+              />
+            </Tooltip>
+          </Space>
         );
       }
     },
@@ -768,6 +818,31 @@ const PMDashboardPage = () => {
               value={returnComments} 
               onChange={e => setReturnComments(e.target.value)}
               placeholder="Enter details on what needs to be revised (e.g. Budget reduction, Hours allocation edit, incorrect milestones...)"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Reassign Team Lead Modal */}
+      <Modal
+        title={`Reassign Team Lead for "${selectedProjectForReassign?.name}"`}
+        open={isReassignModalVisible}
+        onOk={handleConfirmReassign}
+        onCancel={() => setIsReassignModalVisible(false)}
+        confirmLoading={submittingReassign}
+        okText="Reassign & Transfer Tickets"
+      >
+        <Form layout="vertical">
+          <p style={{ marginBottom: 16, color: '#64748b' }}>
+            Select a new Team Lead to allot this project. All auto-generated/unassigned tickets in this project will automatically be reassigned to the new Team Lead.
+          </p>
+          <Form.Item label="Select Team Lead" required>
+            <Select
+              placeholder="Select Team Lead"
+              style={{ width: '100%' }}
+              value={selectedNewTLId}
+              onChange={setSelectedNewTLId}
+              options={teamLeads.map(tl => ({ label: tl.name || tl.fullName, value: tl.id }))}
             />
           </Form.Item>
         </Form>
