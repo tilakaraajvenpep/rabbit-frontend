@@ -184,7 +184,7 @@ const CostAnalysisPage = () => {
   // Milestones Table modification helpers
   const handleAddMilestone = () => {
     const newKey = milestones.length > 0 ? Math.max(...milestones.map(m => m.key || 0)) + 1 : 1;
-    setMilestones([...milestones, { key: newKey, title: '', date: null, amount: 0, description: '' }]);
+    setMilestones([...milestones, { key: newKey, title: '', date: null, amount: 0, hours: 0, description: '' }]);
   };
 
   const handleUpdateMilestone = (key, field, value) => {
@@ -231,6 +231,7 @@ const CostAnalysisPage = () => {
           title: m.title,
           date: m.date ? m.date.toISOString() : null,
           amount: m.amount,
+          hours: Number(m.hours) || 0,
           description: m.description
         }))
       };
@@ -523,7 +524,7 @@ const CostAnalysisPage = () => {
               title: 'Description',
               dataIndex: 'title',
               key: 'title',
-              width: '30%',
+              width: '25%',
               render: (text, record) => (
                 <Input 
                   value={text} 
@@ -536,7 +537,7 @@ const CostAnalysisPage = () => {
               title: 'Target Date',
               dataIndex: 'date',
               key: 'date',
-              width: '20%',
+              width: '15%',
               render: (val, record) => (
                 <DatePicker 
                   value={val}
@@ -546,10 +547,24 @@ const CostAnalysisPage = () => {
               )
             },
             {
+              title: 'Milestone Hours',
+              dataIndex: 'hours',
+              key: 'hours',
+              width: '15%',
+              render: (val, record) => (
+                <InputNumber 
+                  value={val || 0} 
+                  min={0}
+                  style={{ width: '100%' }}
+                  onChange={v => handleUpdateMilestone(record.key, 'hours', v || 0)} 
+                />
+              )
+            },
+            {
               title: 'Release Amount',
               dataIndex: 'amount',
               key: 'amount',
-              width: '20%',
+              width: '15%',
               render: (val, record) => (
                 <InputNumber 
                   value={val} 

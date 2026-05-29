@@ -288,7 +288,7 @@ const HRAllocateProjectHoursPage = () => {
                             <Text style={{ fontSize:13 }}>{m.title || m.name || `Milestone ${i + 1}`}</Text>
                           </div>
                           <Tag color="blue" style={{ borderRadius:6, fontSize:11, fontWeight:600, margin:0 }}>
-                            {projectTotal} hrs
+                            {m.hours !== undefined ? `${m.hours} hrs` : '—'}
                           </Tag>
                         </div>
                       ))}
