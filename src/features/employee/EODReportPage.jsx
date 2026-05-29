@@ -997,7 +997,9 @@ const EODReportPage = () => {
     'day'
   );
 
+  let projectHoursToday = 0;
   let projectRemaining = 0;
+  
   if (isSelectedInRealWeek) {
     const projectHoursOtherDays = currentRealWeekReports
       .filter(r => r.date !== selectedDate)
@@ -1012,12 +1014,21 @@ const EODReportPage = () => {
         return sum + dayHours;
       }, 0);
 
-    const projectHoursToday = (watchedItems || [])
+    projectHoursToday = (watchedItems || [])
       .filter(item => String(item.projectId) === String(selectedTopProjectId))
       .reduce((s, item) => s + (Number(item.hoursInput) || 0) + (Number(item.minutesInput) || 0) / 60, 0);
 
     projectRemaining = Math.max(0, projectAllocatedHours - (projectHoursOtherDays + projectHoursToday));
   } else {
+    const selectedDateReport = weeklyReports.find(r => r.date === selectedDate);
+    projectHoursToday = selectedDateReport?.items
+      ?.filter(item => {
+        const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+        const pId = tkt ? tkt.projectId : item.projectId;
+        return String(pId) === String(selectedTopProjectId);
+      })
+      .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
+
     projectRemaining = Math.max(0, projectAllocatedHours - projectHoursCurrentRealWeek);
   }
 
