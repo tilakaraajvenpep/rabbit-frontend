@@ -51,11 +51,11 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
 
     if (role === 'TenantAdmin' || role === 'ProjectManager') {
       items.push(
-        { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
-        { key: '/admin/hours', icon: <DollarOutlined />, label: 'Hour Allocation' }
+        { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' }
       );
       if (role === 'TenantAdmin') {
         items.push(
+          { key: '/admin/hours', icon: <DollarOutlined />, label: 'Hour Allocation' },
           { key: '/admin/subscription', icon: <SettingOutlined />, label: 'Subscription' }
         );
       }
@@ -134,7 +134,6 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/hr/projects', icon: <ProjectOutlined />, label: 'Project Allocations' },
         { key: '/hr/allocate', icon: <ClockCircleOutlined />, label: 'Allocate Hours' },
         { key: '/hr/task-tracking', icon: <ClockCircleOutlined />, label: 'Task Tracking' },
-        { key: '/hr/hours', icon: <DollarOutlined />, label: 'Hour Allocation' },
         { key: '/hr/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Approvals' },
         { key: '/hr/offboarding', icon: <UserDeleteOutlined />, label: 'Offboarding' }
       );
