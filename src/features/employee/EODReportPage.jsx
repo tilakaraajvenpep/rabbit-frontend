@@ -67,7 +67,8 @@ const EODReportPage = () => {
   const [requesting, setRequesting] = useState(false);
   const [activeRequestDetails, setActiveRequestDetails] = useState(null);
   const [teamLeads, setTeamLeads] = useState([]);
-  const [selectedTeamLeadId, setSelectedTeamLeadId] = useState(null);
+  const [allUsers, setAllUsers] = useState([]);
+  const [selectedTeamLeadId, setSelectedTeamLeadId] = useState(currentUser?.teamLeadId || null);
   // Blocking modal when hours exceeded
   const [isHoursBlockedModalOpen, setIsHoursBlockedModalOpen] = useState(false);
   const [blockedSubmitTotal, setBlockedSubmitTotal] = useState(0);
@@ -155,6 +156,14 @@ const EODReportPage = () => {
   const _userId = currentUser?.userId || currentUser?.id;
   const _selectedProject = allProjects.find(p => String(p.id) === String(selectedTopProjectId));
   const projectAllocatedHoursEarly = _selectedProject ? Number(_selectedProject.employeeAllocatedHours?.[_userId] || 0) : 0;
+
+  // Derivation of assigned Team Lead for the employee
+  const assignedTeamLead = allUsers.find(u => String(u.id || u.userId) === String(selectedTeamLeadId)) || 
+                           teamLeads.find(u => String(u.id || u.userId) === String(selectedTeamLeadId));
+
+  const selectOptions = assignedTeamLead 
+    ? [{ value: assignedTeamLead.id || assignedTeamLead.userId, label: assignedTeamLead.fullName || assignedTeamLead.name }]
+    : (selectedTeamLeadId ? [{ value: selectedTeamLeadId, label: 'Loading...' }] : []);
   
   // 1. Calculate hours reported on OTHER days of this week
   const hoursReportedOtherDays = weeklyReports
@@ -218,22 +227,23 @@ const EODReportPage = () => {
   const fetchTeamLeads = async () => {
     try {
       const res = await adminService.getUsers();
-      const allUsers = res.data || [];
+      const usersList = res.data || [];
+      setAllUsers(usersList);
       
       let tls = [];
       if (currentUser?.role === 'TeamLead') {
-        tls = allUsers.filter(u => {
+        tls = usersList.filter(u => {
           const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
           return role === 'projectmanager' || role === 'tenantadmin';
         });
       } else {
-        tls = allUsers.filter(u => {
+        tls = usersList.filter(u => {
           const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
           return role === 'teamlead';
         });
 
         if (tls.length === 0) {
-          tls = allUsers.filter(u => {
+          tls = usersList.filter(u => {
             const role = (u.role || '').toLowerCase().replace(/\s+/g, '');
             return role === 'projectmanager' || role === 'tenantadmin';
           });
@@ -1382,9 +1392,7 @@ const EODReportPage = () => {
             <Form.Item name="teamLeadId" label="Team Lead" rules={[{ required: true }]}>
               <Select
                 disabled
-                options={teamLeads
-                  .filter(tl => String(tl.id || tl.userId) === String(selectedTeamLeadId))
-                  .map(tl => ({ value: tl.id || tl.userId, label: tl.fullName || tl.name }))}
+                options={selectOptions}
               />
             </Form.Item>
           )}
