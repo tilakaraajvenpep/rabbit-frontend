@@ -218,6 +218,7 @@ const App = () => {
                 <Route path="/teamlead/leaves" element={<LeaveApprovalsPage />} />
                 <Route path="/teamlead/cross-share" element={<CrossTeamSharePage />} />
                 <Route path="/teamlead/timer-requests" element={<TimerRequestsReviewPage />} />
+                <Route path="/teamlead/report-access-approvals" element={<ReportAccessApprovalPage />} />
               </Route>
 
 

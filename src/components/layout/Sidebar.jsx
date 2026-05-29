@@ -109,6 +109,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/teamlead/report', icon: <FileTextOutlined />, label: 'Daily Report' },
         { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
+        { key: '/teamlead/report-access-approvals', icon: <CalendarOutlined />, label: 'Report Access Approvals' },
         { key: '/teamlead/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Requests' },
         { key: '/teamlead/cross-share', icon: <SwapOutlined />, label: 'Cross-Team Share' }
       );
