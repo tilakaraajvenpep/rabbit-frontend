@@ -1380,7 +1380,12 @@ const EODReportPage = () => {
           </Form.Item>
           {!['TeamLead', 'ProjectManager', 'TenantAdmin'].includes(role) && (
             <Form.Item name="teamLeadId" label="Team Lead" rules={[{ required: true }]}>
-              <Select options={teamLeads.map(tl => ({ value: tl.id || tl.userId, label: tl.fullName || tl.name }))} />
+              <Select
+                disabled
+                options={teamLeads
+                  .filter(tl => String(tl.id || tl.userId) === String(selectedTeamLeadId))
+                  .map(tl => ({ value: tl.id || tl.userId, label: tl.fullName || tl.name }))}
+              />
             </Form.Item>
           )}
           <Form.Item name="requestedHours" label="Requested Hours" rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>
