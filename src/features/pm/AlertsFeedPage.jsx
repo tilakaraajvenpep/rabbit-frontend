@@ -128,7 +128,9 @@ const AlertsFeedPage = () => {
                 description={
                   <Space direction="vertical" size={0}>
                     <Text type="secondary">
-                      Project: <Text strong>{item.projectName || 'General / None'}</Text> {item.employeeName && `| Employee: ${item.employeeName}`}
+                      Project: <Text strong>{item.projectName || 'General / None'}</Text>
+                      {item.employeeName && ` | Employee: ${item.employeeName}`}
+                      {item.createdByName && ` | Raised By: ${item.createdByName}`}
                     </Text>
                     <Tooltip title={dayjs(item.timestamp).format('DD MMM YYYY HH:mm')}>
                       <Text type="secondary" style={{ fontSize: '12px' }}>

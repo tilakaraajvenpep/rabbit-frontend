@@ -7,7 +7,8 @@ export const mockAlerts = [
     projectId: 'p1',
     projectName: 'Alpha Website Redesign',
     timestamp: '2024-05-03T10:00:00Z',
-    acknowledged: false
+    acknowledged: false,
+    createdByName: 'John TeamLead'
   },
   {
     id: 'a2',
@@ -17,7 +18,8 @@ export const mockAlerts = [
     projectId: 'p5',
     projectName: 'Epsilon ERP Integration',
     timestamp: '2024-05-02T14:30:00Z',
-    acknowledged: false
+    acknowledged: false,
+    createdByName: 'Jane TeamLead'
   },
   {
     id: 'a3',
@@ -30,7 +32,8 @@ export const mockAlerts = [
     timestamp: '2024-05-04T09:00:00Z',
     acknowledged: true,
     ackAt: '2024-05-04T10:00:00Z',
-    ackComment: 'Spoke with John, he will submit by EOD.'
+    ackComment: 'Spoke with John, he will submit by EOD.',
+    createdByName: 'System Monitor'
   },
   {
     id: 'a4',
@@ -41,6 +44,7 @@ export const mockAlerts = [
     projectName: 'Alpha Website Redesign',
     employeeName: 'Jane Smith',
     timestamp: '2024-05-01T16:00:00Z',
-    acknowledged: false
+    acknowledged: false,
+    createdByName: 'Vance ProjectManager'
   }
 ];
