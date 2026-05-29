@@ -179,8 +179,7 @@
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 12, color: t2 }}>Logged:</span>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: totalHours > REQUIRED_HOURS ? '#ef4444' : emerald }}>{fmtH(totalHours)}</span>
-                  {REQUIRED_HOURS > 0 && <span style={{ fontSize: 12, color: t2 }}>/ {fmtH(REQUIRED_HOURS)}</span>}
+                  <span style={{ fontSize: 14, fontWeight: 800, color: emerald }}>{fmtH(totalHours)}</span>
                 </div>
               </div>
 
