@@ -45,7 +45,7 @@ const ReportAccessApprovalPage = () => {
   // Modal Actions State
   const [isRespondModalOpen, setIsRespondModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [modalAction, setModalAction] = useState('approve'); // 'approve' | 'reject' | 'forward_pm' | 'forward_accounts'
+  const [modalAction, setModalAction] = useState('approve'); // 'approve' | 'reject' | 'forward_pm' | 'forward_hr'
   const [reviewerComment, setReviewerComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -92,12 +92,12 @@ const ReportAccessApprovalPage = () => {
       if (modalAction === 'forward_pm') {
         await reportAccessService.forwardToPM(selectedRequest.requestId, reviewerComment);
         message.success('Request forwarded to Project Manager!');
-      } else if (modalAction === 'forward_accounts') {
-        await reportAccessService.forwardToAccounts(selectedRequest.requestId, reviewerComment);
-        message.success('Request forwarded to Accounts!');
+      } else if (modalAction === 'forward_hr') {
+        await reportAccessService.forwardToHR(selectedRequest.requestId, reviewerComment);
+        message.success('Request forwarded to HR!');
       } else if (modalAction === 'approve') {
         await reportAccessService.respond(selectedRequest.requestId, true, reviewerComment);
-        message.success('Request approved successfully! Employee and HR have been notified.');
+        message.success('Request approved successfully! Employee has been notified.');
       } else if (modalAction === 'reject') {
         await reportAccessService.respond(selectedRequest.requestId, false, reviewerComment);
         message.success('Request rejected successfully. Employee has been notified.');
@@ -121,11 +121,11 @@ const ReportAccessApprovalPage = () => {
           okText: 'Forward to PM',
           okStyle: { background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', borderRadius: 8, fontWeight: 600 }
         };
-      case 'forward_accounts':
+      case 'forward_hr':
         return {
-          title: 'Recommend & Forward to Accounts',
+          title: 'Recommend & Forward to HR',
           icon: <SendOutlined style={{ color: '#6366f1' }} />,
-          okText: 'Forward to Accounts',
+          okText: 'Forward to HR',
           okStyle: { background: 'linear-gradient(135deg,#6366f1,#7c3aed)', border: 'none', borderRadius: 8, fontWeight: 600 }
         };
       case 'approve':
@@ -218,10 +218,32 @@ const ReportAccessApprovalPage = () => {
               <Button 
                 type="primary" 
                 icon={<SendOutlined />}
-                onClick={() => handleOpenModal(record, 'forward_accounts')}
+                onClick={() => handleOpenModal(record, 'forward_hr')}
                 style={{ background: 'linear-gradient(135deg,#6366f1,#7c3aed)', borderColor: 'transparent', borderRadius: 8, fontWeight: 600 }}
               >
-                → Accounts
+                Forward HR
+              </Button>
+              <Button 
+                type="primary" 
+                danger
+                icon={<CloseCircleOutlined />}
+                onClick={() => handleOpenModal(record, 'reject')}
+                style={{ borderRadius: 8, fontWeight: 600 }}
+              >
+                Reject
+              </Button>
+            </Space>
+          );
+        } else if (role === 'HR') {
+          return (
+            <Space>
+              <Button 
+                type="primary" 
+                icon={<CheckCircleOutlined />}
+                onClick={() => handleOpenModal(record, 'approve')}
+                style={{ background: 'linear-gradient(135deg,#10b981,#059669)', borderColor: 'transparent', borderRadius: 8, fontWeight: 600 }}
+              >
+                Approve
               </Button>
               <Button 
                 type="primary" 
@@ -235,7 +257,7 @@ const ReportAccessApprovalPage = () => {
             </Space>
           );
         } else {
-          // Accounts and other admins
+          // Others
           return (
             <Space>
               <Button 
@@ -298,7 +320,7 @@ const ReportAccessApprovalPage = () => {
         const conf = {
           PendingTL: { color: 'orange', label: 'Pending TL' },
           PendingPM: { color: 'blue', label: 'Pending PM' },
-          PendingAccounts: { color: 'purple', label: 'Pending Accounts' },
+          PendingHR: { color: 'purple', label: 'Pending HR' },
           Approved: { color: 'green', label: 'Approved' },
           Rejected: { color: 'red', label: 'Rejected' },
         }[status] || { color: 'default', label: status };
@@ -337,9 +359,7 @@ const ReportAccessApprovalPage = () => {
           <WorkflowLine done={role !== 'TeamLead'} />
           <WorkflowStep step={3} label="Project Manager" active={role === 'ProjectManager'} done={role !== 'TeamLead' && role !== 'ProjectManager'} />
           <WorkflowLine done={role !== 'TeamLead' && role !== 'ProjectManager'} />
-          <WorkflowStep step={4} label="Accounts" active={role === 'Accounts'} done={role === 'HR'} />
-          <WorkflowLine done={role === 'HR'} />
-          <WorkflowStep step={5} label="HR / Time Allocation" active={role === 'HR'} />
+          <WorkflowStep step={4} label="HR" active={role === 'HR'} />
         </div>
       </div>
 

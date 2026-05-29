@@ -31,8 +31,8 @@ export const reportAccessService = {
     return res.data;
   },
 
-  forwardToAccounts: async (id, comments = '') => {
-    const res = await apiClient.patch(`/report-access/${id}/forward-accounts`, { comments });
+  forwardToHR: async (id, comments = '') => {
+    const res = await apiClient.patch(`/report-access/${id}/forward-hr`, { comments });
     return res.data;
   },
 
