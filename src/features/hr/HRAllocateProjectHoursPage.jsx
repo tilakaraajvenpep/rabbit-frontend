@@ -39,6 +39,7 @@ const HRAllocateProjectHoursPage = () => {
   const [selectedId,  setSelectedId]  = useState(null);
   const [project,     setProject]     = useState(null);
   const [employees,   setEmployees]   = useState([]);
+  const [allUsers,    setAllUsers]    = useState([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [alloc,  setAlloc]  = useState({});  /* { empId: { h, m } } */
@@ -69,9 +70,9 @@ const HRAllocateProjectHoursPage = () => {
     load();
   }, []);
 
-  /* ── Load selected project employees ── */
+  /* ── Load selected project employees & Team Lead ── */
   useEffect(() => {
-    if (!selectedId) { setProject(null); setEmployees([]); setAlloc({}); return; }
+    if (!selectedId) { setProject(null); setEmployees([]); setAlloc({}); setAllUsers([]); return; }
     const load = async () => {
       setDetailLoading(true);
       try {
@@ -91,9 +92,17 @@ const HRAllocateProjectHoursPage = () => {
             .map(t => t.assignedToUserId).filter(Boolean).map(String)
         )];
         const useIds = tlAssignedIds.length > 0 ? tlAssignedIds : ticketUserIds;
-        const emps   = users.filter(u =>
-          useIds.includes(String(u.id || u.userId)) && u.role === 'Employee'
-        );
+        
+        const projectTLId = proj.assignedTeamLeadId ? String(proj.assignedTeamLeadId) : null;
+        
+        const emps = users.filter(u => {
+          const uid = String(u.id || u.userId);
+          // Include Team Lead if assigned to this project
+          if (uid === projectTLId && u.role === 'TeamLead') return true;
+          // Include Employees assigned to this project
+          if (useIds.includes(uid) && u.role === 'Employee') return true;
+          return false;
+        });
 
         const init = {};
         emps.forEach(emp => {
@@ -102,6 +111,7 @@ const HRAllocateProjectHoursPage = () => {
         });
 
         setProject(proj);
+        setAllUsers(users);
         setEmployees(emps);
         setAlloc(init);
       } catch (e) {
@@ -133,7 +143,7 @@ const HRAllocateProjectHoursPage = () => {
         status: project.status,
         employeeAllocatedHours
       });
-      notification.success({ message: 'Allocations Saved', description: 'Employee hours updated successfully.' });
+      notification.success({ message: 'Allocations Saved', description: 'Resource hours updated successfully.' });
       /* re-sync local project state */
       setProject(prev => prev ? { ...prev, employeeAllocatedHours } : prev);
     } catch {
@@ -153,6 +163,29 @@ const HRAllocateProjectHoursPage = () => {
 
   const milestones = project?.milestones && Array.isArray(project.milestones)
     ? project.milestones : [];
+
+  const projectTL = project && allUsers.length > 0
+    ? allUsers.find(u => String(u.id || u.userId) === String(project.assignedTeamLeadId))
+    : null;
+
+  const getMilestoneHours = useCallback((m) => {
+    if (m.hours !== undefined && m.hours > 0) return `${m.hours} hrs`;
+    
+    // Fallback 1: calculate proportionally based on milestone amount
+    const totalAmount = milestones.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    if (totalAmount > 0 && m.amount && projectTotal > 0) {
+      const calculatedHours = Math.round((Number(m.amount) || 0) / totalAmount * projectTotal);
+      return `${calculatedHours} hrs`;
+    }
+    
+    // Fallback 2: split total hours equally
+    if (projectTotal > 0 && milestones.length > 0) {
+      const equalHours = Math.round(projectTotal / milestones.length);
+      return `${equalHours} hrs`;
+    }
+    
+    return '0 hrs';
+  }, [milestones, projectTotal]);
 
   return (
     <div style={{ background: bg, minHeight: '100vh', paddingBottom: 48 }}>
@@ -260,8 +293,41 @@ const HRAllocateProjectHoursPage = () => {
             </Row>
 
             <Row gutter={24}>
-              {/* LEFT: Milestones */}
+              {/* LEFT: Project Details & Milestones */}
               <Col xs={24} lg={8}>
+                {/* Project Details Card */}
+                <Card
+                  title={<Space><ProjectOutlined style={{ color:accent }} /><span>Project Details</span></Space>}
+                  style={{ borderRadius:14, border:`1px solid ${border}`, background:cardBg, marginBottom:20 }}
+                  styles={{ header:{ borderBottom:`1px solid ${border}` } }}
+                >
+                  <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                    <div>
+                      <div style={{ fontSize:11, color:isDarkMode?'#6b7280':'#9ca3af', marginBottom:4 }}>Project Name</div>
+                      <Text strong style={{ fontSize:14 }}>{project.name}</Text>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:11, color:isDarkMode?'#6b7280':'#9ca3af', marginBottom:4 }}>Project Code</div>
+                      <Tag color="cyan" style={{ borderRadius:4, fontWeight:600 }}>{project.code}</Tag>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:11, color:isDarkMode?'#6b7280':'#9ca3af', marginBottom:6 }}>Assigned Team Lead</div>
+                      {projectTL ? (
+                        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:isDarkMode?'#1a1a28':'#f8f9ff', borderRadius:10, border:`1px solid ${border}` }}>
+                          <Avatar src={projectTL.avatar} icon={<UserOutlined />} size="small" style={{ backgroundColor:accent }} />
+                          <div style={{ overflow: 'hidden' }}>
+                            <div style={{ fontWeight:600, fontSize:13, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{projectTL.name || projectTL.fullName}</div>
+                            <div style={{ fontSize:10, color:isDarkMode?'#6b7280':'#9ca3af', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{projectTL.email}</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <Text type="warning" style={{ fontSize:13 }}>No Team Lead Assigned</Text>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Project Milestones Card */}
                 <Card
                   title={<Space><ProjectOutlined style={{ color:accent }} /><span>Project Milestones</span></Space>}
                   style={{ borderRadius:14, border:`1px solid ${border}`, background:cardBg, marginBottom:24 }}
@@ -278,17 +344,19 @@ const HRAllocateProjectHoursPage = () => {
                           background:isDarkMode?'#1a1a28':'#f8f9ff',
                           borderRadius:10, border:`1px solid ${border}`
                         }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:10, flex: 1, marginRight: 8, overflow: 'hidden' }}>
                             <div style={{
                               width:26, height:26, borderRadius:'50%',
                               background:`linear-gradient(135deg, ${accent}30, ${purple}30)`,
                               display:'flex', alignItems:'center', justifyContent:'center',
-                              fontSize:11, fontWeight:700, color:accent
+                              fontSize:11, fontWeight:700, color:accent, flexShrink: 0
                             }}>{i + 1}</div>
-                            <Text style={{ fontSize:13 }}>{m.title || m.name || `Milestone ${i + 1}`}</Text>
+                            <Text style={{ fontSize:13 }} ellipsis={{ tooltip: m.title || m.name || `Milestone ${i + 1}` }}>
+                              {m.title || m.name || `Milestone ${i + 1}`}
+                            </Text>
                           </div>
-                          <Tag color="blue" style={{ borderRadius:6, fontSize:11, fontWeight:600, margin:0 }}>
-                            {m.hours !== undefined ? `${m.hours} hrs` : '—'}
+                          <Tag color="blue" style={{ borderRadius:6, fontSize:11, fontWeight:600, margin:0, flexShrink: 0 }}>
+                            {getMilestoneHours(m)}
                           </Tag>
                         </div>
                       ))}
@@ -297,12 +365,12 @@ const HRAllocateProjectHoursPage = () => {
                 </Card>
               </Col>
 
-              {/* RIGHT: Employee Allocation */}
+              {/* RIGHT: Resource Hour Allocation */}
               <Col xs={24} lg={16}>
                 <Card
                   title={
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <Space><TeamOutlined style={{ color:green }} /><span>Employee Hour Allocation</span></Space>
+                      <Space><TeamOutlined style={{ color:green }} /><span>Resource Hour Allocation</span></Space>
                       {isOver && (
                         <Tag color="error" icon={<WarningOutlined />}>
                           Over by {fmtHM(
@@ -335,7 +403,7 @@ const HRAllocateProjectHoursPage = () => {
 
                   {employees.length === 0 ? (
                     <Empty
-                      description={<Text type="secondary">No employees assigned to this project by the Team Lead yet.</Text>}
+                      description={<Text type="secondary">No resources or team lead assigned to this project yet.</Text>}
                       image={Empty.PRESENTED_IMAGE_SIMPLE}
                     />
                   ) : (
@@ -358,10 +426,11 @@ const HRAllocateProjectHoursPage = () => {
                             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
                               {/* Employee info */}
                               <Space align="start">
-                                <Avatar src={emp.avatar} icon={<UserOutlined />} size={42} style={{ backgroundColor:green }} />
+                                <Avatar src={emp.avatar} icon={<UserOutlined />} size={42} style={{ backgroundColor: emp.role === 'TeamLead' ? accent : green }} />
                                 <div>
-                                  <div style={{ fontWeight:600, fontSize:14, color:isDarkMode?'#f3f4f6':'#111827' }}>
+                                  <div style={{ fontWeight:600, fontSize:14, color:isDarkMode?'#f3f4f6':'#111827', display:'flex', alignItems:'center', gap:8 }}>
                                     {emp.name || emp.fullName}
+                                    {emp.role === 'TeamLead' && <Tag color="gold" style={{ fontSize: 10, margin: 0, borderRadius: 4, lineHeight: '16px' }}>Team Lead</Tag>}
                                   </div>
                                   <div style={{ fontSize:11, color:isDarkMode?'#6b7280':'#9ca3af' }}>{emp.email}</div>
                                   <div style={{ marginTop:5 }}>
