@@ -1291,7 +1291,7 @@ const EODReportPage = () => {
                         >
                           {allProjects.map(p => (
                             <Select.Option key={p.id} value={p.id}>
-                              {p.name || p.projectName} (Quota: {p.employeeAllocatedHours?.[currentUser.userId || currentUser.id] || 0} hrs)
+                              {p.name || p.projectName} (Quota: {formatHoursAndMinutes(Number(p.employeeAllocatedHours?.[currentUser.userId || currentUser.id] || 0))})
                             </Select.Option>
                           ))}
                         </Select>
@@ -1331,24 +1331,32 @@ const EODReportPage = () => {
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             <span style={{ fontSize: 11, fontWeight: 800, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
-                              Step 2: Project Quota Left
+                              Step 2: Project Quota (Allocated vs Left)
                             </span>
                             <div style={{
                               height: 40,
-                              background: isDarkMode ? 'rgba(16, 185, 129, 0.08)' : '#ecfdf5',
-                              border: '1px solid #10b981',
+                              background: isDarkMode ? 'rgba(30, 41, 59, 0.65)' : '#ffffff',
+                              border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)'}`,
                               borderRadius: 10,
-                              padding: '0 16px',
+                              padding: '0 12px',
                               display: 'flex',
                               alignItems: 'center',
-                              justifyContent: 'space-between'
+                              justifyContent: 'space-between',
+                              gap: 12
                             }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: isDarkMode ? '#a7f3d0' : '#047857' }}>
-                                Remaining
-                              </span>
-                              <span style={{ fontSize: 16, fontWeight: 950, color: '#10b981', fontFamily: 'Outfit, sans-serif' }}>
-                                {timeLeftText}
-                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: isDarkMode ? '#94a3b8' : '#64748b' }}>Allocated:</span>
+                                <span style={{ fontSize: 12, fontWeight: 800, color: isDarkMode ? '#cbd5e1' : '#1e293b' }}>
+                                  {formatHoursAndMinutes(Number(empHours))}
+                                </span>
+                              </div>
+                              <div style={{ width: 1, height: 16, background: isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)' }} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981' }}>Remaining:</span>
+                                <span style={{ fontSize: 13, fontWeight: 950, color: '#10b981', fontFamily: 'Outfit, sans-serif' }}>
+                                  {timeLeftText}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );
