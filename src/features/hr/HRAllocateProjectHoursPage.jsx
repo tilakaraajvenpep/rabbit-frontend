@@ -169,8 +169,20 @@ const HRAllocateProjectHoursPage = () => {
     : null;
 
   const getMilestoneHours = useCallback((m) => {
-    if (m.hours !== undefined && m.hours > 0) return `${m.hours} hrs`;
+    // Extract explicitly defined hours
+    const hrsVal = m.hours !== undefined && m.hours !== null ? m.hours : m.estimatedHours;
+    if (hrsVal !== undefined && hrsVal !== null && Number(hrsVal) > 0) {
+      return `${hrsVal} hrs`;
+    }
     
+    // Try to parse hours from title or description (e.g. "Milestone 1 (120 hours)")
+    const searchStr = `${m.title || ''} ${m.name || ''} ${m.description || ''}`;
+    const hoursRegex = /(\d+)\s*(?:hrs|hours|hour)/i;
+    const match = searchStr.match(hoursRegex);
+    if (match) {
+      return `${match[1]} hrs`;
+    }
+
     // Fallback 1: calculate proportionally based on milestone amount
     const totalAmount = milestones.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     if (totalAmount > 0 && m.amount && projectTotal > 0) {
@@ -339,25 +351,50 @@ const HRAllocateProjectHoursPage = () => {
                     <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                       {milestones.map((m, i) => (
                         <div key={i} style={{
-                          display:'flex', justifyContent:'space-between', alignItems:'center',
-                          padding:'10px 12px',
+                          display:'flex', flexDirection:'column', gap:6,
+                          padding:'12px 16px',
                           background:isDarkMode?'#1a1a28':'#f8f9ff',
-                          borderRadius:10, border:`1px solid ${border}`
+                          borderRadius:12, border:`1px solid ${border}`,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
                         }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:10, flex: 1, marginRight: 8, overflow: 'hidden' }}>
-                            <div style={{
-                              width:26, height:26, borderRadius:'50%',
-                              background:`linear-gradient(135deg, ${accent}30, ${purple}30)`,
-                              display:'flex', alignItems:'center', justifyContent:'center',
-                              fontSize:11, fontWeight:700, color:accent, flexShrink: 0
-                            }}>{i + 1}</div>
-                            <Text style={{ fontSize:13 }} ellipsis={{ tooltip: m.title || m.name || `Milestone ${i + 1}` }}>
-                              {m.title || m.name || `Milestone ${i + 1}`}
-                            </Text>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12 }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:10, flex: 1, overflow: 'hidden' }}>
+                              <div style={{
+                                width:26, height:26, borderRadius:'50%',
+                                background:`linear-gradient(135deg, ${accent}30, ${purple}30)`,
+                                display:'flex', alignItems:'center', justifyContent:'center',
+                                fontSize:11, fontWeight:700, color:accent, flexShrink: 0
+                              }}>{i + 1}</div>
+                              <Text strong style={{ fontSize:13, lineHeight: '1.4' }}>
+                                {m.title || m.name || `Milestone ${i + 1}`}
+                              </Text>
+                            </div>
+                            <Tag color="blue" style={{ borderRadius:6, fontSize:11, fontWeight:600, margin:0, padding: '2px 8px', flexShrink: 0 }}>
+                              {getMilestoneHours(m)}
+                            </Tag>
                           </div>
-                          <Tag color="blue" style={{ borderRadius:6, fontSize:11, fontWeight:600, margin:0, flexShrink: 0 }}>
-                            {getMilestoneHours(m)}
-                          </Tag>
+                          
+                          {(m.description || m.date || m.amount) && (
+                            <div style={{ paddingLeft: 36, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {m.description && (
+                                <div style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#6b7280' }}>
+                                  {m.description}
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 4 }}>
+                                {m.date && (
+                                  <span style={{ fontSize: 11, color: isDarkMode ? '#6b7280' : '#9ca3af' }}>
+                                    📅 Target: {new Date(m.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                                  </span>
+                                )}
+                                {m.amount && (
+                                  <span style={{ fontSize: 11, color: isDarkMode ? '#6b7280' : '#9ca3af', fontWeight: 500 }}>
+                                    💰 Release: ₹ {Number(m.amount).toLocaleString('en-IN')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

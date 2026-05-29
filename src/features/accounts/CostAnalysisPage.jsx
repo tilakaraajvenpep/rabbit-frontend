@@ -553,10 +553,11 @@ const CostAnalysisPage = () => {
               width: '15%',
               render: (val, record) => (
                 <InputNumber 
-                  value={val || 0} 
+                  value={val === 0 || val === null || val === undefined ? undefined : val} 
+                  placeholder="nil"
                   min={0}
                   style={{ width: '100%' }}
-                  onChange={v => handleUpdateMilestone(record.key, 'hours', v || 0)} 
+                  onChange={v => handleUpdateMilestone(record.key, 'hours', v === null ? undefined : v)} 
                 />
               )
             },
