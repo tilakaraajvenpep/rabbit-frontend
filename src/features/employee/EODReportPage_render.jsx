@@ -270,14 +270,7 @@
                 )}
               </div>
 
-              {/* Footer submit */}
-              <div style={{ padding: '10px 20px', borderTop: `1px solid ${border}`, background: card, display: 'flex', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
-                {!viewOnly && (
-                  <Button type="primary" icon={<CheckCircleOutlined />} loading={submitting}
-                    style={{ background: emerald, borderColor: emerald, height: 38, fontWeight: 700, fontSize: 13, paddingInline: 28 }}
-                    onClick={handleSubmit(onSubmit)}>Submit EOD Report</Button>
-                )}
-              </div>
+
             </>
           )}
         </div>
