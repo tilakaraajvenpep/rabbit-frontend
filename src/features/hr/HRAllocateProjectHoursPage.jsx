@@ -94,9 +94,12 @@ const HRAllocateProjectHoursPage = () => {
         const useIds = tlAssignedIds.length > 0 ? tlAssignedIds : ticketUserIds;
         
         const projectTLId = proj.assignedTeamLeadId ? String(proj.assignedTeamLeadId) : null;
+        const projectPMId = proj.assignedProjectManagerId ? String(proj.assignedProjectManagerId) : null;
         
         const emps = users.filter(u => {
           const uid = String(u.id || u.userId);
+          // Include Project Manager if assigned to this project
+          if (uid === projectPMId && u.role === 'ProjectManager') return true;
           // Include Team Lead if assigned to this project
           if (uid === projectTLId && u.role === 'TeamLead') return true;
           // Include Employees assigned to this project
@@ -166,6 +169,10 @@ const HRAllocateProjectHoursPage = () => {
 
   const projectTL = project && allUsers.length > 0
     ? allUsers.find(u => String(u.id || u.userId) === String(project.assignedTeamLeadId))
+    : null;
+
+  const projectPM = project && allUsers.length > 0
+    ? allUsers.find(u => String(u.id || u.userId) === String(project.assignedProjectManagerId))
     : null;
 
   const getMilestoneHours = useCallback((m) => {
@@ -310,6 +317,20 @@ const HRAllocateProjectHoursPage = () => {
                       <Tag color="cyan" style={{ borderRadius:4, fontWeight:600 }}>{project.code}</Tag>
                     </div>
                     <div>
+                      <div style={{ fontSize:11, color:isDarkMode?'#6b7280':'#9ca3af', marginBottom:6 }}>Assigned Project Manager</div>
+                      {projectPM ? (
+                        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:isDarkMode?'#1a1a28':'#f8f9ff', borderRadius:10, border:`1px solid ${border}`, marginBottom: 12 }}>
+                          <Avatar src={projectPM.avatar} icon={<UserOutlined />} size="small" style={{ backgroundColor:purple }} />
+                          <div style={{ overflow: 'hidden' }}>
+                            <div style={{ fontWeight:600, fontSize:13, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{projectPM.name || projectPM.fullName}</div>
+                            <div style={{ fontSize:10, color:isDarkMode?'#6b7280':'#9ca3af', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{projectPM.email}</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <Text type="warning" style={{ fontSize:13, display: 'block', marginBottom: 12 }}>No Project Manager Assigned</Text>
+                      )}
+                    </div>
+                    <div>
                       <div style={{ fontSize:11, color:isDarkMode?'#6b7280':'#9ca3af', marginBottom:6 }}>Assigned Team Lead</div>
                       {projectTL ? (
                         <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:isDarkMode?'#1a1a28':'#f8f9ff', borderRadius:10, border:`1px solid ${border}` }}>
@@ -434,10 +455,11 @@ const HRAllocateProjectHoursPage = () => {
                             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
                               {/* Employee info */}
                               <Space align="start">
-                                <Avatar src={emp.avatar} icon={<UserOutlined />} size={42} style={{ backgroundColor: emp.role === 'TeamLead' ? accent : green }} />
+                                <Avatar src={emp.avatar} icon={<UserOutlined />} size={42} style={{ backgroundColor: emp.role === 'ProjectManager' ? purple : emp.role === 'TeamLead' ? accent : green }} />
                                 <div>
                                   <div style={{ fontWeight:600, fontSize:14, color:isDarkMode?'#f3f4f6':'#111827', display:'flex', alignItems:'center', gap:8 }}>
                                     {emp.name || emp.fullName}
+                                    {emp.role === 'ProjectManager' && <Tag color="purple" style={{ fontSize: 10, margin: 0, borderRadius: 4, lineHeight: '16px' }}>Project Manager</Tag>}
                                     {emp.role === 'TeamLead' && <Tag color="gold" style={{ fontSize: 10, margin: 0, borderRadius: 4, lineHeight: '16px' }}>Team Lead</Tag>}
                                   </div>
                                   <div style={{ fontSize:11, color:isDarkMode?'#6b7280':'#9ca3af' }}>{emp.email}</div>
