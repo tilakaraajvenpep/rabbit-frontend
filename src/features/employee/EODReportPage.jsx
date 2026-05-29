@@ -1247,7 +1247,7 @@ const EODReportPage = () => {
                         )} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                           <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
-                            <InputNumber {...f} min={0} max={24} size="small" style={{ width: 58 }} disabled={viewOnly} placeholder="0" />
+                            <InputNumber {...f} min={0} size="small" style={{ width: 58 }} disabled={viewOnly} placeholder="0" />
                           )} />
                           <span style={{ fontSize: 11, color: t2, fontWeight: 600 }}>h</span>
                           <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
