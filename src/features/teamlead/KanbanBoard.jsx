@@ -216,23 +216,57 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
         </div>
         
         {ticket.status === 'InReview' && (
-          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+          <div style={{ marginTop: 10 }} onClick={e => e.stopPropagation()}>
             {ticket.approvedForDone ? (
-              <Tag 
-                color="success" 
-                style={{ cursor: isTLOrPM ? 'pointer' : 'default', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+              <Button
+                size="small"
+                icon={<CheckCircleOutlined />}
                 onClick={() => isTLOrPM && onApproveToggle(ticket)}
+                style={{
+                  width: '100%',
+                  background: '#f6ffed',
+                  borderColor: '#52c41a',
+                  color: '#389e0d',
+                  fontWeight: 600,
+                  fontSize: 11,
+                  cursor: isTLOrPM ? 'pointer' : 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                  borderRadius: 6,
+                }}
               >
-                ✓ Approved for Done
-              </Tag>
+                Approved — Click to Revoke
+              </Button>
             ) : (
-              <Tag 
-                color="warning" 
-                style={{ cursor: isTLOrPM ? 'pointer' : 'default', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
-                onClick={() => isTLOrPM && onApproveToggle(ticket)}
-              >
-                ⚠ {isTLOrPM ? "Approve Done Stage" : "Awaiting Approval"}
-              </Tag>
+              isTLOrPM ? (
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<CheckCircleOutlined />}
+                  onClick={() => onApproveToggle(ticket)}
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    borderColor: '#059669',
+                    fontWeight: 600,
+                    fontSize: 11,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    borderRadius: 6,
+                    boxShadow: '0 2px 6px rgba(16,185,129,0.35)',
+                  }}
+                >
+                  Approve for Done
+                </Button>
+              ) : (
+                <Tag color="warning" style={{ fontWeight: 600, fontSize: 11 }}>
+                  ⚠ Awaiting TL Approval
+                </Tag>
+              )
             )}
           </div>
         )}
