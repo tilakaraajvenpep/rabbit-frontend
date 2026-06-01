@@ -815,6 +815,7 @@ const EODReportPage = () => {
       setViewOnly(true);
       fetchWeeklyStatus(weekDates);
       await fetchProjects(); // Refresh projects list to update local state available hours!
+      await fetchTickets();  // Refresh tickets to update consumed hours!
       await fetchReportForDate(selectedDate);
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to submit report.' });
@@ -987,17 +988,10 @@ const EODReportPage = () => {
   const selectedProject = allProjects.find(p => String(p.id) === String(selectedTopProjectId));
   const projectAllocatedHours = selectedProject ? Number(selectedProject.employeeAllocatedHours?.[userId] || 0) : 0;
 
-  // 1. Calculate hours logged in the CURRENT REAL-WORLD week
-  const projectHoursCurrentRealWeek = currentRealWeekReports.reduce((sum, r) => {
-    const dayHours = r.items
-      ?.filter(item => {
-        const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-        const pId = tkt ? tkt.projectId : item.projectId;
-        return String(pId) === String(selectedTopProjectId);
-      })
-      .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
-    return sum + dayHours;
-  }, 0);
+  // 1. Calculate the total hours consumed on this project across all time (from the tickets)
+  const projectHoursConsumedAllTime = allMyTickets
+    .filter(t => String(t.projectId) === String(selectedTopProjectId))
+    .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
 
   // 2. Check if selectedDate is in the current real-world week
   const isSelectedInRealWeek = dayjs(selectedDate).isBetween(
@@ -1006,42 +1000,31 @@ const EODReportPage = () => {
     'day'
   );
 
-  const projectHoursOtherDays = currentRealWeekReports
-    .filter(r => r.date !== selectedDate)
-    .reduce((sum, r) => {
-      const dayHours = r.items
-        ?.filter(item => {
-          const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-          const pId = tkt ? tkt.projectId : item.projectId;
-          return String(pId) === String(selectedTopProjectId);
-        })
-        .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
-      return sum + dayHours;
-    }, 0);
+  // 3. Find the hours logged on today's/selectedDate's report for this project in the database
+  const selectedDateReport = weeklyReports.find(r => r.date === selectedDate);
+  const projectHoursTodayInDatabase = selectedDateReport?.items
+    ?.filter(item => {
+      const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+      const pId = tkt ? tkt.projectId : item.projectId;
+      return String(pId) === String(selectedTopProjectId);
+    })
+    .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
 
-  const projectRemainingBeforeToday = Math.max(0, projectAllocatedHours - projectHoursOtherDays);
+  // 4. The hours consumed on other days (excluding selectedDate) is:
+  const projectHoursConsumedOtherDays = Math.max(0, projectHoursConsumedAllTime - projectHoursTodayInDatabase);
 
+  // 5. Calculate today's/selectedDate's hours:
   let projectHoursToday = 0;
-  let projectRemaining = 0;
-  
   if (isSelectedInRealWeek) {
     projectHoursToday = (watchedItems || [])
       .filter(item => String(item.projectId) === String(selectedTopProjectId))
       .reduce((s, item) => s + (Number(item.hoursInput) || 0) + (Number(item.minutesInput) || 0) / 60, 0);
-
-    projectRemaining = Math.max(0, projectAllocatedHours - (projectHoursOtherDays + projectHoursToday));
   } else {
-    const selectedDateReport = weeklyReports.find(r => r.date === selectedDate);
-    projectHoursToday = selectedDateReport?.items
-      ?.filter(item => {
-        const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-        const pId = tkt ? tkt.projectId : item.projectId;
-        return String(pId) === String(selectedTopProjectId);
-      })
-      .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
-
-    projectRemaining = Math.max(0, projectAllocatedHours - projectHoursCurrentRealWeek);
+    projectHoursToday = projectHoursTodayInDatabase;
   }
+
+  // 6. Total remaining hours on this project:
+  const projectRemaining = Math.max(0, projectAllocatedHours - (projectHoursConsumedOtherDays + projectHoursToday));
 
   const bg = isDarkMode ? '#0d0f18' : '#f1f3f9';
   const card = isDarkMode ? '#161925' : '#ffffff';
@@ -1146,7 +1129,7 @@ const EODReportPage = () => {
                   <span style={{ fontSize: 12, fontWeight: 700, color: projectRemaining > 0 ? emerald : '#ef4444' }}>{fmtH(projectRemaining)}</span>
                 </div>
                 <Progress size="small" showInfo={false}
-                  percent={projectAllocatedHours > 0 ? Math.min(100, Math.round((projectHoursToday / projectAllocatedHours) * 100)) : 0}
+                  percent={projectAllocatedHours > 0 ? Math.min(100, Math.round(((projectHoursConsumedOtherDays + projectHoursToday) / projectAllocatedHours) * 100)) : 0}
                   strokeColor={emerald} />
               </div>
             )}
