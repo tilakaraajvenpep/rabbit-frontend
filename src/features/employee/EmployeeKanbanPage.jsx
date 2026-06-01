@@ -361,25 +361,7 @@ const EmployeeKanbanPage = () => {
                                   )}
                                 </div>
 
-                                <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
-                                  {activeColumns.map(c => {
-                                    if (c.key === columnStatus) return null;
-                                    const isDoneAndLocked = c.key === 'Done' && currentUser.role === 'Employee' && !ticket.approvedForDone;
-                                    return (
-                                      <Button 
-                                        key={c.key}
-                                        size="small"
-                                        type={c.key === 'InProgress' ? 'primary' : 'default'}
-                                        onClick={() => handleStatusChange(ticket.id, c.key)}
-                                        disabled={isDoneAndLocked}
-                                        icon={isDoneAndLocked ? <LockOutlined style={{ fontSize: 10 }} /> : undefined}
-                                        title={isDoneAndLocked ? "Requires Team Leader Approval" : undefined}
-                                      >
-                                        {c.title}
-                                      </Button>
-                                    );
-                                  })}
-                                </div>
+
                               </Card>
                             );
                           })
