@@ -61,23 +61,30 @@ const HROffboardingPage = () => {
     return isAssigned && isNotDone;
   });
 
-  // Calculate remaining hours on each ticket
-  const ticketDataWithHours = userActiveTickets.map(t => {
-    // Base the estimation on the employee's allocated hours if available, otherwise fallback to ticket's estimated hours
-    const allocated = Number(selectedUser?.allocatedHours || 0);
-    const est = allocated > 0 ? allocated : Number(t.estimatedHours || 0);
-    const spent = Number(t.consumedHours || 0);
-    const remaining = Math.max(0, est - spent);
+  // Calculate remaining hours per project for the exiting employee
+  const projectBalances = selectedUserId ? projects.map(proj => {
+    const allocated = Number(proj.employeeAllocatedHours?.[selectedUserId] || 0);
+    // Find all tickets for this project assigned to this user
+    const userTicketsOnProj = tickets.filter(t => 
+      String(t.projectId) === String(proj.id) && 
+      String(t.assignedToUserId || t.assignedTo) === String(selectedUserId)
+    );
+    const consumed = userTicketsOnProj.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+    const remaining = Math.max(0, allocated - consumed);
     return {
-      ...t,
-      estimatedHoursVal: est,
-      spentHoursVal: spent,
-      remainingHoursVal: remaining
+      key: proj.id,
+      projectId: proj.id,
+      projectName: proj.name,
+      projectCode: proj.code,
+      project: proj,
+      allocated,
+      consumed,
+      remaining
     };
-  });
+  }).filter(pb => pb.allocated > 0 || pb.remaining > 0) : [];
 
-  // Total remaining hours across all tickets
-  const totalRemainingHours = ticketDataWithHours.reduce((acc, t) => acc + t.remainingHoursVal, 0);
+  // Total remaining hours across all projects to be credited back
+  const totalRemainingHours = projectBalances.reduce((acc, pb) => acc + pb.remaining, 0);
 
   const columns = [
     {
@@ -105,10 +112,47 @@ const HROffboardingPage = () => {
     },
     {
       title: 'Consumed Hours',
-      dataIndex: 'spentHoursVal',
-      key: 'spentHoursVal',
+      dataIndex: 'consumedHours',
+      key: 'consumedHours',
       width: 140,
-      render: (hours) => <Text type="secondary">{hours.toFixed(2)} hrs</Text>
+      render: (hours) => <Text type="secondary">{Number(hours || 0).toFixed(2)} hrs</Text>
+    }
+  ];
+
+  const balanceColumns = [
+    {
+      title: 'Project Code',
+      dataIndex: 'projectCode',
+      key: 'projectCode',
+      width: 140,
+      render: (code) => <Tag color="cyan" style={{ fontWeight: 600 }}>{code}</Tag>
+    },
+    {
+      title: 'Project Name',
+      dataIndex: 'projectName',
+      key: 'projectName',
+      render: (name) => <Text strong>{name}</Text>
+    },
+    {
+      title: 'Allocated Hours',
+      dataIndex: 'allocated',
+      key: 'allocated',
+      width: 150,
+      render: (h) => <Text>{h.toFixed(2)} hrs</Text>
+    },
+    {
+      title: 'Consumed Hours',
+      dataIndex: 'consumed',
+      key: 'consumed',
+      width: 150,
+      render: (h) => <Text type="secondary">{h.toFixed(2)} hrs</Text>
+    },
+    {
+      title: 'Hours to Credit Back',
+      dataIndex: 'remaining',
+      key: 'remaining',
+      width: 180,
+      render: (h) => <Text type={h > 0 ? 'success' : 'secondary'} strong={h > 0}>{h.toFixed(2)} hrs</Text>
     }
   ];
 
@@ -116,42 +160,30 @@ const HROffboardingPage = () => {
     if (!selectedUserId) return;
     setTransferring(true);
     try {
-      // 1. Group remaining hours by project
-      const projectHourIncrements = {};
-      ticketDataWithHours.forEach(t => {
-        if (!projectHourIncrements[t.projectId]) {
-          projectHourIncrements[t.projectId] = 0;
-        }
-        projectHourIncrements[t.projectId] += t.remainingHoursVal;
-      });
-
-      // 2. Transfer hours to each project's totalHours
-      for (const [projId, remainingHrs] of Object.entries(projectHourIncrements)) {
-        if (remainingHrs > 0) {
-          const proj = projects.find(p => String(p.id) === String(projId));
-          if (proj) {
-            const currentTotal = Number(proj.totalHours || 0);
-            const newTotal = currentTotal + remainingHrs;
-            
-            await projectService.updateProjectStatus(proj.id, {
-              status: proj.status || 'InProgress',
-              totalHours: String(newTotal.toFixed(2))
-            });
-          }
+      // 1. Transfer hours to each project's totalHours
+      for (const pb of projectBalances) {
+        if (pb.remaining > 0) {
+          const currentTotal = Number(pb.project?.totalHours || pb.project?.approvedHours || 0);
+          const newTotal = currentTotal + pb.remaining;
+          
+          await projectService.updateProjectStatus(pb.projectId, {
+            status: pb.project?.status || 'InProgress',
+            totalHours: String(newTotal.toFixed(2))
+          });
         }
       }
 
-      // 3. Unassign tickets from employee
-      for (const ticket of ticketDataWithHours) {
+      // 2. Unassign tickets from employee
+      for (const ticket of userActiveTickets) {
         await ticketService.assignTicket(ticket.id, null);
       }
 
-      // 4. Mark employee as Inactive
+      // 3. Mark employee as Inactive
       await adminService.toggleUserStatus(selectedUserId);
 
       notification.success({
         message: 'Offboarding Successfully Completed',
-        description: `Successfully deactivated employee "${selectedUser?.name || selectedUser?.fullName}". Transferred ${totalRemainingHours.toFixed(2)} hours back to the respective projects and unassigned ${ticketDataWithHours.length} active tasks.`
+        description: `Successfully deactivated employee "${selectedUser?.name || selectedUser?.fullName}". Transferred ${totalRemainingHours.toFixed(2)} hours back to the respective projects and unassigned ${userActiveTickets.length} active tasks.`
       });
 
       setSelectedUserId(null);
@@ -282,7 +314,7 @@ const HROffboardingPage = () => {
                   <Card style={{ borderRadius: 12, border: isDarkMode ? '1px solid #3f3f46' : '1px solid #f0f0f0' }}>
                     <Statistic 
                       title="Pending Tasks to Release" 
-                      value={ticketDataWithHours.length} 
+                      value={userActiveTickets.length} 
                       prefix={<BookOutlined style={{ color: '#1890ff' }} />} 
                     />
                   </Card>
@@ -300,8 +332,9 @@ const HROffboardingPage = () => {
                 </Col>
               </Row>
 
+              {/* Project Balances Table Card */}
               <Card 
-                title="Active Assigned Tickets & Remaining Hours"
+                title="Project Hour Balances & Credit Summary"
                 style={{ 
                   borderRadius: 16,
                   boxShadow: isDarkMode ? 'none' : '0 4px 12px rgba(0,0,0,0.03)',
@@ -310,7 +343,7 @@ const HROffboardingPage = () => {
                 extra={
                   <Popconfirm
                     title="Confirm Offboarding"
-                    description={`Are you sure you want to transfer ${totalRemainingHours.toFixed(2)} hours, unassign ${ticketDataWithHours.length} tasks, and deactivate this employee?`}
+                    description={`Are you sure you want to transfer ${totalRemainingHours.toFixed(2)} hours, unassign ${userActiveTickets.length} tasks, and deactivate this employee?`}
                     onConfirm={handleOffboarding}
                     okText="Yes, Offboard"
                     cancelText="Cancel"
@@ -329,11 +362,29 @@ const HROffboardingPage = () => {
                 }
               >
                 <Table 
-                  dataSource={ticketDataWithHours}
+                  dataSource={projectBalances}
+                  columns={balanceColumns}
+                  rowKey="projectId"
+                  pagination={{ pageSize: 5 }}
+                  locale={{ emptyText: 'No project allocations found for this employee.' }}
+                />
+              </Card>
+
+              {/* Active Assigned Tickets Table Card */}
+              <Card 
+                title="Active Assigned Tickets to Release"
+                style={{ 
+                  borderRadius: 16,
+                  boxShadow: isDarkMode ? 'none' : '0 4px 12px rgba(0,0,0,0.03)',
+                  border: isDarkMode ? '1px solid #3f3f46' : '1px solid #e8e8e8'
+                }}
+              >
+                <Table 
+                  dataSource={userActiveTickets}
                   columns={columns}
                   rowKey="id"
                   pagination={{ pageSize: 5 }}
-                  locale={{ emptyText: 'This employee has no active/incomplete tickets to transfer.' }}
+                  locale={{ emptyText: 'This employee has no active/incomplete tickets to release.' }}
                 />
               </Card>
             </Space>
