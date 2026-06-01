@@ -38,6 +38,7 @@ const ProjectOverviewPage = () => {
   const [assignedEmployees, setAssignedEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [consumedHours, setConsumedHours] = useState(0);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -63,6 +64,9 @@ const ProjectOverviewPage = () => {
 
       // Filter tickets for this project and collect unique assigned user IDs
       const projectTickets = allTickets.filter(t => String(t.projectId) === String(id));
+      const calculatedHours = projectTickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+      setConsumedHours(calculatedHours || Number(projRes.data.consumedHours) || 0);
+
       const assignedUserIds = [...new Set(projectTickets.map(t => t.assignedToUserId).filter(Boolean))];
 
       // Match against users where role is Employee
@@ -100,7 +104,7 @@ const ProjectOverviewPage = () => {
   if (!project) return <div>Project not found</div>;
 
   const canUpdateStatus = ['TeamLead', 'ProjectManager'].includes(role);
-  const remainingDays = dayjs('2024-12-31').diff(dayjs(), 'day');
+  const remainingDays = project.endDate ? dayjs(project.endDate).diff(dayjs(), 'day') : 0;
 
   return (
     <div>
@@ -137,7 +141,7 @@ const ProjectOverviewPage = () => {
             </Col>
             <Col xs={24} sm={12} lg={['TeamLead', 'ProjectManager'].includes(role) ? 8 : 6}>
               <Card size="small">
-                <Statistic title="Consumed Hours" value={project.consumedHours} prefix={<FieldTimeOutlined />} valueStyle={{ color: '#cf1322' }} />
+                <Statistic title="Consumed Hours" value={consumedHours.toFixed(2)} prefix={<FieldTimeOutlined />} valueStyle={{ color: '#cf1322' }} />
               </Card>
             </Col>
             <Col xs={24} sm={12} lg={['TeamLead', 'ProjectManager'].includes(role) ? 8 : 6}>
@@ -153,7 +157,7 @@ const ProjectOverviewPage = () => {
           <Card title="Project Progress" style={{ marginBottom: 16 }}>
             <div style={{ marginBottom: ['TeamLead', 'ProjectManager'].includes(role) ? 0 : 24 }}>
               <Text strong>Hours Consumption</Text>
-              <HoursProgress consumed={project.consumedHours} total={project.approvedHours} />
+              <HoursProgress consumed={consumedHours} total={project.approvedHours} />
             </div>
             {!['TeamLead', 'ProjectManager'].includes(role) && (
               <div>
@@ -175,7 +179,7 @@ const ProjectOverviewPage = () => {
                 <Text type="secondary">Start Date:</Text> <Text strong>{dayjs(project.createdAt).format('DD MMM YYYY')}</Text>
               </Col>
               <Col span={12}>
-                <Text type="secondary">Est. End Date:</Text> <Text strong>31 Dec 2024</Text>
+                <Text type="secondary">Est. End Date:</Text> <Text strong>{project.endDate ? dayjs(project.endDate).format('DD MMM YYYY') : 'Not Set'}</Text>
               </Col>
               <Col span={24}>
                 <Divider style={{ margin: '12px 0' }} />
