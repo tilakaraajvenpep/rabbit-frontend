@@ -539,3 +539,188 @@ html { -webkit-text-size-adjust: 100%; }
     font-size: 12px !important;
   }
 }
+
+/* =========================================================
+   PAGE-SPECIFIC MOBILE PATCHES
+   ========================================================= */
+
+/* ── Dashboard stat grids ────────────────────────────── */
+@media (max-width: 576px) {
+  /* Force all Ant Design Col span-6 grids to full-width on mobile */
+  .ant-col-xs-24 { width: 100% !important; }
+}
+
+/* ── Charts — prevent overflow ───────────────────────── */
+@media (max-width: 768px) {
+  .recharts-wrapper,
+  .recharts-surface {
+    width: 100% !important;
+    overflow: hidden;
+  }
+  .ant-chart-container {
+    overflow-x: auto !important;
+  }
+}
+
+/* ── EOD Report page ─────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Summary info rows stacking */
+  .eod-summary-row {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .eod-summary-row > * {
+    width: 100% !important;
+  }
+}
+
+/* ── Notification panel ──────────────────────────────── */
+@media (max-width: 576px) {
+  /* Notification dropdown full-width on mobile */
+  .ant-dropdown {
+    max-width: calc(100vw - 16px) !important;
+    left: 8px !important;
+    right: 8px !important;
+  }
+}
+
+/* ── Profile page ────────────────────────────────────── */
+@media (max-width: 576px) {
+  .profile-header-row {
+    flex-direction: column !important;
+    text-align: center;
+    align-items: center !important;
+  }
+}
+
+/* ── Timeline / Steps ────────────────────────────────── */
+@media (max-width: 576px) {
+  .ant-steps-horizontal {
+    flex-direction: column !important;
+  }
+  .ant-steps-item {
+    flex: none !important;
+    width: 100% !important;
+  }
+}
+
+/* ── Timeline ────────────────────────────────────────── */
+@media (max-width: 576px) {
+  .ant-timeline-item-content {
+    font-size: 12px !important;
+  }
+}
+
+/* ── Progress bars ───────────────────────────────────── */
+@media (max-width: 576px) {
+  .ant-progress-text {
+    font-size: 11px !important;
+  }
+}
+
+/* ── Segmented control ───────────────────────────────── */
+@media (max-width: 576px) {
+  .ant-segmented {
+    font-size: 11px !important;
+    overflow-x: auto !important;
+  }
+}
+
+/* ── PopConfirm / Tooltip ────────────────────────────── */
+@media (max-width: 576px) {
+  .ant-popover {
+    max-width: calc(100vw - 32px) !important;
+  }
+}
+
+/* ── Input Group ─────────────────────────────────────── */
+@media (max-width: 576px) {
+  .ant-input-group-wrapper {
+    width: 100% !important;
+  }
+}
+
+/* ── Prevent fixed width tables from breaking layout ─── */
+@media (max-width: 576px) {
+  [style*="width: 900"],
+  [style*="width: 800"],
+  [style*="width: 700"],
+  [style*="width: 600"] {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+}
+
+/* ── Range picker full-width ─────────────────────────── */
+@media (max-width: 576px) {
+  .ant-picker-range {
+    width: 100% !important;
+  }
+  .ant-picker-panel-container {
+    max-width: calc(100vw - 16px) !important;
+    overflow-x: auto !important;
+  }
+}
+
+/* ── Collapse panels ─────────────────────────────────── */
+@media (max-width: 576px) {
+  .ant-collapse-header {
+    font-size: 13px !important;
+    padding: 10px 12px !important;
+  }
+  .ant-collapse-content-box {
+    padding: 12px !important;
+  }
+}
+
+/* ── Empty state ─────────────────────────────────────── */
+@media (max-width: 576px) {
+  .ant-empty-image {
+    height: 80px !important;
+  }
+  .ant-empty-description {
+    font-size: 12px !important;
+  }
+}
+
+/* ── Result page ─────────────────────────────────────── */
+@media (max-width: 576px) {
+  .ant-result-title {
+    font-size: 18px !important;
+  }
+  .ant-result-subtitle {
+    font-size: 13px !important;
+  }
+}
+
+/* ── Prevent Drawer width overflow (secondary fix) ───── */
+@media (max-width: 576px) {
+  .ant-drawer-right .ant-drawer-content-wrapper {
+    width: 100vw !important;
+  }
+}
+
+/* ── Pagination on mobile ────────────────────────────── */
+@media (max-width: 576px) {
+  .ant-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
+  .ant-pagination-options {
+    width: 100%;
+    text-align: center;
+    margin-top: 4px;
+  }
+  .ant-table-pagination {
+    justify-content: center !important;
+  }
+}
+
+/* ── Scrollable horizontal container ─────────────────── */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+

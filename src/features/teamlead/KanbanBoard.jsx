@@ -752,7 +752,7 @@ const KanbanBoard = () => {
 
       {projectId ? (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-          <div style={{ display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16 }}>
+          <div className="kanban-board-container" style={{ display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16 }}>
              {effectiveColumnList.map(({ key: colId, title }) => (
               <DroppableColumn
                 key={colId}

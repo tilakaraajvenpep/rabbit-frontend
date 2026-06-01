@@ -274,7 +274,7 @@ const LeaveRequestsPage = () => {
       {/* ── Two Column Layout ─────────────────────────────── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(280px, 360px) 1fr',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
         gap: 24,
         alignItems: 'start',
       }}>

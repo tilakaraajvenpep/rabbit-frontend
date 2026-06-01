@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Row, Col, Card, Typography, Button, Drawer, Space, 
-  Skeleton, notification, Tag, Select, Input, Table
+  Skeleton, notification, Tag, Select, Input, Table, Grid
 } from 'antd';
+const { useBreakpoint } = Grid;
 import { 
   ClockCircleOutlined, SearchOutlined
 } from '@ant-design/icons';
@@ -17,6 +18,8 @@ import HoursProgress from '../../components/common/HoursProgress';
 const { Title, Text, Paragraph } = Typography;
 
 const MyTicketsPage = () => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const { currentUser, role } = useAuthStore();
   const { isDarkMode } = useThemeStore();
   
@@ -167,30 +170,32 @@ const MyTicketsPage = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Table Filters Toolbar */}
           <Card style={{ borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }} bodyStyle={{ padding: '16px 24px' }}>
-            <Row gutter={[16, 16]} align="middle">
-              <Col xs={24} md={12}>
+            <Row gutter={[12, 12]} align="middle">
+              <Col xs={24} md={14}>
                 <Input 
-                  placeholder="Quick search by ticket code, task title, project..." 
+                  placeholder="Search ticket code, title, project..." 
                   value={tableSearchText} 
                   onChange={e => setTableSearchText(e.target.value)}
                   prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
                   allowClear
-                  style={{ borderRadius: 8, padding: '8px 12px' }}
+                  style={{ borderRadius: 8 }}
                 />
               </Col>
-              <Col xs={24} md={12} style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
-                <Text strong type="secondary">Filter Priority:</Text>
-                <Select
-                  value={priorityFilter}
-                  onChange={setPriorityFilter}
-                  style={{ width: 160 }}
-                  options={[
-                    { label: 'All Priorities', value: 'all' },
-                    { label: '🔴 High', value: 'High' },
-                    { label: '🟡 Medium', value: 'Medium' },
-                    { label: '🟢 Low', value: 'Low' }
-                  ]}
-                />
+              <Col xs={24} md={10}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Text strong type="secondary" style={{ whiteSpace: 'nowrap' }}>Priority:</Text>
+                  <Select
+                    value={priorityFilter}
+                    onChange={setPriorityFilter}
+                    style={{ flex: 1, minWidth: 130 }}
+                    options={[
+                      { label: 'All', value: 'all' },
+                      { label: '🔴 High', value: 'High' },
+                      { label: '🟡 Medium', value: 'Medium' },
+                      { label: '🟢 Low', value: 'Low' }
+                    ]}
+                  />
+                </div>
               </Col>
             </Row>
           </Card>
@@ -211,8 +216,9 @@ const MyTicketsPage = () => {
       {/* Ticket Details Drawer */}
       <Drawer
         title={`Ticket Details: ${selectedTicket?.code}`}
-        placement="right"
-        width={460}
+        placement={isMobile ? 'bottom' : 'right'}
+        height={isMobile ? '80vh' : undefined}
+        width={isMobile ? '100%' : 460}
         onClose={() => setIsDrawerOpen(false)}
         open={isDrawerOpen}
         extra={

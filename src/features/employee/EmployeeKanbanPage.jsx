@@ -231,7 +231,7 @@ const EmployeeKanbanPage = () => {
           const activeColumns = selectedProject ? deriveColumnConfig(selectedProject.kanbanColumns) : DEFAULT_COLUMNS;
 
           return (
-            <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16, width: '100%' }}>
+            <div className="kanban-board-container" style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16, width: '100%' }}>
               {activeColumns.map((col, idx) => {
                 const columnStatus = col.key;
                 const columnTickets = filteredTickets.filter(t => t.status === columnStatus);
@@ -246,7 +246,7 @@ const EmployeeKanbanPage = () => {
                 const colColor = colColors[columnStatus] || `hsl(${(idx * 75) % 360}, 70%, 50%)`;
 
                 return (
-                  <div key={columnStatus} style={{ width: 300, minWidth: 300, display: 'flex', flexDirection: 'column' }}>
+                  <div key={columnStatus} style={{ width: 280, minWidth: 260, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
                     <Card 
                       title={
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

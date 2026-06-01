@@ -99,7 +99,12 @@ const LoginPage = () => {
       width: '100vw',
       background: '#ffffff',
     }}>
-      <Card style={{ width: 400, textAlign: 'center' }}>
+      <Card style={{ 
+        width: '100%', 
+        maxWidth: 420, 
+        textAlign: 'center',
+        margin: '0 16px'
+      }}>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
             <Title level={2} style={{ marginBottom: 0 }}>Rabbit 4.0</Title>
