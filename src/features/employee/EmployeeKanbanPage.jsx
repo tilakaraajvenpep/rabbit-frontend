@@ -191,7 +191,7 @@ const EmployeeKanbanPage = () => {
       <Alert 
         message={
           <Text strong style={{ color: '#1d4ed8' }}>
-            💡 Drag and drop the tickets or use the quick status buttons to sync your task updates.
+            💡 Drag and drop the tickets across columns to update their status.
           </Text>
         }
         type="info"
