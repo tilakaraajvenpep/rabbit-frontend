@@ -247,8 +247,8 @@ const CrossTeamSharePage = () => {
         okText="Assign & Borrow"
         cancelText="Cancel"
         destroyOnClose
-        width={550}
-        bodyStyle={{ paddingTop: 16 }}
+        width="min(550px, calc(100vw - 32px))"
+        styles={{ body: { paddingTop: 16 } }}
       >
         {myProjects.length === 0 ? (
           <div style={{ padding: '20px 0', textAlign: 'center' }}>

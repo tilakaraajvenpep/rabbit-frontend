@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Form, Input, InputNumber, Select, Button, Space, Typography,
-  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table, Badge, Tabs, DatePicker, Collapse
+  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table, Badge, Tabs, DatePicker, Collapse, Grid
 } from 'antd';
+const { useBreakpoint } = Grid;
 import {
   PlusOutlined, DeleteOutlined, SendOutlined, CheckCircleOutlined,
   CheckCircleFilled, ExclamationCircleFilled, ClockCircleOutlined,
@@ -37,6 +38,9 @@ const EODReportPage = () => {
   const { currentUser, role, setUser } = useAuthStore();
   const { token } = theme.useToken();
   const { isDarkMode } = useThemeStore();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [selectedTopProjectId, setSelectedTopProjectId] = useState(null);
@@ -1049,22 +1053,28 @@ const EODReportPage = () => {
     <div style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', background: bg, overflow: 'hidden', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
       {/* ── TOP BAR ── */}
-      <div style={{ background: card, borderBottom: `1px solid ${border}`, padding: '0 20px', height: 52, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+      <div style={{ background: card, borderBottom: `1px solid ${border}`, padding: isMobile ? '0 10px' : '0 20px', height: 52, display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexShrink: 0, overflowX: 'auto' }}>
+        {isMobile && (
+          <Button shape="circle" size="small" onClick={() => setSidebarOpen(v => !v)}
+            style={{ flexShrink: 0, background: accent, borderColor: accent, color: '#fff' }}
+            title="Toggle Sidebar"
+          >☰</Button>
+        )}
         <Button shape="circle" size="small" icon={<LeftOutlined style={{ fontSize: 10 }} />}
           onClick={() => { const d = dayjs(selectedDate).subtract(1, 'day'); setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); }} />
-        <DatePicker value={dayjs(selectedDate)} allowClear={false} size="small" style={{ width: 136 }}
-          onChange={d => { if (d) { setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); } }} />
+        <DatePicker value={dayjs(selectedDate)} allowClear={false} size="small" style={{ width: isMobile ? 110 : 136, flexShrink: 0 }}
+          onChange={d => { if (d) { setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); if (isMobile) setSidebarOpen(false); } }} />
         <Button shape="circle" size="small" icon={<RightOutlined style={{ fontSize: 10 }} />}
           onClick={() => { const d = dayjs(selectedDate).add(1, 'day'); setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); }} />
 
-        <div style={{ fontWeight: 800, fontSize: 15, color: t1, marginLeft: 4 }}>{dayjs(selectedDate).format('dddd, D MMM YYYY')}</div>
-        <span style={{ background: stBg, color: stTxt, padding: '2px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, marginLeft: 2 }}>{stLabel}</span>
+        {!isMobile && <div style={{ fontWeight: 800, fontSize: 15, color: t1, marginLeft: 4 }}>{dayjs(selectedDate).format('dddd, D MMM YYYY')}</div>}
+        {!isMobile && <span style={{ background: stBg, color: stTxt, padding: '2px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, marginLeft: 2 }}>{stLabel}</span>}
 
         <div style={{ flex: 1 }} />
 
         <Button size="small" onClick={handleGoToToday}>Today</Button>
-        <Button size="small" icon={<CalendarOutlined />} style={{ borderColor: '#ec4899', color: '#ec4899' }}
-          onClick={() => handleOpenApplyLeaveModal(selectedDate)}>Apply Leave</Button>
+        {!isMobile && <Button size="small" icon={<CalendarOutlined />} style={{ borderColor: '#ec4899', color: '#ec4899' }}
+          onClick={() => handleOpenApplyLeaveModal(selectedDate)}>Apply Leave</Button>}
         {existingReport && viewOnly && (
           <Button size="small" type="primary" icon={<EditOutlined />}
             style={{ background: accent, borderColor: accent }} onClick={() => setViewOnly(false)}>Edit</Button>
@@ -1075,7 +1085,7 @@ const EODReportPage = () => {
         {!viewOnly && !isSunday && !isNextWeek && (
           <Button size="small" type="primary" icon={<CheckCircleOutlined />} loading={submitting}
             style={{ background: emerald, borderColor: emerald, fontWeight: 700 }}
-            onClick={handleSubmit(onSubmit)}>Submit Report</Button>
+            onClick={handleSubmit(onSubmit)}>Submit</Button>
         )}
       </div>
 
@@ -1083,7 +1093,22 @@ const EODReportPage = () => {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
         {/* LEFT SIDEBAR */}
-        <div style={{ width: 252, background: card, borderRight: `1px solid ${border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+        <div style={{
+          width: isMobile ? '100%' : 252,
+          background: card,
+          borderRight: isMobile ? 'none' : `1px solid ${border}`,
+          borderBottom: isMobile ? `1px solid ${border}` : 'none',
+          display: isMobile ? (sidebarOpen ? 'flex' : 'none') : 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          flexShrink: 0,
+          position: isMobile ? 'absolute' : 'relative',
+          top: isMobile ? 52 : 'auto',
+          left: 0,
+          zIndex: isMobile ? 50 : 'auto',
+          boxShadow: isMobile && sidebarOpen ? '4px 0 20px rgba(0,0,0,0.15)' : 'none',
+          maxWidth: isMobile ? '280px' : 'none',
+        }}>
 
           {/* Week strip */}
           <div style={{ padding: '12px 12px 10px', borderBottom: `1px solid ${border}` }}>
@@ -1101,7 +1126,7 @@ const EODReportPage = () => {
                 const st = weeklyStatus[ds];
                 const dotColors = { submitted: emerald, incomplete: '#ef4444', leave: '#3b82f6', half_leave: '#38bdf8', holiday: '#9ca3af', restricted: '#9ca3af', pending: '#f59e0b', optional: '#8b5cf6' };
                 return (
-                  <div key={i} onClick={() => { setSelectedDate(ds); setBaseDate(d.startOf('week').add(1, 'day')); }}
+                  <div key={i} onClick={() => { setSelectedDate(ds); setBaseDate(d.startOf('week').add(1, 'day')); if (isMobile) setSidebarOpen(false); }}
                     style={{ flex: 1, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '5px 2px', borderRadius: 8,
                       background: sel ? `${accent}15` : 'transparent', border: `1.5px solid ${sel ? accent : 'transparent'}` }}>
                     <span style={{ fontSize: 9, fontWeight: 600, color: sel ? accent : t2 }}>{d.format('dd').toUpperCase()}</span>
@@ -1116,7 +1141,7 @@ const EODReportPage = () => {
           {/* Project selector */}
           <div style={{ padding: '16px 12px', borderBottom: `1px solid ${border}` }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: t2, marginBottom: 8 }}>Project Selection</div>
-            <Select placeholder="Choose a Project to Report" value={selectedTopProjectId} onChange={v => setSelectedTopProjectId(v)}
+            <Select placeholder="Choose a Project to Report" value={selectedTopProjectId} onChange={v => { setSelectedTopProjectId(v); if (isMobile) setSidebarOpen(false); }}
               style={{ width: '100%' }} size="middle" showSearch
               filterOption={(inp, opt) => (opt?.label ?? '').toLowerCase().includes(inp.toLowerCase())}
               options={allProjects.map(p => ({ value: p.id, label: p.name || p.projectName }))} />
@@ -1147,7 +1172,10 @@ const EODReportPage = () => {
         </div>
 
         {/* RIGHT MAIN */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+        <div 
+          onClick={() => { if (isMobile && sidebarOpen) setSidebarOpen(false); }}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}
+        >
           {isSunday ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Result icon={<CheckCircleOutlined style={{ color: '#faad14' }} />} title="Happy Sunday!" subTitle="No EOD reporting required today. Rest & recharge." />
