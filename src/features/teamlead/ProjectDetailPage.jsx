@@ -88,8 +88,14 @@ const ProjectDetailPage = () => {
         ticketService.getTickets(id),
         adminService.getUsers()
       ]);
-      setProject(projRes.data);
-      setTickets(tickRes.data);
+      const allTickets = tickRes.data || [];
+      const computedConsumed = allTickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+      const updatedProject = {
+        ...projRes.data,
+        consumedHours: Math.max(Number(projRes.data.consumedHours) || 0, computedConsumed)
+      };
+      setProject(updatedProject);
+      setTickets(allTickets);
       setUsers(usersRes.data || []);
 
       const docsRes = await projectService.getDocuments(id);
