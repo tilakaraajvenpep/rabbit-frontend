@@ -45,8 +45,12 @@ const PMDashboardPage = () => {
   const [projects, setProjects] = useState([]);
   const [teamLeads, setTeamLeads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { unreadCount } = useAlertStore();
+  const { alerts, setAlerts } = useAlertStore();
   const { currentUser } = useAuthStore();
+
+  const pmUnreadCount = Array.isArray(alerts)
+    ? alerts.filter(a => !a.acknowledged && a.type !== 'Leave Alert' && a.type !== 'Leave Request Alert').length
+    : 0;
 
   // Filters state
   const [searchText, setSearchText] = useState('');
@@ -114,12 +118,16 @@ const PMDashboardPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [projectsRes, usersRes] = await Promise.all([
+      const [projectsRes, usersRes, alertsRes] = await Promise.all([
         projectService.getProjects(),
-        adminService.getUsers()
+        adminService.getUsers(),
+        analyticsService.getAlerts().catch(err => { console.error('Alerts load failed', err); return { data: [] }; })
       ]);
       setProjects(projectsRes.data || []);
       setTeamLeads((usersRes.data || []).filter(u => u.role === 'TeamLead'));
+      if (alertsRes && alertsRes.data) {
+        setAlerts(alertsRes.data);
+      }
     } catch (error) {
       console.error('Failed to fetch PM dashboard data', error);
       notification.error({ message: 'Error', description: 'Failed to load projects and team leads.' });
@@ -679,7 +687,7 @@ const PMDashboardPage = () => {
           <Card className="pm-card" style={alertsCardStyle} bodyStyle={{ padding: 20 }}>
             <Statistic 
               title={<div className="stat-title">Unread Alerts</div>} 
-              value={unreadCount} 
+              value={pmUnreadCount} 
               valueStyle={{ color: isDarkMode ? '#c084fc' : '#7c3aed' }} 
               formatter={(val) => <div className="stat-value">{val}</div>}
               prefix={<BellOutlined style={{ marginRight: 8, color: isDarkMode ? '#c084fc' : '#7c3aed' }} />}
