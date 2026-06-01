@@ -124,34 +124,34 @@ const HROffboardingPage = () => {
       title: 'Project Code',
       dataIndex: 'projectCode',
       key: 'projectCode',
-      width: 140,
+      width: 120,
       render: (code) => <Tag color="cyan" style={{ fontWeight: 600 }}>{code}</Tag>
     },
     {
       title: 'Project Name',
       dataIndex: 'projectName',
       key: 'projectName',
-      render: (name) => <Text strong>{name}</Text>
+      render: (name) => <div style={{ minWidth: 200, whiteSpace: 'normal', wordBreak: 'keep-all' }}><Text strong>{name}</Text></div>
     },
     {
       title: 'Allocated Hours',
       dataIndex: 'allocated',
       key: 'allocated',
-      width: 150,
+      width: 120,
       render: (h) => <Text>{h.toFixed(2)} hrs</Text>
     },
     {
       title: 'Consumed Hours',
       dataIndex: 'consumed',
       key: 'consumed',
-      width: 150,
+      width: 120,
       render: (h) => <Text type="secondary">{h.toFixed(2)} hrs</Text>
     },
     {
       title: 'Hours to Credit Back',
       dataIndex: 'remaining',
       key: 'remaining',
-      width: 180,
+      width: 150,
       render: (h) => <Text type={h > 0 ? 'success' : 'secondary'} strong={h > 0}>{h.toFixed(2)} hrs</Text>
     }
   ];
@@ -366,6 +366,7 @@ const HROffboardingPage = () => {
                   columns={balanceColumns}
                   rowKey="projectId"
                   pagination={{ pageSize: 5 }}
+                  scroll={{ x: 750 }}
                   locale={{ emptyText: 'No project allocations found for this employee.' }}
                 />
               </Card>
@@ -384,6 +385,7 @@ const HROffboardingPage = () => {
                   columns={columns}
                   rowKey="id"
                   pagination={{ pageSize: 5 }}
+                  scroll={{ x: 600 }}
                   locale={{ emptyText: 'This employee has no active/incomplete tickets to release.' }}
                 />
               </Card>
