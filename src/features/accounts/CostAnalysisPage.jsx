@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Form, Input, InputNumber, DatePicker, Button, Space, Table, Modal, Alert, 
-  notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme, Tooltip,
-  Tag, Empty, Radio
+import {
+  Card, Form, InputNumber, Button, Space, Modal, Alert,
+  notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme, Radio, Tag, Spin
 } from 'antd';
 import {
-  PlusOutlined,
-  DeleteOutlined,
   CheckCircleOutlined,
   RollbackOutlined,
-  DownloadOutlined,
   CalculatorOutlined,
   ArrowLeftOutlined,
   FileTextOutlined,
-  TeamOutlined,
-  DollarOutlined,
-  ClockCircleOutlined
+  DownloadOutlined,
+  ClockCircleOutlined,
+  DollarOutlined
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -25,27 +21,7 @@ import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 
-const { TextArea } = Input;
 const { Title, Text } = Typography;
-
-/* Helper to extract milestone hours mentioned in the document */
-const getExtractedMilestoneHours = (m) => {
-  // If explicitly defined on this milestone
-  const hrsVal = m.hours !== undefined && m.hours !== null ? m.hours : m.estimatedHours;
-  if (hrsVal !== undefined && hrsVal !== null && Number(hrsVal) > 0) {
-    return Number(hrsVal);
-  }
-  
-  // Try to parse hours from title or description
-  const searchStr = `${m.title || ''} ${m.name || ''} ${m.description || ''}`;
-  const hoursRegex = /(\d+)\s*(?:hrs|hours|hour)/i;
-  const match = searchStr.match(hoursRegex);
-  if (match) {
-    return Number(match[1]);
-  }
-
-  return undefined;
-};
 
 const CostAnalysisPage = () => {
   const { id } = useParams();
@@ -67,20 +43,16 @@ const CostAnalysisPage = () => {
   const [isSelectPMModalVisible, setIsSelectPMModalVisible] = useState(false);
   const [selectedPMId, setSelectedPMId] = useState(undefined);
 
-  // Extraction / Cost Analysis States
-  const [analysisMethod, setAnalysisMethod] = useState('extract');
-  const [budgetItems, setBudgetItems] = useState([]);
-  const [milestones, setMilestones] = useState([]);
+  // Core cost states
   const [totalHours, setTotalHours] = useState(0);
+  const [totalBudget, setTotalBudget] = useState(0);
   const [bufferHours, setBufferHours] = useState(0);
-  const [estimatedCompletionDate, setEstimatedCompletionDate] = useState(null);
-
-  // Cost by Team States
-  const [showTeamCost, setShowTeamCost] = useState(false);
-  const [teamLeads, setTeamLeads] = useState([]);
-  const [selectedTLId, setSelectedTLId] = useState(undefined);
-  const [standardCost, setStandardCost] = useState(500);
+  const [billingType, setBillingType] = useState('fixed');
   const [costCalculationType, setCostCalculationType] = useState('custom');
+  const [standardCost, setStandardCost] = useState(500);
+
+  // Extraction state
+  const [extractedOnce, setExtractedOnce] = useState(false);
 
   useEffect(() => {
     fetchProject();
@@ -89,6 +61,7 @@ const CostAnalysisPage = () => {
   const fetchProject = async () => {
     setLoading(true);
     try {
+      // Load standard cost
       try {
         const costRes = await adminService.getStandardCost();
         setStandardCost(Number(costRes.data?.standardCost) || 500);
@@ -96,59 +69,58 @@ const CostAnalysisPage = () => {
         console.error('Failed to load standard cost', err);
       }
 
-      // 1. Fetch Project Details
+      // Fetch project
       const projRes = await projectService.getProjectById(id);
       const p = projRes.data;
       setProject(p);
 
-      // Pre-fill values if already saved on the project
+      // Pre-fill saved values
       if (p.totalHours) setTotalHours(Number(p.totalHours));
       if (p.bufferHours) setBufferHours(Number(p.bufferHours));
       if (p.costCalculationType) setCostCalculationType(p.costCalculationType);
-      if (p.budgetTable) setBudgetItems(p.budgetTable);
-      if (p.milestones) {
-        setMilestones(p.milestones.map(m => {
-          const calculatedHours = getExtractedMilestoneHours(m);
-          return {
-            ...m,
-            hours: calculatedHours || undefined,
-            date: m.date ? dayjs(m.date) : null
-          };
-        }));
+      if (p.billingType) setBillingType(p.billingType);
+
+      // Compute total budget from budget table if available
+      if (p.budgetTable && Array.isArray(p.budgetTable) && p.budgetTable.length > 0) {
+        const sumBudget = p.budgetTable.reduce((sum, item) => sum + Number(item.cost || 0), 0);
+        setTotalBudget(sumBudget);
+        setExtractedOnce(true);
       }
 
-      // 2. Load documents
+      // Load documents
+      let docForExtraction = null;
       try {
         const docsRes = await projectService.getDocuments(id);
         if (docsRes.data && docsRes.data.length > 0) {
           const sortedDocs = [...docsRes.data].sort((a, b) => (b.documentId || b.id) - (a.documentId || a.id));
-          const budgetDoc = sortedDocs.find(d => d.documentCategory === 'budget_milestones' || d.documentCategory === 'budget') || sortedDocs[0];
+          const budgetDoc =
+            sortedDocs.find(d => d.documentCategory === 'budget_milestones' || d.documentCategory === 'budget') ||
+            sortedDocs[0];
           setLatestDoc(budgetDoc);
+          docForExtraction = budgetDoc;
+
+          // Auto-extract if only one document and not already extracted
+          if (!p.budgetTable || !p.budgetTable.length) {
+            await autoExtract(id, budgetDoc, Number(p.totalHours) || 0);
+          }
         }
       } catch {
         // No documents yet
       }
 
-      // 3. Fetch Users (for Team Leads and Project Managers)
+      // Fetch users for PM selection
       try {
         const usersRes = await adminService.getUsers();
         if (usersRes.data) {
           setAllUsers(usersRes.data);
-          
-          // Filter Project Managers (include TenantAdmin who also acts as PM)
-          const pms = usersRes.data.filter(u => 
-            (u.role === 'ProjectManager' || u.role === 'TenantAdmin') && u.isActive !== false
+          const pms = usersRes.data.filter(
+            u => (u.role === 'ProjectManager' || u.role === 'TenantAdmin') && u.isActive !== false
           );
           setProjectManagers(pms);
-
-          // Filter Team Leads
-          const tls = usersRes.data.filter(u => u.role === 'TeamLead' && u.isActive);
-          setTeamLeads(tls);
         }
       } catch (err) {
         console.error('Failed to load users list:', err);
       }
-
     } catch (error) {
       console.error('Fetch Details Error:', error);
       notification.error({ message: 'Error', description: 'Failed to load project details.' });
@@ -157,8 +129,33 @@ const CostAnalysisPage = () => {
     }
   };
 
-  // Parse and extract budget & milestones from scope document
-  const handleExtractFromScope = async () => {
+  const autoExtract = async (projectId, doc, existingHours) => {
+    if (!doc) return;
+    try {
+      setExtracting(true);
+      const res = await projectService.extractScopeDetails(projectId, doc.documentId);
+      const { budgetTable, totalHours: extHours } = res.data;
+
+      const sumBudget = (budgetTable || []).reduce((sum, item) => sum + Number(item.cost || 0), 0);
+      let calcHours = Number(extHours || 0);
+      if (!calcHours && sumBudget > 0) {
+        calcHours = Math.round(sumBudget / standardCost);
+      }
+
+      if (sumBudget > 0) setTotalBudget(sumBudget);
+      if (calcHours > 0) {
+        setTotalHours(calcHours);
+        setBufferHours(Math.round(calcHours * 0.10));
+      }
+      setExtractedOnce(true);
+    } catch (err) {
+      console.error('Auto-extraction failed:', err);
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleManualExtract = async () => {
     if (!latestDoc) {
       notification.warning({ message: 'Warning', description: 'No scope document uploaded for this project yet.' });
       return;
@@ -166,25 +163,24 @@ const CostAnalysisPage = () => {
     setExtracting(true);
     try {
       const res = await projectService.extractScopeDetails(id, latestDoc.documentId);
-      const { budgetTable, milestones: extMilestones, totalHours: extHours, bufferHours: extBuffer, estimatedCompletionDate: extDate } = res.data;
+      const { budgetTable, totalHours: extHours } = res.data;
 
-      const totalBudget = (budgetTable || []).reduce((sum, item) => sum + Number(item.cost || 0), 0);
-      let calculatedHours = Number(extHours || 0);
-      if (!calculatedHours || calculatedHours === 0) {
-        calculatedHours = Math.round(totalBudget / (standardCost || 500));
+      const sumBudget = (budgetTable || []).reduce((sum, item) => sum + Number(item.cost || 0), 0);
+      let calcHours = Number(extHours || 0);
+      if (!calcHours && sumBudget > 0) {
+        calcHours = Math.round(sumBudget / standardCost);
       }
-      const calculatedBuffer = Math.round(calculatedHours * 0.10);
 
-      setBudgetItems(budgetTable || []);
-      setMilestones([]); // no milestones extracted from document
-      
-      setTotalHours(calculatedHours);
-      setBufferHours(calculatedBuffer);
-      if (extDate) setEstimatedCompletionDate(dayjs(extDate));
+      if (sumBudget > 0) setTotalBudget(sumBudget);
+      if (calcHours > 0) {
+        setTotalHours(calcHours);
+        setBufferHours(Math.round(calcHours * 0.10));
+      }
+      setExtractedOnce(true);
 
       notification.success({
         message: 'Extraction Complete',
-        description: `Successfully extracted ${budgetTable?.length || 0} budget items and ${extMilestones?.length || 0} milestones from the uploaded scope document.`
+        description: `Extracted Total Budget: ₹${sumBudget.toLocaleString('en-IN')} | Total Hours: ${calcHours} hrs`
       });
     } catch (error) {
       console.error('Extraction error:', error);
@@ -197,49 +193,11 @@ const CostAnalysisPage = () => {
     }
   };
 
-  // Budget Table modification helpers
-  const handleAddBudgetItem = () => {
-    const newKey = budgetItems.length > 0 ? Math.max(...budgetItems.map(item => item.key || 0)) + 1 : 1;
-    setBudgetItems([...budgetItems, { key: newKey, item: '', cost: 0, hours: 0 }]);
+  const handleTotalHoursChange = (val) => {
+    const hrs = val || 0;
+    setTotalHours(hrs);
+    setBufferHours(Math.round(hrs * 0.10));
   };
-
-  const handleUpdateBudgetItem = (key, field, value) => {
-    const updated = budgetItems.map(item => {
-      if (item.key === key) {
-        return { ...item, [field]: value };
-      }
-      return item;
-    });
-    setBudgetItems(updated);
-  };
-
-  const handleRemoveBudgetItem = (key) => {
-    setBudgetItems(budgetItems.filter(item => item.key !== key));
-  };
-
-  // Milestones Table modification helpers
-  const handleAddMilestone = () => {
-    const newKey = milestones.length > 0 ? Math.max(...milestones.map(m => m.key || 0)) + 1 : 1;
-    setMilestones([...milestones, { key: newKey, title: '', date: null, amount: 0, hours: 0, description: '' }]);
-  };
-
-  const handleUpdateMilestone = (key, field, value) => {
-    const updated = milestones.map(m => {
-      if (m.key === key) {
-        return { ...m, [field]: value };
-      }
-      return m;
-    });
-    setMilestones(updated);
-  };
-
-  const handleRemoveMilestone = (key) => {
-    setMilestones(milestones.filter(m => m.key !== key));
-  };
-
-  // Calculations
-  const calculatedTotalBudget = budgetItems.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
-  const calculatedTotalHours = budgetItems.reduce((acc, curr) => acc + (Number(curr.hours) || 0), 0);
 
   const handleOpenPMModal = () => {
     if (!totalHours || totalHours <= 0) {
@@ -263,22 +221,16 @@ const CostAnalysisPage = () => {
         totalHours: totalHours,
         bufferHours: bufferHours,
         costCalculationType: costCalculationType,
-        budgetTable: budgetItems,
-        milestones: milestones.map(m => ({
-          title: m.title,
-          date: m.date ? m.date.toISOString() : null,
-          amount: m.amount,
-          hours: Number(m.hours) || 0,
-          description: m.description
-        }))
+        billingType: billingType,
+        budgetTable: totalBudget > 0 ? [{ key: 1, item: 'Total Project Budget', cost: totalBudget, hours: totalHours }] : [],
+        milestones: []
       };
 
-      // Call API
       await projectService.approveDocument(id, payload);
 
       notification.success({
         message: 'Project Cost Submitted to PM',
-        description: 'Successfully submitted the finalized cost, budget table, and milestones to the Project Manager for final approval.'
+        description: 'Successfully submitted the finalized cost and hours to the Project Manager.'
       });
       setIsSelectPMModalVisible(false);
       navigate('/accounts/pending');
@@ -295,10 +247,12 @@ const CostAnalysisPage = () => {
 
   const handleReturn = async () => {
     if (!returnComments || returnComments.length < 20) {
-      notification.error({ message: 'Validation', description: 'Please provide a detailed comment (min 20 characters) for the return reason.' });
+      notification.error({
+        message: 'Validation',
+        description: 'Please provide a detailed comment (min 20 characters) for the return reason.'
+      });
       return;
     }
-
     try {
       await projectService.returnDocument(id, returnComments);
       notification.info({ message: 'Returned to Sales', description: 'Project was successfully returned for revision.' });
@@ -320,29 +274,6 @@ const CostAnalysisPage = () => {
     }
   };
 
-  // Get employees mapped to a specific Team Lead for cost breakdown
-  const getEmployeesForTL = (tlId) => {
-    if (!tlId || !teamLeads || teamLeads.length === 0) return [];
-    const emps = allUsers.filter(u => u.role === 'Employee' && u.isActive);
-    const tlIndex = teamLeads.findIndex(t => String(t.id) === String(tlId));
-    if (tlIndex === -1) return [];
-    // Deterministic distribution of employees under TLs for a realistic layout
-    return emps.filter((emp, idx) => (idx % teamLeads.length) === tlIndex);
-  };
-
-  // Deterministic rates per user
-  const getUserRate = (user) => {
-    if (!user) return 0;
-    const userId = Number(user.id || user.userId || 0);
-    if (user.role === 'TeamLead') {
-      return 1200 + (userId * 100) % 500;
-    }
-    return 600 + (userId * 50) % 300;
-  };
-
-  const selectedTL = teamLeads.find(tl => String(tl.id) === String(selectedTLId));
-  const selectedTLTeam = selectedTLId ? getEmployeesForTL(selectedTLId) : [];
-
   if (loading) return <Card loading />;
 
   if (!project) {
@@ -356,10 +287,22 @@ const CostAnalysisPage = () => {
     );
   }
 
+  const cardStyle = {
+    borderRadius: 12,
+    marginBottom: 24,
+    boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.06)'
+  };
+
+  const metricCardStyle = {
+    borderRadius: 12,
+    height: '100%',
+    boxShadow: isDarkMode ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 12px rgba(0,0,0,0.06)'
+  };
+
   return (
     <div style={{ maxWidth: 1050, margin: '0 auto', paddingBottom: 80 }}>
       <PageHeader
-        title={`Cost & Timeline Analysis — ${project.name}`}
+        title={`Cost & Timeline Analysis — ${project.name || project.projectName}`}
         breadcrumbs={[
           { label: 'Pending Review', path: '/accounts/pending' },
           { label: project.projectName }
@@ -377,12 +320,12 @@ const CostAnalysisPage = () => {
           description={
             <div>
               <p>The Project Manager has returned this project for revisions. <strong>Comments from PM:</strong></p>
-              <div style={{ 
-                background: 'rgba(239, 68, 68, 0.05)', 
-                padding: '12px 16px', 
-                borderRadius: 6, 
-                borderLeft: '4px solid #ef4444', 
-                margin: '8px 0', 
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.05)',
+                padding: '12px 16px',
+                borderRadius: 6,
+                borderLeft: '4px solid #ef4444',
+                margin: '8px 0',
                 color: '#b91c1c',
                 fontWeight: 500,
                 whiteSpace: 'pre-wrap'
@@ -397,311 +340,256 @@ const CostAnalysisPage = () => {
         />
       )}
 
-      <Card style={{ marginBottom: 24, borderRadius: 12 }}>
-        <Row gutter={24}>
+      {/* PROJECT INFO CARD */}
+      <Card style={cardStyle}>
+        <Row gutter={24} align="middle">
           <Col xs={24} md={18}>
             <Descriptions column={2} size="small">
-              <Descriptions.Item label="Project Name"><Text strong>{project.name}</Text></Descriptions.Item>
+              <Descriptions.Item label="Project Name"><Text strong>{project.name || project.projectName}</Text></Descriptions.Item>
               <Descriptions.Item label="Client">{project.client}</Descriptions.Item>
               <Descriptions.Item label="Project Category">{project.projectCategory || 'N/A'}</Descriptions.Item>
               <Descriptions.Item label="Status"><StatusBadge status={project.status} /></Descriptions.Item>
-              <Descriptions.Item label="Expected Start">{project.startDate ? dayjs(project.startDate).format('DD MMM YYYY') : '-'}</Descriptions.Item>
-              <Descriptions.Item label="Budget Doc" span={2}>
+              <Descriptions.Item label="Expected Start">
+                {project.startDate ? dayjs(project.startDate).format('DD MMM YYYY') : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Scope Document" span={1}>
                 {latestDoc ? (
                   <Space>
                     <FileTextOutlined style={{ color: '#1890ff' }} />
                     <Text code>{latestDoc.fileName}</Text>
                     <Text type="secondary">({(latestDoc.fileSize / 1024).toFixed(1)} KB)</Text>
+                    <Button
+                      size="small"
+                      icon={<DownloadOutlined />}
+                      type="link"
+                      onClick={handleDownload}
+                    >
+                      Download
+                    </Button>
                   </Space>
                 ) : (
-                  <Text type="warning">No budget & milestones document uploaded</Text>
+                  <Text type="warning">No scope document uploaded yet</Text>
                 )}
               </Descriptions.Item>
             </Descriptions>
-            <Divider style={{ margin: '16px 0' }} />
-            <div>
-              <Text strong style={{ marginRight: 16 }}>Cost Analysis Mode: </Text>
-              <Radio.Group 
-                value={analysisMethod} 
-                onChange={e => setAnalysisMethod(e.target.value)}
-                buttonStyle="solid"
-                size="middle"
-              >
-                <Radio.Button value="extract">Option 1: Extract from Budget Document</Radio.Button>
-                <Radio.Button value="manual">Option 2: Manually Define Budget & Milestones</Radio.Button>
-              </Radio.Group>
-            </div>
           </Col>
-          <Col xs={24} md={6} style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', paddingTop: 16 }}>
-            {analysisMethod === 'extract' && (
-              <Button
-                icon={<CalculatorOutlined />}
-                type="primary"
-                onClick={handleExtractFromScope}
-                loading={extracting}
-                disabled={!latestDoc}
-                block
-              >
-                Extract Budget & Milestones
-              </Button>
-            )}
+          <Col xs={24} md={6} style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+            <Button
+              icon={<CalculatorOutlined />}
+              type="primary"
+              onClick={handleManualExtract}
+              loading={extracting}
+              disabled={!latestDoc}
+              size="middle"
+            >
+              {extractedOnce ? 'Re-Extract from Document' : 'Extract from Document'}
+            </Button>
           </Col>
         </Row>
       </Card>
 
-      {/* SECTION C — Budget Table (Editable) */}
-      <Card 
-        title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Section C — Project Budget Allocation (Section Wise)</span>
-            <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={handleAddBudgetItem}>
-              Add Item
-            </Button>
+      {/* EXTRACTION LOADING */}
+      {extracting && (
+        <Card style={{ ...cardStyle, textAlign: 'center', padding: '32px 0' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: 16 }}>
+            <Text type="secondary">Extracting budget and hours from uploaded document…</Text>
           </div>
-        }
-        style={{ marginBottom: 24, borderRadius: 12 }}
-      >
-        <Table
-          dataSource={budgetItems}
-          rowKey="key"
-          pagination={false}
-          locale={{ emptyText: analysisMethod === 'extract' ? 'No budget items extracted. Click "Extract Budget & Milestones" above to parse the scope document.' : 'No budget items defined. Click "Add Item" to add manually (Optional).' }}
-          columns={[
-            {
-              title: 'Description',
-              dataIndex: 'item',
-              key: 'item',
-              width: '50%',
-              render: (text, record) => (
-                <Input 
-                  value={text} 
-                  onChange={e => handleUpdateBudgetItem(record.key, 'item', e.target.value)} 
-                  placeholder="Enter budget phase or deliverable description"
-                />
-              )
-            },
-            {
-              title: 'Total Hours',
-              dataIndex: 'hours',
-              key: 'hours',
-              width: '20%',
-              render: (val, record) => (
-                <InputNumber 
-                  value={val} 
-                  min={0}
-                  style={{ width: '100%' }}
-                  onChange={v => handleUpdateBudgetItem(record.key, 'hours', v || 0)} 
-                />
-              )
-            },
-            {
-              title: 'Cost (INR)',
-              dataIndex: 'cost',
-              key: 'cost',
-              width: '20%',
-              render: (val, record) => (
-                <InputNumber 
-                  value={val} 
-                  min={0}
-                  style={{ width: '100%' }}
-                  formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                  parser={value => value.replace(/\₹\s?|(,*)/g, '')}
-                  onChange={v => handleUpdateBudgetItem(record.key, 'cost', v || 0)} 
-                />
-              )
-            },
-            {
-              title: 'Action',
-              key: 'action',
-              width: '10%',
-              align: 'center',
-              render: (_, record) => (
-                <Button 
-                  icon={<DeleteOutlined />} 
-                  danger 
-                  onClick={() => handleRemoveBudgetItem(record.key)} 
-                />
-              )
-            }
-          ]}
-        />
-        {budgetItems.length > 0 && (
-          <Row gutter={24} style={{ marginTop: 16, background: isDarkMode ? 'rgba(255,255,255,0.02)' : '#f9fafb', padding: '12px 16px', borderRadius: 8 }}>
-            <Col span={12}>
-              <Text strong>Total Calculated Hours: </Text>
-              <Text type="success" style={{ fontSize: 16 }}>{calculatedTotalHours} hrs</Text>
-            </Col>
-            <Col span={12} style={{ textAlign: 'right' }}>
-              <Text strong>Total Calculated Budget: </Text>
-              <Text type="success" style={{ fontSize: 16 }}>₹ {calculatedTotalBudget.toLocaleString('en-IN')}</Text>
-            </Col>
-          </Row>
-        )}
-      </Card>
+        </Card>
+      )}
 
-      {/* SECTION D — Milestones Table (Editable) */}
-      <Card 
-        title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Section D — Project Milestones & Release Schedule</span>
-            <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={handleAddMilestone}>
-              Add Milestone
-            </Button>
-          </div>
-        }
-        style={{ marginBottom: 24, borderRadius: 12 }}
-      >
-        <Table
-          dataSource={milestones}
-          rowKey="key"
-          pagination={false}
-          locale={{ emptyText: analysisMethod === 'extract' ? 'No milestones extracted. Click "Extract Budget & Milestones" above to populate.' : 'No milestones defined. Click "Add Milestone" to add manually (Optional).' }}
-          columns={[
-            {
-              title: 'Description',
-              dataIndex: 'title',
-              key: 'title',
-              width: '25%',
-              render: (text, record) => (
-                <Input 
-                  value={text} 
-                  onChange={e => handleUpdateMilestone(record.key, 'title', e.target.value)} 
-                  placeholder="e.g. Prototype Complete"
-                />
-              )
-            },
-            {
-              title: 'Target Date',
-              dataIndex: 'date',
-              key: 'date',
-              width: '15%',
-              render: (val, record) => (
-                <DatePicker 
-                  value={val}
-                  style={{ width: '100%' }}
-                  onChange={date => handleUpdateMilestone(record.key, 'date', date)} 
-                />
-              )
-            },
-            {
-              title: 'Milestone Hours',
-              dataIndex: 'hours',
-              key: 'hours',
-              width: '15%',
-              render: (val, record) => (
-                <InputNumber 
-                  value={val === 0 || val === null || val === undefined ? undefined : val} 
-                  placeholder="nil"
+      {/* BUDGET & HOURS METRICS */}
+      {!extracting && (
+        <Row gutter={24} style={{ marginBottom: 24 }}>
+          <Col xs={24} md={12}>
+            <Card style={metricCardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 10,
+                  background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <DollarOutlined style={{ color: '#fff', fontSize: 20 }} />
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>Total Project Budget</Text>
+                  <div>
+                    <Text strong style={{ fontSize: 22 }}>
+                      ₹ {totalBudget > 0 ? totalBudget.toLocaleString('en-IN') : '—'}
+                    </Text>
+                  </div>
+                </div>
+              </div>
+              <Divider style={{ margin: '12px 0' }} />
+              <Form.Item label="Edit Total Budget (₹)" style={{ marginBottom: 0 }}>
+                <InputNumber
+                  value={totalBudget || undefined}
                   min={0}
                   style={{ width: '100%' }}
-                  onChange={v => handleUpdateMilestone(record.key, 'hours', v === null ? undefined : v)} 
-                />
-              )
-            },
-            {
-              title: 'Release Amount',
-              dataIndex: 'amount',
-              key: 'amount',
-              width: '15%',
-              render: (val, record) => (
-                <InputNumber 
-                  value={val} 
-                  min={0}
-                  style={{ width: '100%' }}
+                  size="large"
                   formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                  parser={value => value.replace(/\₹\s?|(,*)/g, '')}
-                  onChange={v => handleUpdateMilestone(record.key, 'amount', v || 0)} 
+                  parser={value => value.replace(/₹\s?|(,*)/g, '')}
+                  placeholder="Enter total project budget"
+                  onChange={val => setTotalBudget(val || 0)}
                 />
-              )
-            },
-            {
-              title: 'Deliverable Description',
-              dataIndex: 'description',
-              key: 'description',
-              width: '22%',
-              render: (text, record) => (
-                <Input 
-                  value={text} 
-                  onChange={e => handleUpdateMilestone(record.key, 'description', e.target.value)} 
-                  placeholder="Brief deliverables..."
-                />
-              )
-            },
-            {
-              title: 'Action',
-              key: 'action',
-              width: '8%',
-              align: 'center',
-              render: (_, record) => (
-                <Button 
-                  icon={<DeleteOutlined />} 
-                  danger 
-                  onClick={() => handleRemoveMilestone(record.key)} 
-                />
-              )
-            }
-          ]}
-        />
-      </Card>
+              </Form.Item>
+            </Card>
+          </Col>
 
-      {/* SECTION E — Define Hours & Buffer */}
-      <Row gutter={24} style={{ marginBottom: 24 }}>
-        <Col span={12}>
-          <Card title="Section E — final Total Hours & Cost Logic" style={{ height: '100%', borderRadius: 12 }}>
-            <Form.Item label="Cost Calculation Mode" tooltip="Choose whether this project uses standard cost logic or custom employee rates.">
-              <Radio.Group 
-                value={costCalculationType} 
-                onChange={e => setCostCalculationType(e.target.value)}
-                optionType="button"
-                buttonStyle="solid"
-                style={{ width: '100%', marginBottom: 12 }}
+          <Col xs={24} md={12}>
+            <Card style={metricCardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 10,
+                  background: 'linear-gradient(135deg, #10b981, #34d399)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <ClockCircleOutlined style={{ color: '#fff', fontSize: 20 }} />
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>Total Allocated Hours</Text>
+                  <div>
+                    <Text strong style={{ fontSize: 22 }}>
+                      {totalHours > 0 ? `${totalHours} hrs` : '—'}
+                    </Text>
+                  </div>
+                </div>
+              </div>
+              <Divider style={{ margin: '12px 0' }} />
+
+              {/* Billing Type */}
+              <Form.Item label="Billing Type" style={{ marginBottom: 12 }}>
+                <Radio.Group
+                  value={billingType}
+                  onChange={e => setBillingType(e.target.value)}
+                  optionType="button"
+                  buttonStyle="solid"
+                  size="middle"
+                >
+                  <Radio.Button value="fixed">Fixed</Radio.Button>
+                  <Radio.Button value="monthly">Monthly</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+
+              <Form.Item
+                label={
+                  <span>
+                    Total Hours
+                    {billingType === 'monthly' && (
+                      <Tag color="blue" style={{ marginLeft: 8, fontSize: 11 }}>Monthly</Tag>
+                    )}
+                    {billingType === 'fixed' && (
+                      <Tag color="green" style={{ marginLeft: 8, fontSize: 11 }}>Fixed</Tag>
+                    )}
+                  </span>
+                }
+                style={{ marginBottom: 0 }}
               >
-                <Radio.Button value="custom" style={{ width: '50%', textAlign: 'center' }}>Custom Cost Logic</Radio.Button>
-                <Radio.Button value="standard" style={{ width: '50%', textAlign: 'center' }}>Standard Cost Logic</Radio.Button>
-              </Radio.Group>
-            </Form.Item>
+                <InputNumber
+                  value={totalHours || undefined}
+                  min={0}
+                  style={{ width: '100%' }}
+                  size="large"
+                  placeholder={billingType === 'monthly' ? 'Hours per month' : 'Total fixed hours'}
+                  onChange={handleTotalHoursChange}
+                />
+              </Form.Item>
+            </Card>
+          </Col>
+        </Row>
+      )}
 
-            <Form.Item label="Final Total Allocated Hours" required tooltip="Input final hours assigned for this project.">
-              <InputNumber 
-                value={totalHours} 
-                min={0} 
-                style={{ width: '100%' }} 
-                size="large"
-                onChange={val => {
-                  const hrs = val || 0;
-                  setTotalHours(hrs);
-                  setBufferHours(Math.round(hrs * 0.10));
-                }}
-              />
-            </Form.Item>
-            {calculatedTotalHours > 0 && (
-              <Alert 
-                type={totalHours === calculatedTotalHours ? 'success' : 'warning'}
-                message={`Itemized budget total hours: ${calculatedTotalHours} hrs`} 
-                style={{ marginTop: 8 }}
-              />
-            )}
-          </Card>
-        </Col>
-        <Col span={12}>
-          <Card title="Section F — Project Contingency Buffer" style={{ height: '100%', borderRadius: 12 }}>
-            <Form.Item label="Project Buffer (Hours)" required tooltip="Allocate buffer hours to handle risks and project delays.">
-              <InputNumber 
-                value={bufferHours} 
-                min={0} 
-                style={{ width: '100%' }} 
-                size="large"
-                onChange={val => setBufferHours(val || 0)}
-              />
-            </Form.Item>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Buffer ratio: {totalHours > 0 ? ((bufferHours / totalHours) * 100).toFixed(1) : 0}% of total hours
-            </Text>
-          </Card>
-        </Col>
-      </Row>
+      {/* BUFFER & COST CALCULATION */}
+      {!extracting && (
+        <Row gutter={24} style={{ marginBottom: 24 }}>
+          <Col xs={24} md={12}>
+            <Card
+              title="Project Contingency Buffer (10%)"
+              style={metricCardStyle}
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                background: isDarkMode ? 'rgba(255,255,255,0.04)' : '#f0f9ff',
+                borderRadius: 10,
+                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#bae6fd'}`
+              }}>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>Auto-calculated Buffer (10% of total hours)</Text>
+                  <div>
+                    <Text strong style={{ fontSize: 28, color: '#0ea5e9' }}>{bufferHours} hrs</Text>
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {totalHours > 0 ? `${((bufferHours / totalHours) * 100).toFixed(1)}% of ${totalHours} hrs` : 'Set total hours first'}
+                  </Text>
+                </div>
+                <ClockCircleOutlined style={{ fontSize: 40, color: '#0ea5e9', opacity: 0.4 }} />
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Override buffer manually if required:
+                </Text>
+                <InputNumber
+                  value={bufferHours}
+                  min={0}
+                  style={{ width: '100%', marginTop: 8 }}
+                  onChange={val => setBufferHours(val || 0)}
+                  placeholder="Buffer hours"
+                />
+              </div>
+            </Card>
+          </Col>
 
+          <Col xs={24} md={12}>
+            <Card
+              title="Cost Calculation Mode"
+              style={metricCardStyle}
+            >
+              <Form.Item label="Mode" tooltip="Choose whether this project uses standard cost logic or custom employee rates.">
+                <Radio.Group
+                  value={costCalculationType}
+                  onChange={e => setCostCalculationType(e.target.value)}
+                  optionType="button"
+                  buttonStyle="solid"
+                  style={{ width: '100%', marginBottom: 12 }}
+                >
+                  <Radio.Button value="custom" style={{ width: '50%', textAlign: 'center' }}>Custom Cost</Radio.Button>
+                  <Radio.Button value="standard" style={{ width: '50%', textAlign: 'center' }}>Standard Cost</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
 
+              {costCalculationType === 'standard' && (
+                <Alert
+                  type="info"
+                  message={`Standard Cost Rate: ₹${standardCost.toLocaleString('en-IN')}/hr`}
+                  description={`Estimated project cost at standard rate: ₹${(totalHours * standardCost).toLocaleString('en-IN')}`}
+                  style={{ borderRadius: 8 }}
+                />
+              )}
+
+              {/* Summary */}
+              {totalHours > 0 && totalBudget > 0 && (
+                <div style={{
+                  marginTop: 12,
+                  padding: '12px 16px',
+                  background: isDarkMode ? 'rgba(255,255,255,0.04)' : '#f6ffed',
+                  borderRadius: 8,
+                  border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#b7eb8f'}`
+                }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>Effective Rate</Text>
+                  <div>
+                    <Text strong style={{ color: '#52c41a', fontSize: 16 }}>
+                      ₹{(totalBudget / totalHours).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}/hr
+                    </Text>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </Col>
+        </Row>
+      )}
 
       {/* ACTION BAR */}
       <Card style={{ borderRadius: 12 }}>
@@ -737,12 +625,23 @@ const CostAnalysisPage = () => {
         okButtonProps={{ danger: true }}
       >
         <Space direction="vertical" style={{ width: '100%' }}>
-          <Text>Explain what changes are required in the scope document, budget, or milestones. The Sales team will see this comment.</Text>
-          <TextArea
+          <Text>Explain what changes are required in the scope document or budget. The Sales team will see this comment.</Text>
+          <textarea
             rows={4}
             value={returnComments}
             onChange={e => setReturnComments(e.target.value)}
             placeholder="Detailed reason for revision (min 20 characters)..."
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              borderRadius: 6,
+              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.2)' : '#d9d9d9'}`,
+              background: isDarkMode ? 'rgba(255,255,255,0.04)' : '#fff',
+              color: isDarkMode ? '#fff' : '#000',
+              resize: 'vertical',
+              fontFamily: 'inherit',
+              fontSize: 14
+            }}
           />
         </Space>
       </Modal>
@@ -774,6 +673,35 @@ const CostAnalysisPage = () => {
               );
             })}
           </Select>
+
+          <Divider style={{ margin: '12px 0' }} />
+
+          {/* Summary before submit */}
+          <div style={{
+            background: isDarkMode ? 'rgba(255,255,255,0.04)' : '#fafafa',
+            borderRadius: 8,
+            padding: '12px 16px'
+          }}>
+            <Text strong>Submission Summary</Text>
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text type="secondary">Total Budget:</Text>
+                <Text strong>₹ {totalBudget.toLocaleString('en-IN')}</Text>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text type="secondary">Total Hours:</Text>
+                <Text strong>{totalHours} hrs <Tag color={billingType === 'fixed' ? 'green' : 'blue'} style={{ fontSize: 10 }}>{billingType}</Tag></Text>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text type="secondary">Buffer Hours (10%):</Text>
+                <Text strong>{bufferHours} hrs</Text>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text type="secondary">Cost Mode:</Text>
+                <Text strong style={{ textTransform: 'capitalize' }}>{costCalculationType}</Text>
+              </div>
+            </div>
+          </div>
         </Space>
       </Modal>
     </div>
