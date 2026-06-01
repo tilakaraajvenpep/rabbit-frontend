@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, Select, Switch, notification, Space, Typography, Tag, Skeleton, Popconfirm, InputNumber } from 'antd';
-import { UserAddOutlined, SearchOutlined, DeleteOutlined } from '@ant-design/icons';
+import { UserAddOutlined, SearchOutlined, SaveOutlined, EditOutlined } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { projectService } from '../../services/projectService';
 import PageHeader from '../../components/common/PageHeader';
@@ -13,6 +13,10 @@ const AccountsUserManagementPage = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [editingCostKey, setEditingCostKey] = useState('');
+  const [tempCost, setTempCost] = useState(null);
+  const [savingKeys, setSavingKeys] = useState({});
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -82,13 +86,48 @@ const AccountsUserManagementPage = () => {
     }
   };
 
-  const handleDeleteUser = async (userId) => {
+  const handleProjectManagerChange = async (userId, projectManagerId) => {
     try {
-      await adminService.deleteUser(userId);
-      notification.success({ message: 'User Deleted successfully' });
+      await adminService.updateUserProjectManager(userId, projectManagerId || null);
+      notification.success({ message: 'Project Manager Updated' });
       fetchUsers();
     } catch (error) {
-      notification.error({ message: 'Delete Failed', description: 'Failed to delete user.' });
+      notification.error({ message: 'Update Failed' });
+    }
+  };
+
+  const isEditingCost = (record) => record.id === editingCostKey;
+
+  const startEditCost = (record) => {
+    setEditingCostKey(record.id);
+    setTempCost(Number(record.costPerHour) || 0);
+  };
+
+  const cancelEditCost = () => {
+    setEditingCostKey('');
+    setTempCost(null);
+  };
+
+  const saveCostPerHour = async (userId) => {
+    if (tempCost === null || tempCost < 0) {
+      notification.warning({ message: 'Validation', description: 'Please enter a valid cost per hour.' });
+      return;
+    }
+
+    setSavingKeys(prev => ({ ...prev, [userId]: true }));
+    try {
+      await adminService.updateCostPerHour(userId, tempCost);
+      notification.success({ 
+        message: 'Rate Updated', 
+        description: 'Cost per hour updated successfully.' 
+      });
+      setEditingCostKey('');
+      setTempCost(null);
+      fetchUsers();
+    } catch (err) {
+      notification.error({ message: 'Error', description: 'Failed to update hourly rate.' });
+    } finally {
+      setSavingKeys(prev => ({ ...prev, [userId]: false }));
     }
   };
 
@@ -149,10 +188,76 @@ const AccountsUserManagementPage = () => {
       }
     },
     {
+      title: 'Reporting PM',
+      dataIndex: 'projectManagerId',
+      key: 'projectManager',
+      render: (pmId, record) => {
+        if (record.role !== 'Employee' && record.role !== 'TeamLead') return <Text type="secondary">N/A</Text>;
+        return (
+          <Select
+            value={pmId || undefined}
+            placeholder="No PM"
+            style={{ width: 180 }}
+            allowClear
+            onChange={(newPmId) => handleProjectManagerChange(record.id, newPmId)}
+          >
+            {users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin').map(pm => (
+              <Select.Option key={pm.id} value={pm.id}>
+                {pm.name}
+              </Select.Option>
+            ))}
+          </Select>
+        );
+      }
+    },
+    {
       title: 'Cost/Hour',
       dataIndex: 'costPerHour',
       key: 'costPerHour',
-      render: (val) => <Text>₹{Number(val || 0).toLocaleString('en-IN')}/hr</Text>
+      width: 200,
+      render: (val, record) => {
+        const editable = isEditingCost(record);
+        const saving = savingKeys[record.id];
+
+        if (editable) {
+          return (
+            <Space>
+              <InputNumber
+                value={tempCost}
+                min={0}
+                formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={value => value.replace(/\₹\s?|(,*)/g, '')}
+                onChange={setTempCost}
+                style={{ width: 100 }}
+                autoFocus
+                onPressEnter={() => saveCostPerHour(record.id)}
+              />
+              <Button 
+                type="primary" 
+                size="small" 
+                icon={<SaveOutlined />} 
+                onClick={() => saveCostPerHour(record.id)}
+                loading={saving}
+              />
+              <Button size="small" onClick={cancelEditCost}>Cancel</Button>
+            </Space>
+          );
+        }
+
+        return (
+          <Space>
+            <Text strong style={{ color: '#0f766e' }}>
+              ₹{Number(val || 0).toLocaleString('en-IN')}/hr
+            </Text>
+            <Button 
+              type="text" 
+              size="small" 
+              icon={<EditOutlined />} 
+              onClick={() => startEditCost(record)} 
+            />
+          </Space>
+        );
+      }
     },
     {
       title: 'Status',
@@ -166,22 +271,6 @@ const AccountsUserManagementPage = () => {
           unCheckedChildren="Inactive"
         />
       )
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <Popconfirm
-          title="Delete User"
-          description="Are you sure you want to delete this user? This will delete all dependencies."
-          onConfirm={() => handleDeleteUser(record.id)}
-          okText="Yes, Delete"
-          cancelText="No"
-          okButtonProps={{ danger: true }}
-        >
-          <Button type="text" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
-      )
     }
   ];
 
@@ -193,7 +282,7 @@ const AccountsUserManagementPage = () => {
         extra={<Button type="primary" icon={<UserAddOutlined />} onClick={() => setIsModalOpen(true)}>Add User</Button>}
       />
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 16 }}>
         <Input 
           prefix={<SearchOutlined />} 
           placeholder="Search users by name, email or role..." 
@@ -201,10 +290,22 @@ const AccountsUserManagementPage = () => {
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
         />
+        <Select 
+          value={statusFilter}
+          onChange={setStatusFilter}
+          style={{ width: 150 }}
+        >
+          <Select.Option value="All">All Statuses</Select.Option>
+          <Select.Option value="Active">Active Only</Select.Option>
+          <Select.Option value="Inactive">Inactive Only</Select.Option>
+        </Select>
       </div>
 
       <Table 
         dataSource={users.filter(user => {
+          if (statusFilter === 'Active' && user.isActive === false) return false;
+          if (statusFilter === 'Inactive' && user.isActive !== false) return false;
+
           const term = searchText.toLowerCase();
           const name = (user.name || user.fullName || '').toLowerCase();
           const email = (user.email || '').toLowerCase();
@@ -253,6 +354,16 @@ const AccountsUserManagementPage = () => {
               {users.filter(u => u.role === 'TeamLead').map(tl => (
                 <Select.Option key={tl.id} value={tl.id}>
                   {tl.name} ({tl.email})
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item name="projectManagerId" label="Reporting Project Manager">
+            <Select placeholder="Select Project Manager" allowClear>
+              {users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin').map(pm => (
+                <Select.Option key={pm.id} value={pm.id}>
+                  {pm.name} ({pm.email})
                 </Select.Option>
               ))}
             </Select>

@@ -33,7 +33,7 @@ const CostAnalysisPage = React.lazy(() => import('./features/accounts/CostAnalys
 const CostHistoryPage = React.lazy(() => import('./features/accounts/CostHistoryPage'));
 const ProfitLossPage = React.lazy(() => import('./features/accounts/ProfitLossPage'));
 const AccountsUserManagementPage = React.lazy(() => import('./features/accounts/AccountsUserManagementPage'));
-const CostPerHourPage = React.lazy(() => import('./features/accounts/CostPerHourPage'));
+const StandardCostPage = React.lazy(() => import('./features/accounts/StandardCostPage'));
 const AccountsHoursApprovalPage = React.lazy(() => import('./features/accounts/AccountsHoursApprovalPage'));
 
 // Team Lead
@@ -200,7 +200,7 @@ const App = () => {
                 <Route path="/accounts/cost-history" element={<CostHistoryPage />} />
                 <Route path="/accounts/profit-loss" element={<ProfitLossPage />} />
                 <Route path="/accounts/users" element={<AccountsUserManagementPage />} />
-                <Route path="/accounts/cost-per-hour" element={<CostPerHourPage />} />
+                <Route path="/accounts/standard-cost" element={<StandardCostPage />} />
                 <Route path="/accounts/hours-approval" element={<AccountsHoursApprovalPage />} />
               </Route>
 

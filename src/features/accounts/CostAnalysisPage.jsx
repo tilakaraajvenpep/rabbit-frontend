@@ -79,6 +79,8 @@ const CostAnalysisPage = () => {
   const [showTeamCost, setShowTeamCost] = useState(false);
   const [teamLeads, setTeamLeads] = useState([]);
   const [selectedTLId, setSelectedTLId] = useState(undefined);
+  const [standardCost, setStandardCost] = useState(500);
+  const [costCalculationType, setCostCalculationType] = useState('custom');
 
   useEffect(() => {
     fetchProject();
@@ -87,6 +89,13 @@ const CostAnalysisPage = () => {
   const fetchProject = async () => {
     setLoading(true);
     try {
+      try {
+        const costRes = await adminService.getStandardCost();
+        setStandardCost(Number(costRes.data?.standardCost) || 500);
+      } catch (err) {
+        console.error('Failed to load standard cost', err);
+      }
+
       // 1. Fetch Project Details
       const projRes = await projectService.getProjectById(id);
       const p = projRes.data;
@@ -95,6 +104,7 @@ const CostAnalysisPage = () => {
       // Pre-fill values if already saved on the project
       if (p.totalHours) setTotalHours(Number(p.totalHours));
       if (p.bufferHours) setBufferHours(Number(p.bufferHours));
+      if (p.costCalculationType) setCostCalculationType(p.costCalculationType);
       if (p.budgetTable) setBudgetItems(p.budgetTable);
       if (p.milestones) {
         setMilestones(p.milestones.map(m => {
@@ -158,19 +168,18 @@ const CostAnalysisPage = () => {
       const res = await projectService.extractScopeDetails(id, latestDoc.documentId);
       const { budgetTable, milestones: extMilestones, totalHours: extHours, bufferHours: extBuffer, estimatedCompletionDate: extDate } = res.data;
 
+      const totalBudget = (budgetTable || []).reduce((sum, item) => sum + Number(item.cost || 0), 0);
+      let calculatedHours = Number(extHours || 0);
+      if (!calculatedHours || calculatedHours === 0) {
+        calculatedHours = Math.round(totalBudget / (standardCost || 500));
+      }
+      const calculatedBuffer = Math.round(calculatedHours * 0.10);
+
       setBudgetItems(budgetTable || []);
-      setMilestones((extMilestones || []).map((m, idx) => {
-        const computedHours = getExtractedMilestoneHours(m);
-        return {
-          ...m,
-          key: m.key || idx + 1,
-          hours: computedHours || undefined,
-          date: m.date ? dayjs(m.date) : null
-        };
-      }));
+      setMilestones([]); // no milestones extracted from document
       
-      if (extHours) setTotalHours(Number(extHours));
-      if (extBuffer) setBufferHours(Number(extBuffer));
+      setTotalHours(calculatedHours);
+      setBufferHours(calculatedBuffer);
       if (extDate) setEstimatedCompletionDate(dayjs(extDate));
 
       notification.success({
@@ -253,6 +262,7 @@ const CostAnalysisPage = () => {
         assignedProjectManagerId: Number(selectedPMId),
         totalHours: totalHours,
         bufferHours: bufferHours,
+        costCalculationType: costCalculationType,
         budgetTable: budgetItems,
         milestones: milestones.map(m => ({
           title: m.title,
@@ -637,14 +647,31 @@ const CostAnalysisPage = () => {
       {/* SECTION E — Define Hours & Buffer */}
       <Row gutter={24} style={{ marginBottom: 24 }}>
         <Col span={12}>
-          <Card title="Section E — final Total Hours" style={{ height: '100%', borderRadius: 12 }}>
+          <Card title="Section E — final Total Hours & Cost Logic" style={{ height: '100%', borderRadius: 12 }}>
+            <Form.Item label="Cost Calculation Mode" tooltip="Choose whether this project uses standard cost logic or custom employee rates.">
+              <Radio.Group 
+                value={costCalculationType} 
+                onChange={e => setCostCalculationType(e.target.value)}
+                optionType="button"
+                buttonStyle="solid"
+                style={{ width: '100%', marginBottom: 12 }}
+              >
+                <Radio.Button value="custom" style={{ width: '50%', textAlign: 'center' }}>Custom Cost Logic</Radio.Button>
+                <Radio.Button value="standard" style={{ width: '50%', textAlign: 'center' }}>Standard Cost Logic</Radio.Button>
+              </Radio.Group>
+            </Form.Item>
+
             <Form.Item label="Final Total Allocated Hours" required tooltip="Input final hours assigned for this project.">
               <InputNumber 
                 value={totalHours} 
                 min={0} 
                 style={{ width: '100%' }} 
                 size="large"
-                onChange={val => setTotalHours(val || 0)}
+                onChange={val => {
+                  const hrs = val || 0;
+                  setTotalHours(hrs);
+                  setBufferHours(Math.round(hrs * 0.10));
+                }}
               />
             </Form.Item>
             {calculatedTotalHours > 0 && (

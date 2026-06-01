@@ -93,7 +93,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/accounts/cost-history', icon: <DollarOutlined />, label: 'Cost Analysis History' },
         { key: '/accounts/profit-loss', icon: <BarChartOutlined />, label: 'Project Profit & Loss' },
         { key: '/accounts/users', icon: <TeamOutlined />, label: 'User Management' },
-        { key: '/accounts/cost-per-hour', icon: <ClockCircleOutlined />, label: 'Cost Per Hour' },
+        { key: '/accounts/standard-cost', icon: <DollarOutlined />, label: 'Standard Cost' },
         { key: '/accounts/hours-approval', icon: <ClockCircleOutlined />, label: 'Additional Hours Approval' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' }
       );

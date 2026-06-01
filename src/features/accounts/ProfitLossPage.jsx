@@ -30,6 +30,7 @@ const ProfitLossPage = () => {
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [fetchingDetails, setFetchingDetails] = useState(false);
+  const [standardCost, setStandardCost] = useState(500);
 
   // Selected project details
   const [project, setProject] = useState(null);
@@ -54,6 +55,12 @@ const ProfitLossPage = () => {
   const fetchProjects = async () => {
     setLoading(true);
     try {
+      try {
+        const costRes = await adminService.getStandardCost();
+        setStandardCost(Number(costRes.data?.standardCost) || 500);
+      } catch (err) {
+        console.error('Failed to load standard cost:', err);
+      }
       const res = await projectService.getProjects();
       const allProj = res.data || [];
       // Display all current projects in the system
@@ -71,15 +78,17 @@ const ProfitLossPage = () => {
   const fetchProjectDetails = async (projId) => {
     setFetchingDetails(true);
     try {
-      const [projRes, usersRes, ticketsRes] = await Promise.all([
+      const [projRes, usersRes, ticketsRes, costRes] = await Promise.all([
         projectService.getProjectById(projId),
         adminService.getUsers(),
-        ticketService.getTickets(projId)
+        ticketService.getTickets(projId),
+        adminService.getStandardCost().catch(() => ({ data: { standardCost: 500 } }))
       ]);
 
       const projData = projRes.data;
       const usersList = usersRes.data || [];
       const ticketsList = ticketsRes.data || [];
+      const currentStandardCost = Number(costRes?.data?.standardCost) || 500;
 
       setProject(projData);
       setUsers(usersList);
@@ -96,10 +105,13 @@ const ProfitLossPage = () => {
       });
 
       // Map to array with user details & hourly cost
+      const useStandardCostLogic = projData?.costCalculationType === 'standard';
       const breakdown = Object.entries(userHoursMap).map(([userIdStr, hours]) => {
         const userId = parseInt(userIdStr);
         const userObj = usersList.find(u => u.id === userId || u.userId === userId);
-        const hourlyRate = userObj ? (Number(userObj.costPerHour) || 0) : 500; // Default fallback to 500
+        const hourlyRate = useStandardCostLogic
+          ? currentStandardCost
+          : (userObj ? (Number(userObj.costPerHour) || 0) : 500);
         return {
           key: userId,
           name: userObj ? (userObj.name || userObj.fullName) : `User #${userId}`,
@@ -162,6 +174,12 @@ const ProfitLossPage = () => {
   const totalHoursLogged = laborBreakdown.reduce((sum, item) => sum + item.hours, 0);
 
   const isProfit = profitLoss >= 0;
+
+  // Standard Cost calculations
+  const totalStandardCost = totalHoursLogged * standardCost;
+  const standardProfitLoss = revenue - totalStandardCost;
+  const standardMarginPercentage = revenue > 0 ? (standardProfitLoss / revenue) * 100 : 0;
+  const isStandardProfit = standardProfitLoss >= 0;
 
   // Dynamic calculations for Project Details card
   const consumedHours = tickets.length > 0 ? tickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0) : (Number(project?.consumedHours) || 0);
@@ -270,6 +288,71 @@ const ProfitLossPage = () => {
             </Col>
           </Row>
 
+          {/* Standard Costing Metrics Row */}
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            <Col xs={24} sm={12} md={6}>
+              <Card style={{ borderRadius: 12, height: '100%', background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', border: '1px solid #cbd5e1' }}>
+                <Statistic
+                  title={<Text type="secondary" style={{ color: '#475569', fontWeight: 600 }}>Standard Cost Rate</Text>}
+                  value={standardCost}
+                  precision={2}
+                  valueStyle={{ color: '#475569', fontWeight: 700 }}
+                  prefix="₹"
+                  suffix="/hr"
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <Card style={{ borderRadius: 12, height: '100%', background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', border: '1px solid #cbd5e1' }}>
+                <Statistic
+                  title={<Text type="secondary" style={{ color: '#475569', fontWeight: 600 }}>Standard Cost Expense</Text>}
+                  value={totalStandardCost}
+                  precision={2}
+                  valueStyle={{ color: '#0284c7', fontWeight: 700 }}
+                  prefix="₹"
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <Card style={{ borderRadius: 12, height: '100%', background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', border: '1px solid #cbd5e1' }}>
+                <Statistic
+                  title={<Text type="secondary" style={{ color: '#475569', fontWeight: 600 }}>Standard Net Margin</Text>}
+                  value={Math.abs(standardProfitLoss)}
+                  precision={2}
+                  valueStyle={{ color: isStandardProfit ? '#16a34a' : '#ef4444', fontWeight: 700 }}
+                  prefix={standardProfitLoss < 0 ? "- ₹" : "₹"}
+                  suffix={
+                    <span style={{ fontSize: '14px', marginLeft: 8 }}>
+                      {isStandardProfit ? <ArrowUpOutlined style={{ color: '#16a34a' }} /> : <ArrowDownOutlined style={{ color: '#ef4444' }} />}
+                    </span>
+                  }
+                />
+                <Tag color={isStandardProfit ? 'success' : 'error'} style={{ marginTop: 8 }}>
+                  {isStandardProfit ? 'STD PROFIT' : 'STD LOSS'}
+                </Tag>
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <Card style={{ borderRadius: 12, height: '100%', background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', border: '1px solid #cbd5e1' }}>
+                <Statistic
+                  title={<Text type="secondary" style={{ color: '#475569', fontWeight: 600 }}>Standard Margin %</Text>}
+                  value={standardMarginPercentage}
+                  precision={1}
+                  valueStyle={{ color: isStandardProfit ? '#16a34a' : '#ef4444', fontWeight: 700 }}
+                  suffix="%"
+                />
+                <div style={{ marginTop: 8 }}>
+                  <Progress 
+                    percent={Math.max(0, Math.min(100, Math.round(standardMarginPercentage)))} 
+                    size="small" 
+                    status={isStandardProfit ? "success" : "exception"} 
+                    showInfo={false}
+                  />
+                </div>
+              </Card>
+            </Col>
+          </Row>
+
           <Row gutter={24} style={{ marginBottom: 24 }}>
             <Col xs={24} lg={16}>
               {/* Labor breakdown Table */}
@@ -311,6 +394,21 @@ const ProfitLossPage = () => {
                       key: 'totalCost',
                       align: 'right',
                       render: (cost) => <Text strong style={{ color: '#b91c1c' }}>₹{cost.toLocaleString('en-IN')}</Text>
+                    },
+                    {
+                      title: 'Standard Cost Rate',
+                      key: 'standardRate',
+                      align: 'right',
+                      render: () => <Text>₹{standardCost.toLocaleString('en-IN')}/hr</Text>
+                    },
+                    {
+                      title: 'Total Expense (Standard)',
+                      key: 'totalStandardCost',
+                      align: 'right',
+                      render: (record) => {
+                        const stdCost = record.hours * standardCost;
+                        return <Text strong style={{ color: '#0369a1' }}>₹{stdCost.toLocaleString('en-IN')}</Text>;
+                      }
                     }
                   ]}
                 />

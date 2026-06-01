@@ -41,6 +41,7 @@ export const adminService = {
         role: data.role,
         costPerHour: data.costPerHour || 0,
         teamLeadId: data.teamLeadId,
+        projectManagerId: data.projectManagerId,
         tenantCode: tenantCode,
         status: 'Active',
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.email}`
@@ -55,7 +56,8 @@ export const adminService = {
       password: data.password || 'Rabbit@123', // Default password for new invites
       role: data.role,
       costPerHour: data.costPerHour,
-      teamLeadId: data.teamLeadId
+      teamLeadId: data.teamLeadId,
+      projectManagerId: data.projectManagerId
     };
     return apiClient.post('/users', payload);
   },
@@ -88,6 +90,16 @@ export const adminService = {
       return { data: { success: true } };
     }
     return apiClient.put(`/users/${id}/team-lead`, { teamLeadId });
+  },
+
+  updateUserProjectManager: async (id, projectManagerId) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const user = mockUsers.find(u => u.id === id);
+      if (user) user.projectManagerId = projectManagerId;
+      return { data: { success: true } };
+    }
+    return apiClient.put(`/users/${id}/project-manager`, { projectManagerId });
   },
 
   toggleUserStatus: async (id) => {
@@ -165,6 +177,22 @@ export const adminService = {
       return { data: { success: true } };
     }
     const response = await apiClient.put(`/users/${userId}/date-of-joining`, { dateOfJoining });
+    return { data: response.data.data };
+  },
+
+  getStandardCost: async () => {
+    if (useMock) {
+      return { data: { standardCost: 500 } };
+    }
+    const response = await apiClient.get('/tenants/my');
+    return { data: { standardCost: Number(response.data.data.standardCost) || 500 } };
+  },
+
+  updateStandardCost: async (standardCost) => {
+    if (useMock) {
+      return { data: { success: true } };
+    }
+    const response = await apiClient.put('/tenants/standard-cost', { standardCost });
     return { data: response.data.data };
   },
 
