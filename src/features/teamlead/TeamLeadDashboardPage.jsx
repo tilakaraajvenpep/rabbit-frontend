@@ -32,11 +32,22 @@ const TeamLeadDashboardPage = () => {
   const fetchProjects = async () => {
     setLoading(true);
     try {
-      const res = await projectService.getProjects();
-      // In a real app, this would be filtered by the current user's lead role
-      setProjects(res.data);
+      const [projectsRes, ticketsRes] = await Promise.all([
+        projectService.getProjects(),
+        ticketService.getTickets().catch(err => { console.error('Tickets load failed', err); return { data: [] }; })
+      ]);
+      
+      const allTickets = ticketsRes.data || [];
+      const updatedProjects = (projectsRes.data || []).map(p => {
+        const projectTickets = allTickets.filter(t => String(t.projectId) === String(p.id));
+        const computedConsumed = projectTickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+        return {
+          ...p,
+          consumedHours: Math.max(Number(p.consumedHours) || 0, computedConsumed)
+        };
+      });
 
-
+      setProjects(updatedProjects);
     } catch (error) {
       console.error('Failed to load projects', error);
     } finally {
