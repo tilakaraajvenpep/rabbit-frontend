@@ -160,15 +160,27 @@ const HROffboardingPage = () => {
     if (!selectedUserId) return;
     setTransferring(true);
     try {
-      // 1. Transfer hours to each project's totalHours
+      // 1. Transfer hours to each project's totalHours and update allocations
       for (const pb of projectBalances) {
+        const currentAllocations = { ...(pb.project?.employeeAllocatedHours || {}) };
+        
+        // Subtract/release the remaining hours by setting the offboarded user's allocation to their consumed hours
+        currentAllocations[selectedUserId] = pb.consumed;
+        
         if (pb.remaining > 0) {
           const currentTotal = Number(pb.project?.totalHours || pb.project?.approvedHours || 0);
           const newTotal = currentTotal + pb.remaining;
           
           await projectService.updateProjectStatus(pb.projectId, {
             status: pb.project?.status || 'InProgress',
-            totalHours: String(newTotal.toFixed(2))
+            totalHours: String(newTotal.toFixed(2)),
+            employeeAllocatedHours: currentAllocations
+          });
+        } else {
+          // If no remaining hours to credit back, still update the project's allocations to match their consumed hours
+          await projectService.updateProjectStatus(pb.projectId, {
+            status: pb.project?.status || 'InProgress',
+            employeeAllocatedHours: currentAllocations
           });
         }
       }
