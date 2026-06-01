@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, DatePicker, Button, Space, Typography, notification, Upload, Modal, Alert, Tag } from 'antd';
-import { ArrowLeftOutlined, InboxOutlined, EyeOutlined, SendOutlined, FileTextOutlined, CalendarOutlined, UserOutlined, TagOutlined, AlignLeftOutlined, FilePdfOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Card, Form, Input, DatePicker, Button, Space, Typography, notification, Upload, Modal, Alert, Tag, Select, Divider } from 'antd';
+import { ArrowLeftOutlined, InboxOutlined, EyeOutlined, SendOutlined, FileTextOutlined, CalendarOutlined, UserOutlined, TagOutlined, AlignLeftOutlined, FilePdfOutlined, CheckCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { useForm, Controller } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -98,6 +98,39 @@ const CreateProjectPage = () => {
     }
   });
 
+  const [categories, setCategories] = useState([
+    'Consulting',
+    'CRM',
+    'HR Activities',
+    'Accounts Activities',
+    'ERP',
+    'Designing',
+    'Jumbow',
+    'Product development',
+    'SEO',
+    'Infra maintenance',
+    'Digital Marketing',
+    'Telecalling',
+    'Todook',
+    'Website development'
+  ]);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  const handleAddCategory = (e) => {
+    e.preventDefault();
+    const trimmed = newCategoryName.trim();
+    if (trimmed) {
+      setCategories(prev => {
+        if (!prev.includes(trimmed)) {
+          return [...prev, trimmed];
+        }
+        return prev;
+      });
+      setValue('projectCategory', trimmed);
+      setNewCategoryName('');
+    }
+  };
+
   useEffect(() => {
     if (id) {
       const fetchProject = async () => {
@@ -108,6 +141,14 @@ const CreateProjectPage = () => {
           setProject(p);
           setValue('name', p.name);
           setValue('client', p.client);
+          if (p.projectCategory) {
+            setCategories(prev => {
+              if (!prev.includes(p.projectCategory)) {
+                return [...prev, p.projectCategory];
+              }
+              return prev;
+            });
+          }
           setValue('projectCategory', p.projectCategory || '');
           if (p.startDate) setValue('expectedStart', dayjs(p.startDate));
           setValue('description', p.description);
@@ -237,7 +278,37 @@ const CreateProjectPage = () => {
               name="projectCategory"
               control={control}
               rules={{ required: 'Project category is required', maxLength: { value: 255, message: 'Maximum 255 characters' } }}
-              render={({ field }) => <Input {...field} placeholder="e.g. Web App, Mobile App, Consultancy" size="large" />}
+              render={({ field }) => (
+                <Select
+                  {...field}
+                  showSearch
+                  placeholder="Select project category"
+                  size="large"
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      <Divider style={{ margin: '8px 0' }} />
+                      <div style={{ display: 'flex', gap: 8, padding: '4px 8px' }}>
+                        <Input
+                          placeholder="Add custom category"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          size="middle"
+                        />
+                        <Button
+                          type="primary"
+                          icon={<PlusOutlined />}
+                          onClick={handleAddCategory}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                  options={categories.map((item) => ({ label: item, value: item }))}
+                />
+              )}
             />
           </Form.Item>
 
