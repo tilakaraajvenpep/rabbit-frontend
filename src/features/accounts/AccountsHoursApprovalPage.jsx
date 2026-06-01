@@ -108,8 +108,18 @@ const AccountsHoursApprovalPage = () => {
     finally { setSubmitting(false); }
   };
 
-  const totalHours = Array.isArray(requests) ? requests.reduce((s, r) => s + Number(r?.request?.requestedHours || 0), 0) : 0;
-  const exceeded   = Array.isArray(requests) ? requests.filter(r => r?.request?.requestType === 'HoursExceeded').length : 0;
+  const totalApprovedHours = Array.isArray(history) 
+    ? history
+        .filter(r => r?.request?.status === 'Approved' || r?.request?.status === 'AccountsApproved')
+        .reduce((s, r) => s + Number(r?.request?.requestedHours || 0), 0)
+    : 0;
+
+  const totalHoursExceeded = [
+    ...(requests || []),
+    ...(history || [])
+  ]
+    .filter(r => r?.request?.requestType === 'HoursExceeded' || r?.request?.requestType === 'ExceededLimit')
+    .reduce((s, r) => s + Number(r?.request?.requestedHours || 0), 0);
 
   const cardBase = { borderRadius: 16, overflow: 'hidden', background: isDarkMode ? '#18181b' : '#fff', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.07)' : '#f1f5f9'}` };
 
@@ -338,8 +348,8 @@ const AccountsHoursApprovalPage = () => {
       {!loading && (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           <MetricCard icon={<FileTextOutlined />} label="Pending Requests" value={requests.length} color="#6366f1" bg={isDarkMode ? '#18181b' : '#fafafa'} />
-          <MetricCard icon={<ClockCircleOutlined />} label="Total Extra Hours" value={`${totalHours.toFixed(1)}h`} color="#f59e0b" bg={isDarkMode ? '#18181b' : '#fafafa'} />
-          <MetricCard icon={<ThunderboltOutlined />} label="Hours Exceeded" value={exceeded} color="#7c3aed" bg={isDarkMode ? '#18181b' : '#fafafa'} />
+          <MetricCard icon={<ClockCircleOutlined />} label="Total Extra Hours" value={`${totalApprovedHours.toFixed(1)}h`} color="#f59e0b" bg={isDarkMode ? '#18181b' : '#fafafa'} />
+          <MetricCard icon={<ThunderboltOutlined />} label="Hours Exceeded" value={`${totalHoursExceeded.toFixed(1)}h`} color="#7c3aed" bg={isDarkMode ? '#18181b' : '#fafafa'} />
           <MetricCard icon={<DollarOutlined />} label="Budget Decision Needed" value={requests.length} color="#10b981" bg={isDarkMode ? '#18181b' : '#fafafa'} />
         </div>
       )}
