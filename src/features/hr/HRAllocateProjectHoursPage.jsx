@@ -443,6 +443,13 @@ const HRAllocateProjectHoursPage = () => {
                         const dec   = toDecimal(h, m);
                         const pct   = projectTotal > 0 ? Math.min(100, Math.round((dec / projectTotal) * 100)) : 0;
                         const hasVal = dec > 0;
+                        // Calculate consumed hours from tickets for this employee on this project
+                        const userTickets = tickets.filter(t => 
+                          String(t.projectId) === String(selectedId) && 
+                          String(t.assignedToUserId || t.assignedTo) === String(eid)
+                        );
+                        const userConsumed = userTickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+                        const userRemaining = Math.max(0, dec - userConsumed);
 
                         return (
                           <div key={eid} style={{
@@ -465,9 +472,15 @@ const HRAllocateProjectHoursPage = () => {
                                   <div style={{ fontSize:11, color:isDarkMode?'#6b7280':'#9ca3af' }}>{emp.email}</div>
                                   <div style={{ marginTop:5 }}>
                                     {hasVal ? (
-                                      <Tag color="success" style={{ fontSize:10, borderRadius:4 }}>
-                                        <CheckCircleOutlined /> {fmtHM(h, m)} assigned
-                                      </Tag>
+                                      userConsumed > 0 ? (
+                                        <Tag color="warning" style={{ fontSize:10, borderRadius:4 }}>
+                                          <ClockCircleOutlined /> {userRemaining.toFixed(2)} hrs remaining
+                                        </Tag>
+                                      ) : (
+                                        <Tag color="success" style={{ fontSize:10, borderRadius:4 }}>
+                                          <CheckCircleOutlined /> {fmtHM(h, m)} assigned
+                                        </Tag>
+                                      )
                                     ) : (
                                       <Tag color="default" style={{ fontSize:10, borderRadius:4 }}>Not yet allocated</Tag>
                                     )}
@@ -513,7 +526,7 @@ const HRAllocateProjectHoursPage = () => {
                                   trailColor={isDarkMode?'#1f2937':'#e5e7eb'}
                                 />
                                 <Text style={{ fontSize:10, color:isDarkMode?'#6b7280':'#9ca3af' }}>
-                                  {pct}% of project total · {fmtHM(h, m)} / {projectTotal} hrs
+                                  {pct}% of project total · {userConsumed > 0 ? `${userRemaining.toFixed(2)} hrs remaining` : `${fmtHM(h, m)} assigned`} / {projectTotal} hrs
                                 </Text>
                               </div>
                             )}

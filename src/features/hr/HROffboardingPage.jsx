@@ -66,7 +66,7 @@ const HROffboardingPage = () => {
     // Base the estimation on the employee's allocated hours if available, otherwise fallback to ticket's estimated hours
     const allocated = Number(selectedUser?.allocatedHours || 0);
     const est = allocated > 0 ? allocated : Number(t.estimatedHours || 0);
-    const spent = Number(t.timerAccumulatedSeconds || 0) / 3600;
+    const spent = Number(t.consumedHours || 0);
     const remaining = Math.max(0, est - spent);
     return {
       ...t,
