@@ -726,6 +726,29 @@ const EODReportPage = () => {
   };
 
   const onSubmit = async (data) => {
+    // 1. Check if any row has negative values or minutes >= 60
+    for (let i = 0; i < data.items.length; i++) {
+      const item = data.items[i];
+      const hrs = Number(item.hoursInput) || 0;
+      const mins = Number(item.minutesInput) || 0;
+
+      if (hrs < 0 || mins < 0) {
+        notification.error({
+          message: 'Validation Error',
+          description: `Task #${i + 1}: Hours and minutes cannot be negative.`
+        });
+        return;
+      }
+
+      if (mins >= 60) {
+        notification.error({
+          message: 'Validation Error',
+          description: `Task #${i + 1}: Minutes must be less than 60.`
+        });
+        return;
+      }
+    }
+
     const mappedItems = data.items
       .map(item => {
         const hrs = Number(item.hoursInput) || 0;
@@ -756,6 +779,14 @@ const EODReportPage = () => {
     }
 
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
+
+    if (submittedTotal > 24) {
+      notification.error({
+        message: 'Validation Error',
+        description: `Total reported time (${submittedTotal.toFixed(2)} hrs) cannot exceed 24 hours in a single day.`
+      });
+      return;
+    }
 
     // Single constraint: block if hours exceed the selected project's allocated hours
     if (projectAllocatedHoursEarly > 0 && submittedTotal > projectAllocatedHoursEarly) {
