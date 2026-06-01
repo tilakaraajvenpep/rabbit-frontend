@@ -24,6 +24,7 @@ const CrossTeamSharePage = () => {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [myProjects, setMyProjects] = useState([]);
+  const [tickets, setTickets] = useState([]);
   
   // Borrow Modal State
   const [isBorrowModalOpen, setIsBorrowModalOpen] = useState(false);
@@ -38,11 +39,13 @@ const CrossTeamSharePage = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [userRes, projRes] = await Promise.all([
+      const [userRes, projRes, ticketRes] = await Promise.all([
         adminService.getUsers(),
-        projectService.getProjects()
+        projectService.getProjects(),
+        ticketService.getTickets().catch(err => { console.error(err); return { data: [] }; })
       ]);
       setUsers(userRes.data);
+      setTickets(ticketRes.data || []);
       
       // Filter projects that are active (Approved or InProgress) 
       // AND either assigned to me as Team Lead, or general active projects where I can assign.
@@ -52,7 +55,7 @@ const CrossTeamSharePage = () => {
       );
       setMyProjects(activeProj);
     } catch (err) {
-      message.error('Failed to load user and project data');
+      message.error('Failed to load user, project and ticket data');
       console.error(err);
     } finally {
       setLoading(false);
@@ -73,6 +76,34 @@ const CrossTeamSharePage = () => {
       };
     }).filter(t => t.teamLead.id !== currentUser?.id && t.teamLead.userId !== currentUser?.userId); // filter out logged-in TL's own team
   }, [users, currentUser]);
+
+  // Compute borrowed employees mapped by employee ID
+  const borrowedEmployeesMap = useMemo(() => {
+    const map = {};
+    const currentTLIdStr = String(currentUser?.id || currentUser?.userId);
+    
+    myProjects.forEach(proj => {
+      const projTickets = tickets.filter(t => String(t.projectId) === String(proj.id));
+      projTickets.forEach(ticket => {
+        const assigneeId = ticket.assignedToUserId || ticket.assignedTo;
+        if (!assigneeId) return;
+        
+        const assignee = users.find(u => String(u.id || u.userId) === String(assigneeId));
+        if (!assignee || assignee.role !== 'Employee') return;
+        
+        if (String(assignee.teamLeadId) !== currentTLIdStr) {
+          if (!map[assigneeId]) {
+            map[assigneeId] = [];
+          }
+          map[assigneeId].push({
+            ticket,
+            project: proj
+          });
+        }
+      });
+    });
+    return map;
+  }, [tickets, myProjects, users, currentUser]);
 
   const handleOpenBorrowModal = (employee, tl) => {
     setSelectedEmployee(employee);
@@ -138,7 +169,8 @@ const CrossTeamSharePage = () => {
       ) : groupedTeams.length === 0 ? (
         <Empty description="No other Team Leads found in this workspace." />
       ) : (
-        <Row gutter={[24, 24]}>
+        <>
+          <Row gutter={[24, 24]}>
           {groupedTeams.map(({ teamLead, employees }) => {
             const tlName = teamLead.name || teamLead.fullName;
             return (
@@ -191,37 +223,55 @@ const CrossTeamSharePage = () => {
                     ) : (
                       <List
                         dataSource={employees}
-                        renderItem={emp => (
-                          <List.Item 
-                            style={{ 
-                              padding: '10px 0', 
-                              borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.04)' : '#f1f5f9'}`
-                            }}
-                            actions={[
-                              <Button 
-                                type="primary" 
-                                size="small"
-                                icon={<SwapOutlined />}
-                                onClick={() => handleOpenBorrowModal(emp, teamLead)}
-                                style={{ borderRadius: 6, fontSize: 12 }}
-                              >
-                                Borrow
-                              </Button>
-                            ]}
-                          >
-                            <List.Item.Meta
-                              avatar={
-                                <Avatar 
-                                  src={emp.avatar} 
-                                  icon={<UserOutlined />} 
-                                  style={{ backgroundColor: isDarkMode ? '#3f3f46' : '#e2e8f0' }} 
-                                />
-                              }
-                              title={<Text strong style={{ fontSize: 13 }}>{emp.name || emp.fullName}</Text>}
-                              description={<Text type="secondary" style={{ fontSize: 11 }}>{emp.email}</Text>}
-                            />
-                          </List.Item>
-                        )}
+                        renderItem={emp => {
+                          const borrowDetails = borrowedEmployeesMap[emp.id || emp.userId];
+                          return (
+                            <List.Item 
+                              style={{ 
+                                padding: '10px 0', 
+                                borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.04)' : '#f1f5f9'}`
+                              }}
+                              actions={[
+                                borrowDetails ? (
+                                  <Tag color="green" style={{ borderRadius: 6, fontWeight: 600, margin: 0 }}>
+                                    Borrowed
+                                  </Tag>
+                                ) : (
+                                  <Button 
+                                    type="primary" 
+                                    size="small"
+                                    icon={<SwapOutlined />}
+                                    onClick={() => handleOpenBorrowModal(emp, teamLead)}
+                                    style={{ borderRadius: 6, fontSize: 12 }}
+                                  >
+                                    Borrow
+                                  </Button>
+                                )
+                              ]}
+                            >
+                              <List.Item.Meta
+                                avatar={
+                                  <Avatar 
+                                    src={emp.avatar} 
+                                    icon={<UserOutlined />} 
+                                    style={{ backgroundColor: isDarkMode ? '#3f3f46' : '#e2e8f0' }} 
+                                  />
+                                }
+                                title={
+                                  <Space direction="vertical" size={2} style={{ display: 'flex' }}>
+                                    <Text strong style={{ fontSize: 13 }}>{emp.name || emp.fullName}</Text>
+                                    {borrowDetails && (
+                                      <Text type="success" style={{ fontSize: 11, fontWeight: 600 }}>
+                                        (Borrowed for: {borrowDetails[0].project.name})
+                                      </Text>
+                                    )}
+                                  </Space>
+                                }
+                                description={<Text type="secondary" style={{ fontSize: 11 }}>{emp.email}</Text>}
+                              />
+                            </List.Item>
+                          );
+                        }}
                       />
                     )}
                   </div>
@@ -230,7 +280,66 @@ const CrossTeamSharePage = () => {
             );
           })}
         </Row>
-      )}
+
+        {/* Borrowed Resources Status Section */}
+        <Card 
+          title={
+            <Space>
+              <SolutionOutlined style={{ color: '#10b981' }} />
+              <span style={{ fontWeight: 600 }}>Active Borrowed Resources</span>
+            </Space>
+          }
+          style={{ borderRadius: 16, border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(16, 185, 129, 0.08)'}`, marginTop: 24, background: isDarkMode ? '#18181b' : '#fff' }}
+        >
+          {Object.keys(borrowedEmployeesMap).length === 0 ? (
+            <Empty description="No employees borrowed from other teams currently." />
+          ) : (
+            <List
+              itemLayout="horizontal"
+              dataSource={Object.keys(borrowedEmployeesMap)}
+              renderItem={empId => {
+                const emp = users.find(u => String(u.id || u.userId) === String(empId));
+                const details = borrowedEmployeesMap[empId];
+                if (!emp) return null;
+                
+                const homeTL = users.find(u => String(u.id || u.userId) === String(emp.teamLeadId));
+                
+                return (
+                  <List.Item
+                    style={{ padding: '16px 24px', borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.04)' : '#f1f5f9'}` }}
+                    actions={details.map(d => (
+                      <Tag color="geekblue" key={d.ticket.id} style={{ padding: '4px 10px', borderRadius: 6, fontWeight: 500 }}>
+                        Ticket: {d.ticket.title} ({d.ticket.code})
+                      </Tag>
+                    ))}
+                  >
+                    <List.Item.Meta
+                      avatar={<Avatar size="large" src={emp.avatar} icon={<UserOutlined />} style={{ backgroundColor: '#10b981' }} />}
+                      title={
+                        <Space>
+                          <Text strong style={{ fontSize: 14 }}>{emp.name || emp.fullName}</Text>
+                          <Tag color="success" style={{ borderRadius: 4, fontWeight: 500 }}>Borrowed by You</Tag>
+                        </Space>
+                      }
+                      description={
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            Home Team Lead: <strong style={{ color: isDarkMode ? '#e2e8f0' : '#475569' }}>{homeTL ? (homeTL.name || homeTL.fullName) : 'Unknown'}</strong>
+                          </Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
+                            Working on Project: <strong style={{ color: '#6366f1' }}>{details[0].project.name}</strong>
+                          </Text>
+                        </div>
+                      }
+                    />
+                  </List.Item>
+                );
+              }}
+            />
+          )}
+        </Card>
+      </>
+    )}
 
       {/* Borrow Employee & Ticket Assignment Modal */}
       <Modal
