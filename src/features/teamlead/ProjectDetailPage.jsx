@@ -18,12 +18,14 @@ import StatusBadge from '../../components/common/StatusBadge';
 import PriorityBadge from '../../components/common/PriorityBadge';
 import HoursProgress from '../../components/common/HoursProgress';
 import dayjs from 'dayjs';
+import { useAuthStore } from '../../store/authStore';
 
 const { Text } = Typography;
 
 const ProjectDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuthStore();
   const [project, setProject] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [users, setUsers] = useState([]);
@@ -159,7 +161,8 @@ const ProjectDetailPage = () => {
   const projectEmployees = (project.assignedEmployeeIds && Array.isArray(project.assignedEmployeeIds))
     ? users.filter(u => project.assignedEmployeeIds.includes(u.id || u.userId))
     : [];
-  const employeesList = users.filter(u => u.role === 'Employee');
+  const tlId = currentUser ? (currentUser.userId || currentUser.id) : null;
+  const employeesList = users.filter(u => u.role === 'Employee' && String(u.teamLeadId) === String(tlId));
 
   return (
     <div>
