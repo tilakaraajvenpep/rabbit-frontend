@@ -193,8 +193,12 @@ const HRTeamPage = () => {
       title: 'Status',
       dataIndex: 'isActive',
       key: 'isActive',
+      width: 120,
       render: (isActive) => (
-        <Badge status={isActive !== false ? 'success' : 'error'} text={isActive !== false ? 'Active' : 'Inactive'} />
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+          <Badge status={isActive !== false ? 'success' : 'error'} />
+          <Text style={{ margin: 0 }}>{isActive !== false ? 'Active' : 'Inactive'}</Text>
+        </span>
       )
     },
     {
