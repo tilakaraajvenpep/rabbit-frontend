@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Button, Badge, Avatar, Space, Dropdown, Typography, Divider, Switch, theme } from 'antd';
+import { Layout, Button, Badge, Avatar, Space, Dropdown, Typography, Divider, Switch, theme, Grid } from 'antd';
+
+const { useBreakpoint } = Grid;
 import { 
   MenuUnfoldOutlined, 
   MenuFoldOutlined, 
@@ -30,6 +32,8 @@ const Header = ({ collapsed, setCollapsed }) => {
   const { currentUser, tenantCode, logout } = useAuthStore();
   const { isDarkMode, toggleTheme } = useThemeStore();
   const { token } = theme.useToken();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
 
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -210,20 +214,21 @@ const Header = ({ collapsed, setCollapsed }) => {
           onClick: () => setCollapsed(!collapsed),
           style: { fontSize: '20px', cursor: 'pointer', color: token.colorPrimary }
         })}
-        <Divider type="vertical" style={{ height: '24px', borderColor: token.colorBorderSecondary }} />
-        <Text strong style={{ fontSize: '16px', color: token.colorText }}>
+        <Divider type="vertical" className="header-divider" style={{ height: '24px', borderColor: token.colorBorderSecondary }} />
+        <Text strong className="header-workspace-text" style={{ fontSize: '16px', color: token.colorText }}>
           {tenantCode?.toUpperCase() || 'RABBIT'} Workspace
         </Text>
       </Space>
 
-      <Space size="large" align="center">
-        <Switch 
-          checkedChildren={<BulbFilled />}
-          unCheckedChildren={<BulbOutlined />}
-          checked={isDarkMode}
-          onChange={toggleTheme}
-          style={{ marginRight: 8 }}
-        />
+      <Space size={isMobile ? 'small' : 'large'} align="center">
+        {!isMobile && (
+          <Switch 
+            checkedChildren={<BulbFilled />}
+            unCheckedChildren={<BulbOutlined />}
+            checked={isDarkMode}
+            onChange={toggleTheme}
+          />
+        )}
         
         <Dropdown dropdownRender={() => notificationContent} trigger={['click']} placement="bottomRight">
           <Badge count={unreadCount} size="small" style={{ cursor: 'pointer' }}>
@@ -232,11 +237,21 @@ const Header = ({ collapsed, setCollapsed }) => {
         </Dropdown>
         
         <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-          <Space style={{ cursor: 'pointer' }}>
-            <Avatar src={currentUser?.avatar} icon={<UserOutlined />} />
-            <Text strong>{currentUser?.name}</Text>
+          <Space style={{ cursor: 'pointer' }} size="small">
+            <Avatar src={currentUser?.avatar} icon={<UserOutlined />} size={isMobile ? 'small' : 'default'} />
+            {!isMobile && <Text strong>{currentUser?.name}</Text>}
           </Space>
         </Dropdown>
+
+        {isMobile && (
+          <Switch 
+            checkedChildren={<BulbFilled />}
+            unCheckedChildren={<BulbOutlined />}
+            checked={isDarkMode}
+            onChange={toggleTheme}
+            size="small"
+          />
+        )}
       </Space>
     </AntHeader>
   );

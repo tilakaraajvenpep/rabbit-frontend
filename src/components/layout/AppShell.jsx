@@ -38,61 +38,76 @@ const AppShell = () => {
     }
   }, [screens.md]);
 
-  const isMobile = screens.xs || (screens.sm && !screens.md);
+  // Derived booleans — treat undefined (initial SSR) as desktop
+  const isMobile = screens.md === false;
 
   const toggleSidebar = () => {
     if (isMobile) {
-      setDrawerVisible(!drawerVisible);
+      setDrawerVisible(prev => !prev);
     } else {
-      setCollapsed(!collapsed);
+      setCollapsed(prev => !prev);
     }
   };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', maxWidth: '100vw', overflowX: 'hidden' }}>
+      {/* ── Sidebar: Drawer on mobile, fixed Sider on desktop ── */}
       {isMobile ? (
         <Drawer
           placement="left"
           onClose={() => setDrawerVisible(false)}
           open={drawerVisible}
-          bodyStyle={{ padding: 0 }}
+          styles={{ body: { padding: 0 } }}
           width={240}
+          style={{ zIndex: 1001 }}
         >
           <Sidebar collapsed={false} isMobile={true} closeDrawer={() => setDrawerVisible(false)} />
         </Drawer>
       ) : (
         <Sidebar collapsed={collapsed} />
       )}
-      
-      <Layout style={{ 
-        marginLeft: isMobile ? 0 : (collapsed ? 80 : 240), 
+
+      {/* ── Main content area ── */}
+      <Layout style={{
+        marginLeft: isMobile ? 0 : (collapsed ? 80 : 240),
         transition: 'margin-left 0.2s',
         minHeight: '100vh',
+        maxWidth: isMobile ? '100vw' : undefined,
+        overflowX: 'hidden',
         background: token.colorBgLayout
       }}>
         <Header collapsed={isMobile ? false : collapsed} setCollapsed={toggleSidebar} />
-        <Content style={{ 
-          margin: isMobile ? '16px 12px' : '24px 32px', 
-          padding: 0, 
-          background: 'transparent', 
-          minHeight: 'calc(100vh - 112px)'
+
+        <Content style={{
+          margin: isMobile ? '12px 10px' : '24px 32px',
+          padding: 0,
+          background: 'transparent',
+          minHeight: 'calc(100vh - 112px)',
+          // Prevent content from overflowing horizontally on mobile
+          overflowX: 'hidden',
+          maxWidth: '100%',
         }}>
           <Outlet />
         </Content>
       </Layout>
 
-      {/* Global Rabbit Assistant */}
+      {/* ── Global Rabbit Assistant float button ── */}
       <FloatButton
         icon={<RobotOutlined />}
         type="primary"
-        style={{ right: 24, bottom: 24, width: 56, height: 56 }}
+        style={{
+          right: isMobile ? 16 : 24,
+          bottom: isMobile ? 20 : 24,
+          width: isMobile ? 48 : 56,
+          height: isMobile ? 48 : 56,
+        }}
         tooltip={<div>Rabbit Assistant</div>}
         onClick={() => setAssistantVisible(true)}
       />
 
-      <AssistantDrawer 
-        open={assistantVisible} 
-        onClose={() => setAssistantVisible(false)} 
+      <AssistantDrawer
+        open={assistantVisible}
+        onClose={() => setAssistantVisible(false)}
       />
     </Layout>
   );

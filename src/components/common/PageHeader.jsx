@@ -1,12 +1,11 @@
 import React from 'react';
-import { PageHeader as AntPageHeader } from '@ant-design/pro-layout'; // Using ProLayout for a better PageHeader experience or custom
-import { Breadcrumb, Typography, Space, Button } from 'antd';
+import { Breadcrumb, Typography, Space } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
-const PageHeader = ({ title, breadcrumbs, extra }) => {
+const PageHeader = ({ title, subTitle, breadcrumbs, extra }) => {
   const navigate = useNavigate();
 
   return (
@@ -14,15 +13,26 @@ const PageHeader = ({ title, breadcrumbs, extra }) => {
       {breadcrumbs && (
         <Breadcrumb style={{ marginBottom: 8 }}>
           {breadcrumbs.map((item, index) => (
-            <Breadcrumb.Item key={index} onClick={() => item.path && navigate(item.path)} style={{ cursor: item.path ? 'pointer' : 'default' }}>
+            <Breadcrumb.Item
+              key={index}
+              onClick={() => item.path && navigate(item.path)}
+              style={{ cursor: item.path ? 'pointer' : 'default' }}
+            >
               {item.label}
             </Breadcrumb.Item>
           ))}
         </Breadcrumb>
       )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Title level={3} style={{ margin: 0 }}>{title}</Title>
-        <Space>{extra}</Space>
+      <div className="page-header-row">
+        <div>
+          <Title level={3} style={{ margin: 0 }}>{title}</Title>
+          {subTitle && (
+            <Text type="secondary" style={{ fontSize: 13, marginTop: 2, display: 'block' }}>
+              {subTitle}
+            </Text>
+          )}
+        </div>
+        {extra && <Space wrap>{extra}</Space>}
       </div>
     </div>
   );
@@ -30,6 +40,7 @@ const PageHeader = ({ title, breadcrumbs, extra }) => {
 
 PageHeader.propTypes = {
   title: PropTypes.string.isRequired,
+  subTitle: PropTypes.string,
   breadcrumbs: PropTypes.arrayOf(PropTypes.shape({
     label: PropTypes.string.isRequired,
     path: PropTypes.string
