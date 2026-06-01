@@ -40,6 +40,7 @@ const HRAllocateProjectHoursPage = () => {
   const [project,     setProject]     = useState(null);
   const [employees,   setEmployees]   = useState([]);
   const [allUsers,    setAllUsers]    = useState([]);
+  const [tickets,     setTickets]     = useState([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [alloc,  setAlloc]  = useState({});  /* { empId: { h, m } } */
@@ -72,7 +73,7 @@ const HRAllocateProjectHoursPage = () => {
 
   /* ── Load selected project employees & Team Lead ── */
   useEffect(() => {
-    if (!selectedId) { setProject(null); setEmployees([]); setAlloc({}); setAllUsers([]); return; }
+    if (!selectedId) { setProject(null); setEmployees([]); setAlloc({}); setAllUsers([]); setTickets([]); return; }
     const load = async () => {
       setDetailLoading(true);
       try {
@@ -83,12 +84,12 @@ const HRAllocateProjectHoursPage = () => {
         ]);
         const proj    = projRes.data;
         const users   = usersRes.data   || [];
-        const tickets = ticketsRes.data || [];
+        const ticketList = ticketsRes.data || [];
 
         const tlAssignedIds = proj.assignedEmployeeIds && Array.isArray(proj.assignedEmployeeIds)
           ? proj.assignedEmployeeIds.map(String) : [];
         const ticketUserIds = [...new Set(
-          tickets.filter(t => String(t.projectId) === String(selectedId))
+          ticketList.filter(t => String(t.projectId) === String(selectedId))
             .map(t => t.assignedToUserId).filter(Boolean).map(String)
         )];
         const useIds = tlAssignedIds.length > 0 ? tlAssignedIds : ticketUserIds;
@@ -115,6 +116,7 @@ const HRAllocateProjectHoursPage = () => {
 
         setProject(proj);
         setAllUsers(users);
+        setTickets(ticketList);
         setEmployees(emps);
         setAlloc(init);
       } catch (e) {
