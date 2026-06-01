@@ -118,12 +118,24 @@ const PMDashboardPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [projectsRes, usersRes, alertsRes] = await Promise.all([
+      const [projectsRes, usersRes, alertsRes, ticketsRes] = await Promise.all([
         projectService.getProjects(),
         adminService.getUsers(),
-        analyticsService.getAlerts().catch(err => { console.error('Alerts load failed', err); return { data: [] }; })
+        analyticsService.getAlerts().catch(err => { console.error('Alerts load failed', err); return { data: [] }; }),
+        ticketService.getTickets().catch(err => { console.error('Tickets load failed', err); return { data: [] }; })
       ]);
-      setProjects(projectsRes.data || []);
+      
+      const allTickets = ticketsRes.data || [];
+      const updatedProjects = (projectsRes.data || []).map(p => {
+        const projectTickets = allTickets.filter(t => String(t.projectId) === String(p.id));
+        const computedConsumed = projectTickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+        return {
+          ...p,
+          consumedHours: Math.max(Number(p.consumedHours) || 0, computedConsumed)
+        };
+      });
+
+      setProjects(updatedProjects);
       setTeamLeads((usersRes.data || []).filter(u => u.role === 'TeamLead'));
       if (alertsRes && alertsRes.data) {
         setAlerts(alertsRes.data);
