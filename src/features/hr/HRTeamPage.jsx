@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Table, Avatar, Badge, Spin, Typography, Space, DatePicker, notification, Input, Statistic, Button, Form, Modal, Select, InputNumber } from 'antd';
+import { Card, Row, Col, Table, Avatar, Badge, Spin, Typography, Space, DatePicker, notification, Input, Statistic, Button, Form, Modal, Select, InputNumber, Switch } from 'antd';
 import { UserOutlined, TeamOutlined, MailOutlined, CalendarOutlined, SearchOutlined, UserAddOutlined, DeleteOutlined } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { projectService } from '../../services/projectService';
@@ -115,6 +115,22 @@ const HRTeamPage = () => {
     });
   };
 
+  const handleToggleStatus = async (userId, currentIsActive) => {
+    try {
+      await adminService.toggleUserStatus(userId);
+      notification.success({
+        message: 'Success',
+        description: `User status changed to ${currentIsActive !== false ? 'Inactive' : 'Active'}.`
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: currentIsActive === false } : u));
+    } catch (error) {
+      notification.error({
+        message: 'Error',
+        description: 'Failed to toggle user status.'
+      });
+    }
+  };
+
   const filteredUsers = users.filter(u => 
     u.name?.toLowerCase().includes(searchText.toLowerCase()) ||
     u.fullName?.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -193,12 +209,14 @@ const HRTeamPage = () => {
       title: 'Status',
       dataIndex: 'isActive',
       key: 'isActive',
-      width: 120,
-      render: (isActive) => (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
-          <Badge status={isActive !== false ? 'success' : 'error'} />
-          <Text style={{ margin: 0 }}>{isActive !== false ? 'Active' : 'Inactive'}</Text>
-        </span>
+      width: 140,
+      render: (isActive, record) => (
+        <Switch
+          checked={isActive !== false}
+          onChange={() => handleToggleStatus(record.id, isActive)}
+          checkedChildren="Active"
+          unCheckedChildren="Inactive"
+        />
       )
     },
     {
