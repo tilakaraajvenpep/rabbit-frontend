@@ -1013,6 +1013,8 @@ const EODReportPage = () => {
   // 4. The hours consumed on other days (excluding selectedDate) is:
   const projectHoursConsumedOtherDays = Math.max(0, projectHoursConsumedAllTime - projectHoursTodayInDatabase);
 
+  const projectRemainingBeforeToday = Math.max(0, projectAllocatedHours - projectHoursConsumedOtherDays);
+
   // 5. Calculate today's/selectedDate's hours:
   let projectHoursToday = 0;
   if (isSelectedInRealWeek) {
