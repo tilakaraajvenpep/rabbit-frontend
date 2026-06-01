@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Form, InputNumber, Button, Space, Modal, Alert,
-  notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme, Radio, Tag, Spin
+  notification, Row, Col, Typography, Divider, Descriptions, Result, Select, theme, Radio, Tag, Spin, Tooltip
 } from 'antd';
 import {
   CheckCircleOutlined,
@@ -485,110 +485,70 @@ const CostAnalysisPage = () => {
                 }
                 style={{ marginBottom: 0 }}
               >
-                <InputNumber
-                  value={totalHours || undefined}
-                  min={0}
-                  style={{ width: '100%' }}
-                  size="large"
-                  placeholder={billingType === 'monthly' ? 'Hours per month' : 'Total fixed hours'}
-                  onChange={handleTotalHoursChange}
-                />
+                <Space.Compact style={{ width: '100%' }}>
+                  <InputNumber
+                    value={totalHours || undefined}
+                    min={0}
+                    style={{ width: '100%' }}
+                    size="large"
+                    placeholder={billingType === 'monthly' ? 'Hours per month' : 'Total fixed hours'}
+                    onChange={handleTotalHoursChange}
+                  />
+                  {(!totalHours || totalHours === 0) && totalBudget > 0 && (
+                    <Button
+                      size="large"
+                      type="dashed"
+                      icon={<CalculatorOutlined />}
+                      onClick={() => {
+                        const generated = Math.round(totalBudget / (standardCost || 500));
+                        setTotalHours(generated);
+                        setBufferHours(Math.round(generated * 0.10));
+                        notification.success({
+                          message: 'Hours Generated',
+                          description: `${generated} hrs calculated from ₹${totalBudget.toLocaleString('en-IN')} ÷ ₹${standardCost}/hr (standard cost)`
+                        });
+                      }}
+                      title={`Generate hours: ₹${totalBudget.toLocaleString('en-IN')} ÷ ₹${standardCost}/hr`}
+                    >
+                      Generate
+                    </Button>
+                  )}
+                </Space.Compact>
               </Form.Item>
             </Card>
           </Col>
         </Row>
       )}
 
-      {/* BUFFER & COST CALCULATION */}
+      {/* BUFFER (auto 10%) */}
       {!extracting && (
-        <Row gutter={24} style={{ marginBottom: 24 }}>
-          <Col xs={24} md={12}>
-            <Card
-              title="Project Contingency Buffer (10%)"
-              style={metricCardStyle}
-            >
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '16px 20px',
-                background: isDarkMode ? 'rgba(255,255,255,0.04)' : '#f0f9ff',
-                borderRadius: 10,
-                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#bae6fd'}`
-              }}>
-                <div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>Auto-calculated Buffer (10% of total hours)</Text>
-                  <div>
-                    <Text strong style={{ fontSize: 28, color: '#0ea5e9' }}>{bufferHours} hrs</Text>
-                  </div>
-                  <Text type="secondary" style={{ fontSize: 11 }}>
-                    {totalHours > 0 ? `${((bufferHours / totalHours) * 100).toFixed(1)}% of ${totalHours} hrs` : 'Set total hours first'}
-                  </Text>
-                </div>
-                <ClockCircleOutlined style={{ fontSize: 40, color: '#0ea5e9', opacity: 0.4 }} />
+        <Card
+          title="Project Contingency Buffer"
+          style={{ ...cardStyle, marginBottom: 24 }}
+        >
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            background: isDarkMode ? 'rgba(255,255,255,0.04)' : '#f0f9ff',
+            borderRadius: 10,
+            border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#bae6fd'}`
+          }}>
+            <div>
+              <Text type="secondary" style={{ fontSize: 12 }}>Auto-calculated at 10% of total hours</Text>
+              <div>
+                <Text strong style={{ fontSize: 32, color: '#0ea5e9' }}>{bufferHours} hrs</Text>
               </div>
-              <div style={{ marginTop: 12 }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Override buffer manually if required:
-                </Text>
-                <InputNumber
-                  value={bufferHours}
-                  min={0}
-                  style={{ width: '100%', marginTop: 8 }}
-                  onChange={val => setBufferHours(val || 0)}
-                  placeholder="Buffer hours"
-                />
-              </div>
-            </Card>
-          </Col>
-
-          <Col xs={24} md={12}>
-            <Card
-              title="Cost Calculation Mode"
-              style={metricCardStyle}
-            >
-              <Form.Item label="Mode" tooltip="Choose whether this project uses standard cost logic or custom employee rates.">
-                <Radio.Group
-                  value={costCalculationType}
-                  onChange={e => setCostCalculationType(e.target.value)}
-                  optionType="button"
-                  buttonStyle="solid"
-                  style={{ width: '100%', marginBottom: 12 }}
-                >
-                  <Radio.Button value="custom" style={{ width: '50%', textAlign: 'center' }}>Custom Cost</Radio.Button>
-                  <Radio.Button value="standard" style={{ width: '50%', textAlign: 'center' }}>Standard Cost</Radio.Button>
-                </Radio.Group>
-              </Form.Item>
-
-              {costCalculationType === 'standard' && (
-                <Alert
-                  type="info"
-                  message={`Standard Cost Rate: ₹${standardCost.toLocaleString('en-IN')}/hr`}
-                  description={`Estimated project cost at standard rate: ₹${(totalHours * standardCost).toLocaleString('en-IN')}`}
-                  style={{ borderRadius: 8 }}
-                />
-              )}
-
-              {/* Summary */}
-              {totalHours > 0 && totalBudget > 0 && (
-                <div style={{
-                  marginTop: 12,
-                  padding: '12px 16px',
-                  background: isDarkMode ? 'rgba(255,255,255,0.04)' : '#f6ffed',
-                  borderRadius: 8,
-                  border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#b7eb8f'}`
-                }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>Effective Rate</Text>
-                  <div>
-                    <Text strong style={{ color: '#52c41a', fontSize: 16 }}>
-                      ₹{(totalBudget / totalHours).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}/hr
-                    </Text>
-                  </div>
-                </div>
-              )}
-            </Card>
-          </Col>
-        </Row>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {totalHours > 0
+                  ? `10% of ${totalHours} hrs = ${bufferHours} hrs buffer`
+                  : 'Buffer will be calculated once total hours are set'}
+              </Text>
+            </div>
+            <ClockCircleOutlined style={{ fontSize: 48, color: '#0ea5e9', opacity: 0.3 }} />
+          </div>
+        </Card>
       )}
 
       {/* ACTION BAR */}
@@ -695,10 +655,6 @@ const CostAnalysisPage = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Text type="secondary">Buffer Hours (10%):</Text>
                 <Text strong>{bufferHours} hrs</Text>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text type="secondary">Cost Mode:</Text>
-                <Text strong style={{ textTransform: 'capitalize' }}>{costCalculationType}</Text>
               </div>
             </div>
           </div>
