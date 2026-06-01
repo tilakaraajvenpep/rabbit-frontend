@@ -73,6 +73,22 @@ const HRTeamPage = () => {
       });
     }
   };
+ 
+  const handleTeamLeadChange = async (userId, teamLeadId) => {
+    try {
+      await adminService.updateUserTeamLead(userId, teamLeadId || null);
+      notification.success({
+        message: 'Success',
+        description: 'Reporting Team Lead updated successfully.'
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, teamLeadId: teamLeadId || null } : u));
+    } catch (error) {
+      notification.error({
+        message: 'Error',
+        description: 'Failed to update Reporting Team Lead.'
+      });
+    }
+  };
 
   const handleDeleteUser = (record) => {
     Modal.confirm({
@@ -149,6 +165,29 @@ const HRTeamPage = () => {
           format="YYYY-MM-DD"
         />
       )
+    },
+    {
+      title: 'Reporting Team Lead',
+      dataIndex: 'teamLeadId',
+      key: 'teamLeadId',
+      render: (teamLeadId, record) => {
+        const teamLeads = users.filter(u => u.role === 'TeamLead' && String(u.id) !== String(record.id));
+        return (
+          <Select
+            placeholder="Select Team Lead"
+            style={{ width: 180 }}
+            value={teamLeadId || undefined}
+            onChange={(val) => handleTeamLeadChange(record.id, val)}
+            allowClear
+          >
+            {teamLeads.map(tl => (
+              <Select.Option key={tl.id} value={tl.id}>
+                {tl.name || tl.fullName}
+              </Select.Option>
+            ))}
+          </Select>
+        );
+      }
     },
     {
       title: 'Status',
