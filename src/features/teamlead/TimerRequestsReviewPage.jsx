@@ -134,9 +134,11 @@ const TimerRequestsReviewPage = () => {
     finally { setSubmitting(false); }
   };
 
-  const totalHours = requests.reduce((s, r) => s + Number(r.request?.requestedHours || 0), 0);
-  const exceeded = requests.filter(r => r.request?.requestType === 'HoursExceeded').length;
-  const missed   = requests.filter(r => r.request?.requestType === 'TimerMissed').length;
+  const totalApprovedHours = Array.isArray(history) 
+    ? history
+        .filter(r => ['PendingPM', 'PendingAccounts', 'AccountsApproved', 'Approved'].includes(r?.request?.status))
+        .reduce((s, r) => s + Number(r?.request?.requestedHours || 0), 0)
+    : 0;
 
   const cardBase = { borderRadius: 16, overflow: 'hidden', background: isDarkMode ? '#18181b' : '#fff', border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.07)' : '#f1f5f9'}` };
 
@@ -349,9 +351,7 @@ const TimerRequestsReviewPage = () => {
       {!loading && (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           <MetricCard icon={<FileTextOutlined />} label="Pending Requests" value={requests.length} color="#6366f1" bg={isDarkMode ? '#18181b' : '#fafafa'} />
-          <MetricCard icon={<ClockCircleOutlined />} label="Total Extra Hours" value={`${totalHours.toFixed(1)}h`} color="#f59e0b" bg={isDarkMode ? '#18181b' : '#fafafa'} />
-          <MetricCard icon={<ThunderboltOutlined />} label="Hours Exceeded" value={exceeded} color="#7c3aed" bg={isDarkMode ? '#18181b' : '#fafafa'} />
-          <MetricCard icon={<TeamOutlined />} label="Timer Missed" value={missed} color="#c2410c" bg={isDarkMode ? '#18181b' : '#fafafa'} />
+          <MetricCard icon={<ClockCircleOutlined />} label="Total Extra Hours" value={`${totalApprovedHours.toFixed(1)}h`} color="#f59e0b" bg={isDarkMode ? '#18181b' : '#fafafa'} />
         </div>
       )}
 
