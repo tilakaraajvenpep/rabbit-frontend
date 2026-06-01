@@ -349,7 +349,6 @@ const AccountsHoursApprovalPage = () => {
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           <MetricCard icon={<FileTextOutlined />} label="Pending Requests" value={requests.length} color="#6366f1" bg={isDarkMode ? '#18181b' : '#fafafa'} />
           <MetricCard icon={<ClockCircleOutlined />} label="Total Extra Hours" value={`${totalApprovedHours.toFixed(1)}h`} color="#f59e0b" bg={isDarkMode ? '#18181b' : '#fafafa'} />
-          <MetricCard icon={<DollarOutlined />} label="Budget Decision Needed" value={requests.length} color="#10b981" bg={isDarkMode ? '#18181b' : '#fafafa'} />
         </div>
       )}
 
