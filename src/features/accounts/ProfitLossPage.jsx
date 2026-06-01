@@ -163,6 +163,11 @@ const ProfitLossPage = () => {
 
   const isProfit = profitLoss >= 0;
 
+  // Dynamic calculations for Project Details card
+  const consumedHours = tickets.length > 0 ? tickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0) : (Number(project?.consumedHours) || 0);
+  const allTicketsDone = tickets.length > 0 && tickets.every(t => t.status === 'Done');
+  const projectStatus = allTicketsDone ? 'Completed' : (project?.status || 'InProgress');
+
   return (
     <div style={{ padding: '0 8px' }}>
       <PageHeader 
@@ -322,10 +327,10 @@ const ProfitLossPage = () => {
                     <Tag color="cyan">{project.projectCategory || 'N/A'}</Tag>
                   </Descriptions.Item>
                   <Descriptions.Item label="Status">
-                    <StatusBadge status={project.status} />
+                    <StatusBadge status={projectStatus} />
                   </Descriptions.Item>
                   <Descriptions.Item label="Hours Consumed">
-                    <Text strong>{project.consumedHours || 0} hrs</Text> / {project.approvedHours || 0} hrs
+                    <Text strong>{consumedHours.toFixed(2)} hrs</Text> / {(Number(project.approvedHours) || 0).toFixed(2)} hrs
                   </Descriptions.Item>
                   <Descriptions.Item label="Expected Start">
                     {project.startDate ? dayjs(project.startDate).format('DD MMM YYYY') : '-'}
@@ -334,7 +339,7 @@ const ProfitLossPage = () => {
                 <div style={{ marginTop: 24 }}>
                   <Text strong>Project Time Utilization</Text>
                   {(() => {
-                    const pct = project.approvedHours > 0 ? Math.round((Number(project.consumedHours) / Number(project.approvedHours)) * 100) : 0;
+                    const pct = project.approvedHours > 0 ? Math.round((consumedHours / Number(project.approvedHours)) * 100) : 0;
                     return (
                       <div style={{ marginTop: 8 }}>
                         <Progress percent={pct} strokeColor={pct > 100 ? '#ef4444' : '#1890ff'} />

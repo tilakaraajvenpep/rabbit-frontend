@@ -12,7 +12,8 @@ const statusColorMap = {
   ReturnedForRevision: 'volcano',
   Done: 'success',
   ToDo: 'processing',
-  InReview: 'warning'
+  InReview: 'warning',
+  Completed: 'success'
 };
 
 const StatusBadge = ({ status }) => {
