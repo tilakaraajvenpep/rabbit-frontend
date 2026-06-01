@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
@@ -103,7 +103,7 @@ const SortableColumnItem = ({ col, idx, onTitleChange, onRemove, length }) => {
 };
 
 // Sortable Ticket Card
-const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDarkMode, isDragDisabled }) => {
+const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDarkMode, isDragDisabled, isTLOrPM, onApproveToggle }) => {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ 
     id: ticket.id,
     disabled: isDragDisabled
@@ -214,13 +214,35 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
             </Tag>
           )}
         </div>
+        
+        {ticket.status === 'InReview' && (
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+            {ticket.approvedForDone ? (
+              <Tag 
+                color="success" 
+                style={{ cursor: isTLOrPM ? 'pointer' : 'default', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={() => isTLOrPM && onApproveToggle(ticket)}
+              >
+                ✓ Approved for Done
+              </Tag>
+            ) : (
+              <Tag 
+                color="warning" 
+                style={{ cursor: isTLOrPM ? 'pointer' : 'default', fontWeight: 600, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={() => isTLOrPM && onApproveToggle(ticket)}
+              >
+                ⚠ {isTLOrPM ? "Approve Done Stage" : "Awaiting Approval"}
+              </Tag>
+            )}
+          </div>
+        )}
       </Card>
     </div>
   );
 };
 
 // Droppable Column Component — receives displayTitle directly
-const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, onEditTicket, isDarkMode, token, users, canEdit, authRole }) => {
+const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, onEditTicket, isDarkMode, token, users, canEdit, authRole, isTLOrPM, onApproveToggle }) => {
   const { setNodeRef } = useDroppable({ id: colId });
 
   const colColors = {
@@ -275,6 +297,8 @@ const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDel
                 canEdit={canEdit}
                 isDarkMode={isDarkMode}
                 isDragDisabled={isDragDisabled}
+                isTLOrPM={isTLOrPM}
+                onApproveToggle={onApproveToggle}
               />
             );
           })}
@@ -318,6 +342,8 @@ const KanbanBoard = () => {
     || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
   const canEdit = authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authRole === 'TeamLead'
     || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin' || authUser?.role === 'TeamLead';
+  const isTLOrPM = authRole === 'TeamLead' || authRole === 'ProjectManager' || authRole === 'TenantAdmin'
+    || authUser?.role === 'TeamLead' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
   const project = allProjects.find(p => String(p.id) === String(projectId));
 
   // Effective column config — from saved project data or defaults
@@ -378,6 +404,17 @@ const KanbanBoard = () => {
       setUsers(res.data);
     } catch (error) {
       console.error('Failed to fetch users');
+    }
+  };
+
+  const handleApproveToggle = async (ticket) => {
+    try {
+      const newApproved = !ticket.approvedForDone;
+      await ticketService.updateTicket(ticket.id || ticket.ticketId, { approvedForDone: newApproved });
+      message.success(newApproved ? 'Ticket approved for Done stage!' : 'Ticket approval revoked.');
+      loadTickets(projectId);
+    } catch (err) {
+      message.error('Failed to update ticket approval status.');
     }
   };
 
@@ -696,6 +733,8 @@ const KanbanBoard = () => {
                 users={users}
                 canEdit={canEdit}
                 authRole={authRole}
+                isTLOrPM={isTLOrPM}
+                onApproveToggle={handleApproveToggle}
               />
             ))}
           </div>
@@ -747,6 +786,24 @@ const KanbanBoard = () => {
                 }
               </Text>
             </Space>
+
+            {isTLOrPM && selectedTicket.status === 'InReview' && (
+              <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
+                <Text strong>Team Leader Approval</Text>
+                <Button 
+                  type={selectedTicket.approvedForDone ? 'default' : 'primary'}
+                  danger={selectedTicket.approvedForDone}
+                  icon={selectedTicket.approvedForDone ? <LockOutlined /> : <CheckCircleOutlined />}
+                  onClick={async () => {
+                    await handleApproveToggle(selectedTicket);
+                    setSelectedTicket(prev => prev ? { ...prev, approvedForDone: !prev.approvedForDone } : null);
+                  }}
+                  block
+                >
+                  {selectedTicket.approvedForDone ? 'Revoke Done Approval' : 'Approve for Done Stage'}
+                </Button>
+              </Space>
+            )}
           </Space>
         )}
       </Drawer>

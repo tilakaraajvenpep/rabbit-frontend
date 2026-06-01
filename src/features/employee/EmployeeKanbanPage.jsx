@@ -6,7 +6,7 @@ import {
 } from 'antd';
 import { 
   ClockCircleOutlined, SyncOutlined, PlayCircleOutlined,
-  EditOutlined, UserOutlined
+  EditOutlined, UserOutlined, LockOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -112,6 +112,17 @@ const EmployeeKanbanPage = () => {
   };
 
   const handleStatusChange = async (ticketId, newStatus) => {
+    const ticket = tickets.find(t => t.id === ticketId);
+    if (newStatus === 'Done' && currentUser.role === 'Employee') {
+      if (ticket && !ticket.approvedForDone) {
+        notification.error({
+          message: 'Action Blocked',
+          description: 'You can move a ticket to Done stage only after your Team Leader gives permission/approval.'
+        });
+        return;
+      }
+    }
+
     try {
       await ticketService.updateTicketStatus(ticketId, newStatus);
       notification.success({ 
@@ -335,18 +346,34 @@ const EmployeeKanbanPage = () => {
                                 </div>
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-
+                                  {ticket.status === 'InReview' && (
+                                    <div style={{ marginTop: 4 }}>
+                                      {ticket.approvedForDone ? (
+                                        <Tag color="success" style={{ fontWeight: 600, fontSize: 11 }}>
+                                          ✓ Approved for Done
+                                        </Tag>
+                                      ) : (
+                                        <Tag color="warning" style={{ fontWeight: 600, fontSize: 11 }}>
+                                          ⚠ Awaiting TL Approval
+                                        </Tag>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
 
                                 <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                                   {activeColumns.map(c => {
                                     if (c.key === columnStatus) return null;
+                                    const isDoneAndLocked = c.key === 'Done' && currentUser.role === 'Employee' && !ticket.approvedForDone;
                                     return (
                                       <Button 
                                         key={c.key}
                                         size="small"
                                         type={c.key === 'InProgress' ? 'primary' : 'default'}
                                         onClick={() => handleStatusChange(ticket.id, c.key)}
+                                        disabled={isDoneAndLocked}
+                                        icon={isDoneAndLocked ? <LockOutlined style={{ fontSize: 10 }} /> : undefined}
+                                        title={isDoneAndLocked ? "Requires Team Leader Approval" : undefined}
                                       >
                                         {c.title}
                                       </Button>
@@ -411,6 +438,17 @@ const EmployeeKanbanPage = () => {
                 </Tag>
               </Col>
             </Row>
+
+            {currentUser.role === 'Employee' && (
+              <div>
+                <Text type="secondary" block style={{ marginBottom: 6 }}>Team Leader Approval Status</Text>
+                {selectedTicket.approvedForDone ? (
+                  <Tag color="success" style={{ fontWeight: 600 }}>✓ Approved for Done stage</Tag>
+                ) : (
+                  <Tag color="warning" style={{ fontWeight: 600 }}>⚠ Awaiting Team Leader Approval (InReview)</Tag>
+                )}
+              </div>
+            )}
 
 
 
