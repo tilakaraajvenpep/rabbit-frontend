@@ -7,6 +7,9 @@ class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
+    try {
+      sessionStorage.removeItem('chunk-reload-occurred');
+    } catch (e) {}
   }
 
   static getDerivedStateFromError(error) {
@@ -15,8 +18,26 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     this.setState({ error, errorInfo });
-    // You could also log the error to an error reporting service here
     console.error('ErrorBoundary caught an error', error, errorInfo);
+
+    const errorText = error ? error.toString() : '';
+    const isChunkLoadFailed = 
+      errorText.includes('Failed to fetch dynamically imported module') ||
+      errorText.includes('Failed to load module script') ||
+      errorText.includes('loading chunk') ||
+      errorText.includes('ChunkLoadError');
+
+    if (isChunkLoadFailed) {
+      try {
+        const hasReloaded = sessionStorage.getItem('chunk-reload-occurred');
+        if (!hasReloaded) {
+          sessionStorage.setItem('chunk-reload-occurred', 'true');
+          window.location.reload();
+        }
+      } catch (e) {
+        console.error('Failed to trigger chunk reload', e);
+      }
+    }
   }
 
   render() {
