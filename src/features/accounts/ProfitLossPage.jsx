@@ -132,6 +132,24 @@ const ProfitLossPage = () => {
     }
   };
 
+  // Helper to dynamically calculate milestone status based on tickets
+  const getMilestoneStatus = (milestoneTitle) => {
+    if (!milestoneTitle) return 'Pending';
+    const milestoneTickets = tickets.filter(t => {
+      if (!t.milestone) return false;
+      const tMil = String(t.milestone).trim().toLowerCase();
+      const mTitle = String(milestoneTitle).trim().toLowerCase();
+      return tMil === mTitle || mTitle.includes(tMil) || tMil.includes(mTitle);
+    });
+
+    if (milestoneTickets.length === 0) {
+      return 'Pending';
+    }
+
+    const allDone = milestoneTickets.every(t => t.status === 'Done');
+    return allDone ? 'Completed' : 'InProgress';
+  };
+
   if (loading) {
     return <Skeleton active paragraph={{ rows: 12 }} />;
   }
@@ -362,11 +380,25 @@ const ProfitLossPage = () => {
                     title: 'Status',
                     dataIndex: 'status',
                     key: 'status',
-                    render: (status) => (
-                      <Tag color={status === 'Completed' ? 'success' : 'warning'}>
-                        {status || 'Pending'}
-                      </Tag>
-                    )
+                    render: (status, record) => {
+                      const dynamicStatus = getMilestoneStatus(record.title);
+                      let color = 'warning';
+                      let label = 'Pending';
+                      
+                      if (dynamicStatus === 'Completed') {
+                        color = 'success';
+                        label = 'Completed';
+                      } else if (dynamicStatus === 'InProgress') {
+                        color = 'processing';
+                        label = 'In Progress';
+                      }
+                      
+                      return (
+                        <Tag color={color} style={{ borderRadius: 4, fontWeight: 600 }}>
+                          {label}
+                        </Tag>
+                      );
+                    }
                   }
                 ]}
               />
