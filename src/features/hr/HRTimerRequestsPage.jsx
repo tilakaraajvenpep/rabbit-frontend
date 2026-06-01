@@ -128,7 +128,7 @@ const HRTimerRequestsPage = () => {
       render: (_, record) => (
         <Button
           size="small"
-          onClick={() => navigate('/hr/hours')}
+          onClick={() => navigate('/hr/allocate')}
           style={{
             background: 'linear-gradient(135deg,#6366f1,#7c3aed)',
             border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12,
