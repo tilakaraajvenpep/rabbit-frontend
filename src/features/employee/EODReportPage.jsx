@@ -156,10 +156,30 @@ const EODReportPage = () => {
     return acc + hrs + (mins / 60);
   }, 0) || 0;
 
-  // Early derivation of selected project's allocated hours (used for constraint check)
-  const _userId = currentUser?.userId || currentUser?.id;
-  const _selectedProject = allProjects.find(p => String(p.id) === String(selectedTopProjectId));
-  const projectAllocatedHoursEarly = _selectedProject ? Number(_selectedProject.employeeAllocatedHours?.[_userId] || 0) : 0;
+  // ─── Pre-render derived values ───────────────────────────────────────────
+  const userId = currentUser?.userId || currentUser?.id;
+  const selectedProject = allProjects.find(p => String(p.id) === String(selectedTopProjectId));
+  const projectAllocatedHours = selectedProject ? Number(selectedProject.employeeAllocatedHours?.[userId] || 0) : 0;
+
+  // 1. Calculate the total hours consumed on this project across all time (from the tickets)
+  const projectHoursConsumedAllTime = allMyTickets
+    .filter(t => String(t.projectId) === String(selectedTopProjectId))
+    .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
+
+  // 2. Find the hours logged on today's/selectedDate's report for this project in the database
+  const selectedDateReport = weeklyReports.find(r => r.date === selectedDate);
+  const projectHoursTodayInDatabase = selectedDateReport?.items
+    ?.filter(item => {
+      const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+      const pId = tkt ? tkt.projectId : item.projectId;
+      return String(pId) === String(selectedTopProjectId);
+    })
+    .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
+
+  // 3. The hours consumed on other days (excluding selectedDate) is:
+  const projectHoursConsumedOtherDays = Math.max(0, projectHoursConsumedAllTime - projectHoursTodayInDatabase);
+
+  const projectRemainingBeforeToday = Math.max(0, projectAllocatedHours - projectHoursConsumedOtherDays);
 
   // Derivation of assigned Team Lead for the employee
   const assignedTeamLead = allUsers.find(u => String(u.id || u.userId) === String(selectedTeamLeadId)) || 
@@ -214,13 +234,13 @@ const EODReportPage = () => {
     }
   }, [selectedTopProjectId, watchedItems, append, viewOnly, loading]);
 
-  // Constraint: block when entered hours exceed this project's allocated hours
+  // Constraint: block when entered hours exceed this project's remaining available hours
   useEffect(() => {
-    if (!viewOnly && projectAllocatedHoursEarly > 0 && totalHours > projectAllocatedHoursEarly) {
+    if (!viewOnly && totalHours > projectRemainingBeforeToday) {
       setBlockedSubmitTotal(totalHours);
       setIsHoursBlockedModalOpen(true);
     }
-  }, [totalHours, projectAllocatedHoursEarly, viewOnly]);
+  }, [totalHours, projectRemainingBeforeToday, viewOnly]);
 
   const loggedThisWeek = hoursReportedOtherDays + totalHours;
   const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
@@ -780,16 +800,8 @@ const EODReportPage = () => {
 
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
 
-    if (submittedTotal > 24) {
-      notification.error({
-        message: 'Validation Error',
-        description: `Total reported time (${submittedTotal.toFixed(2)} hrs) cannot exceed 24 hours in a single day.`
-      });
-      return;
-    }
-
-    // Single constraint: block if hours exceed the selected project's allocated hours
-    if (projectAllocatedHoursEarly > 0 && submittedTotal > projectAllocatedHoursEarly) {
+    // Single constraint: block if hours exceed the selected project's remaining available hours
+    if (submittedTotal > projectRemainingBeforeToday) {
       setBlockedSubmitTotal(submittedTotal);
       setIsHoursBlockedModalOpen(true);
       return;
@@ -1018,37 +1030,12 @@ const EODReportPage = () => {
   const isNextWeek = dayjs(selectedDate).isAfter(dayjs().endOf('week'));
 
 
-  // ─── Pre-render derived values ───────────────────────────────────────────
-  const userId = currentUser?.userId || currentUser?.id;
-  const selectedProject = allProjects.find(p => String(p.id) === String(selectedTopProjectId));
-  const projectAllocatedHours = selectedProject ? Number(selectedProject.employeeAllocatedHours?.[userId] || 0) : 0;
-
-  // 1. Calculate the total hours consumed on this project across all time (from the tickets)
-  const projectHoursConsumedAllTime = allMyTickets
-    .filter(t => String(t.projectId) === String(selectedTopProjectId))
-    .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
-
   // 2. Check if selectedDate is in the current real-world week
   const isSelectedInRealWeek = dayjs(selectedDate).isBetween(
     dayjs().startOf('week').add(1, 'day').subtract(1, 'day'),
     dayjs().startOf('week').add(7, 'day').add(1, 'day'),
     'day'
   );
-
-  // 3. Find the hours logged on today's/selectedDate's report for this project in the database
-  const selectedDateReport = weeklyReports.find(r => r.date === selectedDate);
-  const projectHoursTodayInDatabase = selectedDateReport?.items
-    ?.filter(item => {
-      const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-      const pId = tkt ? tkt.projectId : item.projectId;
-      return String(pId) === String(selectedTopProjectId);
-    })
-    .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
-
-  // 4. The hours consumed on other days (excluding selectedDate) is:
-  const projectHoursConsumedOtherDays = Math.max(0, projectHoursConsumedAllTime - projectHoursTodayInDatabase);
-
-  const projectRemainingBeforeToday = Math.max(0, projectAllocatedHours - projectHoursConsumedOtherDays);
 
   // 5. Calculate today's/selectedDate's hours:
   let projectHoursToday = 0;
@@ -1426,7 +1413,7 @@ const EODReportPage = () => {
       </Modal>
 
       <Modal
-        title={<span style={{ color: '#ff4d4f', fontWeight: 700 }}>⚠️ Allocated Hours Exceeded</span>}
+        title={<span style={{ color: '#ff4d4f', fontWeight: 700 }}>⚠️ Available Hours Exceeded</span>}
         open={isHoursBlockedModalOpen}
         onCancel={() => setIsHoursBlockedModalOpen(false)}
         footer={[
@@ -1444,7 +1431,7 @@ const EODReportPage = () => {
         <Result
           icon={<ExclamationCircleFilled style={{ color: '#ff4d4f' }} />}
           title="Permission Required"
-          subTitle={`You have entered ${fmtH(blockedSubmitTotal)} which exceeds your allocated hours of ${fmtH(projectAllocatedHoursEarly)}. Please get permission from your Team Leader to report additional hours.`}
+          subTitle={`You have entered ${fmtH(blockedSubmitTotal)} which exceeds your available remaining hours of ${fmtH(projectRemainingBeforeToday)}. Please get permission from your Team Leader to report additional hours.`}
         />
       </Modal>
 
