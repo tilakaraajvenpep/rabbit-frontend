@@ -1073,8 +1073,14 @@ const EODReportPage = () => {
         <div style={{ flex: 1 }} />
 
         <Button size="small" onClick={handleGoToToday}>Today</Button>
-        {!isMobile && <Button size="small" icon={<CalendarOutlined />} style={{ borderColor: '#ec4899', color: '#ec4899' }}
-          onClick={() => handleOpenApplyLeaveModal(selectedDate)}>Apply Leave</Button>}
+        <Button 
+          size="small" 
+          icon={<CalendarOutlined />} 
+          style={{ borderColor: '#ec4899', color: '#ec4899', flexShrink: 0 }}
+          onClick={() => handleOpenApplyLeaveModal(selectedDate)}
+        >
+          {!isMobile && "Apply Leave"}
+        </Button>
         {existingReport && viewOnly && (
           <Button size="small" type="primary" icon={<EditOutlined />}
             style={{ background: accent, borderColor: accent }} onClick={() => setViewOnly(false)}>Edit</Button>
