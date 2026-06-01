@@ -266,11 +266,11 @@ const CreateProjectPage = () => {
             />
           </Form.Item>
 
-          <Form.Item label="Upload Project Scope Document" required={!id} validateStatus={errors.scopeFile ? 'error' : ''} help={errors.scopeFile?.message}>
+          <Form.Item label="Upload Project Scope Document (Optional)" validateStatus={errors.scopeFile ? 'error' : ''} help={errors.scopeFile?.message}>
             <Controller
               name="scopeFile"
               control={control}
-              rules={id ? {} : { required: 'Scope document is required to submit the project' }}
+              rules={{}}
               render={({ field: { value, onChange } }) => (
                 <Upload.Dragger name="file" multiple={false} maxCount={1} beforeUpload={(file) => { onChange(file); return false; }} onRemove={() => onChange(null)} fileList={value ? [value] : []}>
                   <p className="ant-upload-drag-icon"><InboxOutlined /></p>
@@ -281,11 +281,11 @@ const CreateProjectPage = () => {
             />
           </Form.Item>
 
-          <Form.Item label="Upload Budget and Milestones Document" required={!id} validateStatus={errors.budgetFile ? 'error' : ''} help={errors.budgetFile?.message}>
+          <Form.Item label="Upload Budget and Milestones Document (Optional)" validateStatus={errors.budgetFile ? 'error' : ''} help={errors.budgetFile?.message}>
             <Controller
               name="budgetFile"
               control={control}
-              rules={id ? {} : { required: 'Budget and milestones document is required to submit the project' }}
+              rules={{}}
               render={({ field: { value, onChange } }) => (
                 <Upload.Dragger name="file" multiple={false} maxCount={1} beforeUpload={(file) => { onChange(file); return false; }} onRemove={() => onChange(null)} fileList={value ? [value] : []}>
                   <p className="ant-upload-drag-icon"><InboxOutlined /></p>
