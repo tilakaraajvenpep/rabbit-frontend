@@ -431,72 +431,45 @@ const EODReportPage = () => {
 
       const hasReport = !!res.data;
 
-      if (hasReport) {
-        const mappedItems = (res.data.items || []).map(item => {
-          const ticket = ticketsList.find(t => String(t.id) === String(item.ticketId));
-          const pId = ticket ? ticket.projectId : '';
-          const totalH = Number(item.hoursSpent) || 0;
-          const hVal = Math.floor(totalH);
-          const mVal = Math.round((totalH - hVal) * 60);
-          return {
-            projectId: pId,
-            ticketId: item.ticketId,
-            hoursInput: hVal,
-            minutesInput: mVal,
-            workDone: item.workDone
-          };
-        });
-
-        const userId = currentUser.userId || currentUser.id;
-        const reportedProjectIds = new Set(mappedItems.map(i => String(i.projectId)));
+      // Filter visible tickets for this EOD Page
+      const visibleTickets = ticketsList.filter(ticket => {
+        const allotted = getAllottedHoursForTicket(ticket.id);
+        const totalConsumed = Number(ticket.consumedHours) || 0;
         
-        projectsList.forEach(p => {
-          const empHours = p.employeeAllocatedHours?.[userId];
-          if (empHours !== undefined && Number(empHours) > 0 && !reportedProjectIds.has(String(p.id))) {
-            mappedItems.push({
-              projectId: p.id,
-              ticketId: '',
-              hoursInput: 0,
-              minutesInput: 0,
-              workDone: ''
-            });
-          }
-        });
+        // Find if this ticket has hours logged in the database report for today
+        const dbReportTodayItem = res.data?.items?.find(item => String(item.ticketId) === String(ticket.id));
+        const dbTodayHours = dbReportTodayItem ? (Number(dbReportTodayItem.hoursSpent) || 0) : 0;
+        const consumedOther = Math.max(0, totalConsumed - dbTodayHours);
+        
+        const hasHoursToday = dbReportTodayItem && (Number(dbReportTodayItem.hoursSpent) > 0);
+        return (consumedOther < allotted) || hasHoursToday;
+      });
 
-        const mappedReport = {
-          ...res.data,
-          items: mappedItems
+      const mappedItems = visibleTickets.map(ticket => {
+        const matchingItem = res.data?.items?.find(item => String(item.ticketId) === String(ticket.id));
+        const totalH = matchingItem ? (Number(matchingItem.hoursSpent) || 0) : 0;
+        const hVal = Math.floor(totalH);
+        const mVal = Math.round((totalH - hVal) * 60);
+        return {
+          projectId: ticket.projectId,
+          ticketId: ticket.id,
+          hoursInput: matchingItem ? hVal : 0,
+          minutesInput: matchingItem ? mVal : 0,
+          workDone: matchingItem ? matchingItem.workDone : ''
         };
+      });
+
+      const mappedReport = {
+        ...res.data,
+        items: mappedItems
+      };
+
+      if (res.data) {
         reset(mappedReport);
         setExistingReport(mappedReport);
         setViewOnly(true);
       } else {
-        const defaultItems = [];
-        const userId = currentUser.userId || currentUser.id;
-        projectsList.forEach(p => {
-          const empHours = p.employeeAllocatedHours?.[userId];
-          if (empHours !== undefined && Number(empHours) > 0) {
-            defaultItems.push({
-              projectId: p.id,
-              ticketId: '',
-              hoursInput: 0,
-              minutesInput: 0,
-              workDone: ''
-            });
-          }
-        });
-        if (defaultItems.length === 0) {
-          projectsList.forEach(p => {
-            defaultItems.push({
-              projectId: p.id,
-              ticketId: '',
-              hoursInput: 0,
-              minutesInput: 0,
-              workDone: ''
-            });
-          });
-        }
-        reset({ items: defaultItems, blockers: '', isAlertIssue: false, alertMessage: '' });
+        reset({ items: mappedItems, blockers: '', isAlertIssue: false, alertMessage: '' });
         setExistingReport(null);
 
         const isFullDayLeave = leaveOnDate && leaveOnDate.type === 'FullDay';
@@ -1007,7 +980,6 @@ const EODReportPage = () => {
           </div>
         ) : (
           displayProjects.map(project => {
-            const rowTickets = myTickets.filter(t => String(t.projectId) === String(project.id));
             const userId = currentUser.userId || currentUser.id;
             const projectAllocatedHours = Number(project.employeeAllocatedHours?.[userId] || 0);
 
@@ -1021,39 +993,20 @@ const EODReportPage = () => {
                       <span style={{ fontSize: 16, fontWeight: 800, color: t1 }}>{project.name || project.projectName}</span>
                     </div>
                     {!viewOnly && (
-                      <Space>
-                        <Button 
-                          type="primary" 
-                          icon={<PlusOutlined />} 
-                          size="small"
-                          style={{ background: emerald, borderColor: emerald, borderRadius: 6, fontSize: 12 }}
-                          onClick={() => {
-                            append({
-                              projectId: project.id,
-                              ticketId: '',
-                              hoursInput: 0,
-                              minutesInput: 0,
-                              workDone: ''
-                            });
-                          }}
-                        >
-                          Add Ticket Entry
-                        </Button>
-                        <Button 
-                          type="default" 
-                          icon={<PlusOutlined />} 
-                          size="small"
-                          style={{ borderRadius: 6, fontSize: 12 }}
-                          onClick={() => {
-                            const firstMatchIdx = fields.findIndex(f => String(f.projectId) === String(project.id));
-                            setActiveTicketRowIndex(firstMatchIdx !== -1 ? firstMatchIdx : fields.length);
-                            ticketForm.setFieldsValue({ projectId: project.id });
-                            setIsTicketModalOpen(true);
-                          }}
-                        >
-                          Create Ticket
-                        </Button>
-                      </Space>
+                      <Button 
+                        type="primary" 
+                        icon={<PlusOutlined />} 
+                        size="small"
+                        style={{ background: accent, borderColor: accent, borderRadius: 6, fontSize: 12 }}
+                        onClick={() => {
+                          const firstMatchIdx = fields.findIndex(f => String(f.projectId) === String(project.id));
+                          setActiveTicketRowIndex(firstMatchIdx !== -1 ? firstMatchIdx : fields.length);
+                          ticketForm.setFieldsValue({ projectId: project.id });
+                          setIsTicketModalOpen(true);
+                        }}
+                      >
+                        Create Ticket
+                      </Button>
                     )}
                   </div>
                 }
@@ -1072,12 +1025,7 @@ const EODReportPage = () => {
                   if (rows.length === 0) {
                     return (
                       <div style={{ textAlign: 'center', padding: '20px 0', color: t2, fontSize: 13 }}>
-                        No ticket reports logged for this project today. 
-                        {!viewOnly && (
-                          <Button type="link" size="small" onClick={() => append({ projectId: project.id, ticketId: '', hoursInput: 0, minutesInput: 0, workDone: '' })}>
-                            Click here to add one.
-                          </Button>
-                        )}
+                        No active assigned tickets for this project today.
                       </div>
                     );
                   }
@@ -1089,9 +1037,8 @@ const EODReportPage = () => {
 
                         return (
                           <div key={field.id} style={{ padding: 16, background: isDarkMode ? '#1e2130' : '#f8fafc', borderRadius: 10, border: `1px solid ${border}` }}>
-                            {/* Header row containing title, alert toggle, delete button */}
+                            {/* Header row containing title, alert toggle */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: 700, fontSize: 13, color: t2 }}>Task #{index + 1}</span>
                               <div style={{ flex: 1 }} />
                               
                               {/* Alert raise button */}
@@ -1101,11 +1048,6 @@ const EODReportPage = () => {
                                   {af.value ? 'Alert ON' : 'Alert'}
                                 </Button>
                               )} />
-
-                              {/* Delete option */}
-                              {!viewOnly && (
-                                <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
-                              )}
                             </div>
 
                             {/* Select Ticket and Text box to enter hours and minutes */}
@@ -1113,12 +1055,16 @@ const EODReportPage = () => {
                               <Col xs={24} sm={12} md={14}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                   <label style={{ fontSize: 11, fontWeight: 700, color: t2 }}>Assigned Tickets in this Project</label>
-                                  <Controller control={control} name={`items.${index}.ticketId`} render={({ field: f }) => (
-                                    <Select {...f} placeholder="Select ticket / task category" size="middle" style={{ width: '100%' }}
-                                      disabled={viewOnly} showSearch
-                                      filterOption={(inp, opt) => (opt?.label ?? '').toLowerCase().includes(inp.toLowerCase())}
-                                      options={rowTickets.map(t => ({ value: t.id, label: `${t.code || '#' + t.id} — ${t.title || t.ticketTitle || ''}` }))} />
-                                  )} />
+                                  {(() => {
+                                    const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                                    return (
+                                      <div style={{ padding: '8px 12px', background: isDarkMode ? '#11131c' : '#ffffff', border: `1px solid ${border}`, borderRadius: 8, minHeight: 38, display: 'flex', alignItems: 'center' }}>
+                                        <span style={{ fontSize: 13, fontWeight: 700, color: t1 }}>
+                                          {ticketObj ? `${ticketObj.code || '#' + ticketObj.id} — ${ticketObj.title || ticketObj.ticketTitle || ''}` : 'Ticket'}
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
                                   
                                   {/* Allotted Hours Display */}
                                   {item.ticketId && (
