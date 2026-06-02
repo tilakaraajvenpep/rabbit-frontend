@@ -982,7 +982,11 @@ const EODReportPage = () => {
     const uId = currentUser?.userId || currentUser?.id;
     const hasAllocation = p.employeeAllocatedHours?.[uId] !== undefined && Number(p.employeeAllocatedHours?.[uId]) > 0;
     const isAssignedEmp = Array.isArray(p.assignedEmployeeIds) && p.assignedEmployeeIds.map(String).includes(String(uId));
-    return hasAllocation || isAssignedEmp;
+    const isProjectTL = p.assignedTeamLeadId !== undefined && p.assignedTeamLeadId !== null && String(p.assignedTeamLeadId) === String(uId);
+    const isProjectPM = p.assignedProjectManagerId !== undefined && p.assignedProjectManagerId !== null && String(p.assignedProjectManagerId) === String(uId);
+    const pId = p.id || p.projectId;
+    const hasAssignedTicket = myTickets.some(t => String(t.projectId) === String(pId));
+    return hasAllocation || isAssignedEmp || isProjectTL || isProjectPM || hasAssignedTicket;
   });
 
   const displayProjects = myAssignedProjects.length > 0 ? myAssignedProjects : allProjects;
