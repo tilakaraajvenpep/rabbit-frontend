@@ -692,7 +692,7 @@ const KanbanBoard = () => {
       const totalEditHours = editAssignedEmployees.reduce((sum, emp) => sum + emp.hours, 0);
       const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
       if (otherTicketsHours + totalEditHours > projectTotalHours) {
-        Modal.error({
+        Modal.confirm({
           title: 'Project Hours Limit Exceeded',
           content: (
             <div>
@@ -703,7 +703,12 @@ const KanbanBoard = () => {
               <p>Please request additional hours before assigning more tasks.</p>
             </div>
           ),
-          okText: 'Close'
+          okText: 'Request Additional Hours',
+          cancelText: 'Close',
+          onOk: () => {
+            setIsEditModalOpen(false);
+            setIsRequestHoursModalOpen(true);
+          }
         });
         return;
       }
@@ -1068,6 +1073,7 @@ const KanbanBoard = () => {
         projectId={projectId} 
         project={project}
         allTickets={allTickets}
+        onRequestHours={() => setIsRequestHoursModalOpen(true)}
         onSuccess={() => loadTickets(projectId)} 
       />
 
@@ -1175,7 +1181,8 @@ const KanbanBoard = () => {
               {(() => {
                 const projectTLId = project?.assignedTeamLeadId;
                 const pmId = authUser?.userId || authUser?.id;
-                const eligibleUsers = users.filter(u => {
+                const pmUser = users.find(u => String(u.id || u.userId) === String(project?.assignedProjectManagerId));
+                let eligibleUsers = users.filter(u => {
                   if (authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin') {
                     if (u.role !== 'Employee' && u.role !== 'TeamLead') return false;
                     if (authRole === 'ProjectManager' || authUser?.role === 'ProjectManager') {
@@ -1198,6 +1205,11 @@ const KanbanBoard = () => {
                   if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
                   return false;
                 });
+                
+                if (pmUser && !eligibleUsers.some(u => String(u.id) === String(pmUser.id))) {
+                  eligibleUsers.push(pmUser);
+                }
+
                 return eligibleUsers.map(u => (
                   <Select.Option key={u.id} value={u.id}>
                     {u.name || u.fullName} ({u.role})
@@ -1224,7 +1236,7 @@ const KanbanBoard = () => {
                         const currentTicketTotal = otherEmployeesHours + numVal;
                         const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
                         if (otherTicketsHours + currentTicketTotal > projectTotalHours) {
-                          Modal.error({
+                          Modal.confirm({
                             title: 'Project Hours Limit Exceeded',
                             content: (
                               <div>
@@ -1235,7 +1247,12 @@ const KanbanBoard = () => {
                                 <p>Please request additional hours before assigning more tasks.</p>
                               </div>
                             ),
-                            okText: 'Close'
+                            okText: 'Request Additional Hours',
+                            cancelText: 'Close',
+                            onOk: () => {
+                              setIsEditModalOpen(false);
+                              setIsRequestHoursModalOpen(true);
+                            }
                           });
                           const updated = [...editAssignedEmployees];
                           updated[index].hours = 0;

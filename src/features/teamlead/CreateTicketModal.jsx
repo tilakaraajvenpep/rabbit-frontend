@@ -8,7 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 
 const { TextArea } = Input;
 
-const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [], onSuccess }) => {
+const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [], onRequestHours, onSuccess }) => {
   const { currentUser: authUser, role: authRole } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
@@ -72,6 +72,10 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
     });
   }
 
+  if (pmUser && !eligibleUsers.some(u => String(u.id) === String(pmUser.id))) {
+    eligibleUsers.push(pmUser);
+  }
+
   const onSubmit = async (data) => {
     setLoading(true);
     try {
@@ -86,7 +90,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
       const existingTicketsHours = allTickets.reduce((sum, t) => sum + (Number(t.estimatedHours) || 0), 0);
       const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
       if (existingTicketsHours + totalTicketHours > projectTotalHours) {
-        Modal.error({
+        Modal.confirm({
           title: 'Project Hours Limit Exceeded',
           content: (
             <div>
@@ -97,7 +101,14 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
               <p>Please request additional hours before assigning more tasks.</p>
             </div>
           ),
-          okText: 'Close'
+          okText: 'Request Additional Hours',
+          cancelText: 'Close',
+          onOk: () => {
+            onClose();
+            if (onRequestHours) {
+              onRequestHours();
+            }
+          }
         });
         setLoading(false);
         return;
@@ -247,7 +258,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
                       const existingTicketsHours = allTickets.reduce((sum, t) => sum + (Number(t.estimatedHours) || 0), 0);
                       const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
                       if (existingTicketsHours + currentTicketTotal > projectTotalHours) {
-                        Modal.error({
+                        Modal.confirm({
                           title: 'Project Hours Limit Exceeded',
                           content: (
                             <div>
@@ -258,7 +269,14 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
                               <p>Please request additional hours before assigning more tasks.</p>
                             </div>
                           ),
-                          okText: 'Close'
+                          okText: 'Request Additional Hours',
+                          cancelText: 'Close',
+                          onOk: () => {
+                            onClose();
+                            if (onRequestHours) {
+                              onRequestHours();
+                            }
+                          }
                         });
                         const updated = [...assignedEmployees];
                         updated[index].hours = 0;
