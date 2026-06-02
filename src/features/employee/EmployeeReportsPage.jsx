@@ -82,7 +82,21 @@ const EmployeeReportsPage = () => {
       reportsData.forEach(report => {
         if (!report || !report.items) return;
 
-        const employeeName = report.user?.fullName || report.user?.name || (Number(report.userId) === Number(currentUser.id || currentUser.userId) ? (currentUser.name || currentUser.fullName) : `Employee #${report.userId}`);
+        const targetUserId = report.userId;
+        const userObj = allUsers.find(u => String(u.id || u.userId) === String(targetUserId));
+        const employeeName = userObj ? (userObj.fullName || userObj.name) : (Number(targetUserId) === Number(currentUser.id || currentUser.userId) ? (currentUser.name || currentUser.fullName) : `Employee #${targetUserId}`);
+        const userRole = userObj ? userObj.role : 'Employee';
+
+        let supervisorName = 'N/A';
+        if (userObj) {
+          if (userObj.role === 'Employee' && userObj.teamLeadId) {
+            const tl = allUsers.find(u => String(u.id || u.userId) === String(userObj.teamLeadId));
+            if (tl) supervisorName = tl.fullName || tl.name || 'Unassigned';
+          } else if (userObj.role === 'TeamLead' && userObj.projectManagerId) {
+            const pm = allUsers.find(u => String(u.id || u.userId) === String(userObj.projectManagerId));
+            if (pm) supervisorName = pm.fullName || pm.name || 'Unassigned';
+          }
+        }
 
         report.items.forEach(item => {
           const ticketInfo = tickets.find(t => Number(t.id) === Number(item.ticketId));
@@ -90,6 +104,8 @@ const EmployeeReportsPage = () => {
             userId: report.userId,
             date: report.date || report.reportDate,
             employeeName: employeeName,
+            userRole: userRole,
+            supervisorName: supervisorName,
             ticketCode: ticketInfo?.code || 'N/A',
             ticketTitle: ticketInfo?.title || 'Unknown',
             hours: Number(item.hours || item.hoursSpent || 0),
@@ -119,6 +135,18 @@ const EmployeeReportsPage = () => {
         const targetUserId = leave.userId || leave.user?.id;
         const userObj = allUsers.find(u => String(u.id || u.userId) === String(targetUserId));
         const employeeName = userObj ? (userObj.fullName || userObj.name) : (Number(targetUserId) === Number(currentUser.id || currentUser.userId) ? (currentUser.name || currentUser.fullName) : `Employee #${targetUserId}`);
+        const userRole = userObj ? userObj.role : 'Employee';
+
+        let supervisorName = 'N/A';
+        if (userObj) {
+          if (userObj.role === 'Employee' && userObj.teamLeadId) {
+            const tl = allUsers.find(u => String(u.id || u.userId) === String(userObj.teamLeadId));
+            if (tl) supervisorName = tl.fullName || tl.name || 'Unassigned';
+          } else if (userObj.role === 'TeamLead' && userObj.projectManagerId) {
+            const pm = allUsers.find(u => String(u.id || u.userId) === String(userObj.projectManagerId));
+            if (pm) supervisorName = pm.fullName || pm.name || 'Unassigned';
+          }
+        }
 
         let leaveHours = 0;
         if (leave.type === 'Permission') {
@@ -138,6 +166,8 @@ const EmployeeReportsPage = () => {
           userId: targetUserId,
           date: leave.leaveDate || leave.date,
           employeeName: employeeName,
+          userRole: userRole,
+          supervisorName: supervisorName,
           ticketCode: 'LEAVE',
           ticketTitle: leaveLabel,
           hours: leaveHours,
@@ -188,6 +218,25 @@ const EmployeeReportsPage = () => {
       render: (date) => dayjs(date).format('DD MMM YYYY')
     },
     { title: 'Employee', dataIndex: 'employeeName', key: 'employeeName', width: 150 },
+    role === 'HR' && {
+      title: 'Role',
+      dataIndex: 'userRole',
+      key: 'userRole',
+      width: 120,
+      render: (roleVal) => {
+        let color = 'blue';
+        if (roleVal === 'TeamLead') color = 'purple';
+        if (roleVal === 'ProjectManager') color = 'orange';
+        return <Tag color={color} style={{ fontWeight: 600, borderRadius: 4 }}>{roleVal}</Tag>;
+      }
+    },
+    role === 'HR' && {
+      title: 'Supervisor / Lead',
+      dataIndex: 'supervisorName',
+      key: 'supervisorName',
+      width: 150,
+      render: (supName) => <Text style={{ fontWeight: 600 }}>{supName}</Text>
+    },
     { 
       title: 'Ticket Code', dataIndex: 'ticketCode', key: 'ticketCode', width: 130,
       render: (code) => {
@@ -220,7 +269,7 @@ const EmployeeReportsPage = () => {
       title: 'Hours', dataIndex: 'hours', key: 'hours', width: 80, align: 'right',
       render: (h) => h?.toFixed(1)
     },
-  ];
+  ].filter(Boolean);
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
