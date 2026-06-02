@@ -627,34 +627,18 @@ const EODReportPage = () => {
     }
   };
 
-  const getAvailableHoursForTicket = (ticketId) => {
+  const getAllottedHoursForTicket = (ticketId) => {
     const ticket = allMyTickets.find(t => String(t.id) === String(ticketId));
     if (!ticket) return 0;
     
     const uId = currentUser?.userId || currentUser?.id;
-    // Find hours specifically assigned to this employee on this ticket
-    let est = 0;
     if (ticket.assignedEmployees && Array.isArray(ticket.assignedEmployees)) {
       const empAssign = ticket.assignedEmployees.find(emp => String(emp.userId) === String(uId));
       if (empAssign) {
-        est = Number(empAssign.hours) || 0;
-      } else {
-        est = Number(ticket.estimatedHours) || 0;
+        return Number(empAssign.hours) || 0;
       }
-    } else {
-      est = Number(ticket.estimatedHours) || 0;
     }
-    
-    const consumed = Number(ticket.consumedHours) || 0;
-    
-    // Today's hours logged in the database report
-    const dbReportTodayItem = existingReport?.items?.find(item => String(item.ticketId) === String(ticketId));
-    const dbTodayHours = dbReportTodayItem ? (Number(dbReportTodayItem.hoursInput) + (Number(dbReportTodayItem.minutesInput) || 0) / 60) : 0;
-    
-    // Consumed hours from other days is consumed minus what is in the database for today
-    const consumedOtherDays = Math.max(0, consumed - dbTodayHours);
-    
-    return Math.max(0, est - consumedOtherDays);
+    return Number(ticket.estimatedHours) || 0;
   };
 
   const onSubmit = async (data) => {
@@ -736,16 +720,16 @@ const EODReportPage = () => {
       }
     }
 
-    // Ticket Available Hours Validation Constraint
+    // Ticket Allotted Hours Validation Constraint
     for (let i = 0; i < mappedItems.length; i++) {
       const item = mappedItems[i];
       const ticket = allMyTickets.find(t => String(t.id) === String(item.ticketId));
       if (ticket) {
-        const availHours = getAvailableHoursForTicket(item.ticketId);
-        if (item.hours > availHours) {
+        const allottedHours = getAllottedHoursForTicket(item.ticketId);
+        if (item.hours > allottedHours) {
           notification.error({
             message: 'Validation Error',
-            description: `Hours logged for "${ticket.code || '#' + ticket.id} — ${ticket.title || ticket.ticketTitle}" (${fmtH(item.hours)}) exceeds the available hours (${fmtH(availHours)}). You cannot report beyond the available hours.`
+            description: `Hours logged for "${ticket.code || '#' + ticket.id} — ${ticket.title || ticket.ticketTitle}" (${fmtH(item.hours)}) exceeds the allotted hours (${fmtH(allottedHours)}). You cannot report beyond the allotted hours.`
           });
           return;
         }
@@ -1024,7 +1008,6 @@ const EODReportPage = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <ProjectOutlined style={{ color: accent, fontSize: 18 }} />
                       <span style={{ fontSize: 16, fontWeight: 800, color: t1 }}>{project.name || project.projectName}</span>
-                      <Tag color="geekblue" style={{ borderRadius: 6 }}>Allocated: {fmtH(projectAllocatedHours)}</Tag>
                     </div>
                     {!viewOnly && (
                       <Space>
@@ -1126,17 +1109,17 @@ const EODReportPage = () => {
                                       options={rowTickets.map(t => ({ value: t.id, label: `${t.code || '#' + t.id} — ${t.title || t.ticketTitle || ''}` }))} />
                                   )} />
                                   
-                                  {/* Available Hours Display & Validation */}
+                                  {/* Allotted Hours Display */}
                                   {item.ticketId && (
                                     (() => {
-                                      const availHours = getAvailableHoursForTicket(item.ticketId);
-                                      const availH = Math.floor(availHours);
-                                      const availM = Math.round((availHours - availH) * 60);
+                                      const allottedHours = getAllottedHoursForTicket(item.ticketId);
+                                      const allotH = Math.floor(allottedHours);
+                                      const allotM = Math.round((allottedHours - allotH) * 60);
                                       return (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                                          <Badge status={availHours > 0 ? 'success' : 'error'} />
-                                          <span style={{ fontSize: '11px', fontWeight: 600, color: availHours > 0 ? emerald : '#ef4444' }}>
-                                            Available: {availH}h {availM}m
+                                          <Badge status={allottedHours > 0 ? 'processing' : 'warning'} />
+                                          <span style={{ fontSize: '11px', fontWeight: 600, color: accent }}>
+                                            Allotted: {allotH}h {allotM}m
                                           </span>
                                         </div>
                                       );
