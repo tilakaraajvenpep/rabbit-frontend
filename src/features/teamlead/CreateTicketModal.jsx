@@ -256,7 +256,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
         </div>
 
         {assignedEmployees.length > 0 && (
-          <Form.Item label="Assign Hours per Employee" required style={{ border: '1px solid #f0f0f0', borderRadius: '8px', padding: '12px 16px', background: '#fafafa' }}>
+          <Form.Item label="Assign Hours per Employee" required style={{ border: '1px solid rgba(128, 128, 128, 0.15)', borderRadius: '8px', padding: '12px 16px', background: 'rgba(128, 128, 128, 0.04)' }}>
             <Space direction="vertical" style={{ width: '100%' }}>
               {assignedEmployees.map((emp, index) => (
                 <div key={emp.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>

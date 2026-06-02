@@ -120,7 +120,7 @@ const AssignTicketModal = ({ open, onClose, ticket, onSuccess }) => {
         </div>
 
         {assignedEmployees.length > 0 && (
-          <div style={{ marginTop: 16, border: '1px solid #f0f0f0', borderRadius: '8px', padding: '12px 16px', background: '#fafafa' }}>
+          <div style={{ marginTop: 16, border: '1px solid rgba(128, 128, 128, 0.15)', borderRadius: '8px', padding: '12px 16px', background: 'rgba(128, 128, 128, 0.04)' }}>
             <Text strong>Assign Hours per Employee:</Text>
             <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
               {assignedEmployees.map((emp, index) => (
