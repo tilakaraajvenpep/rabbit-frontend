@@ -139,7 +139,7 @@ const AnalyticsPage = () => {
         width: 200,
         render: (_, record) => {
           // Filter tickets for this user and date
-          const dayTickets = allTickets.filter(t => {
+            const dayTickets = allTickets.filter(t => {
             const isDateMatch = t.dueDate && dayjs(t.dueDate).format('YYYY-MM-DD') === dateStr;
             if (!isDateMatch) return false;
 
@@ -165,14 +165,27 @@ const AnalyticsPage = () => {
             <Space direction="vertical" style={{ width: '100%' }} size={6}>
               {dayTickets.map(t => {
                 let hoursLabel = '';
+                let totalH = 0;
                 if (Array.isArray(t.assignedEmployees)) {
                   const match = t.assignedEmployees.find(emp => String(emp.userId) === String(record.id));
                   if (match && match.hours) {
-                    hoursLabel = `${match.hours}h`;
+                    totalH = Number(match.hours);
                   }
                 }
-                if (!hoursLabel && t.estimatedHours) {
-                  hoursLabel = `${t.estimatedHours}h`;
+                if (!totalH && t.estimatedHours) {
+                  totalH = Number(t.estimatedHours);
+                }
+
+                if (totalH > 0) {
+                  const h = Math.floor(totalH);
+                  const m = Math.round((totalH - h) * 60);
+                  if (h > 0 && m > 0) {
+                    hoursLabel = `${h}h ${m}m`;
+                  } else if (m > 0) {
+                    hoursLabel = `${m}m`;
+                  } else {
+                    hoursLabel = `${h}h`;
+                  }
                 }
 
                 return (
@@ -212,6 +225,7 @@ const AnalyticsPage = () => {
     <div style={{ paddingBottom: 40 }}>
       <PageHeader 
         title="Scrum Master Weekly Schedule" 
+        subTitle={`Week: ${startOfWeek.format('DD MMM YYYY')} (Monday) - ${startOfWeek.add(6, 'day').format('DD MMM YYYY')} (Sunday)`}
         extra={
           <Space wrap>
             <Select
