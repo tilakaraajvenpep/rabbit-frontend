@@ -20,7 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined, BookOutlined, CopyOutlined, SaveOutlined, UploadOutlined, InboxOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, CalendarOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined, BookOutlined, CopyOutlined, SaveOutlined, UploadOutlined, InboxOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
@@ -171,6 +171,60 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
             </Tag>
           </div>
         )}
+        {/* Dedicated Metadata Row (Hours & Dates) */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px', 
+          flexWrap: 'wrap', 
+          marginBottom: 10,
+          fontSize: '11px',
+          color: isDarkMode ? '#a1a1aa' : '#71717a'
+        }}>
+          {/* Estimated Hours */}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <ClockCircleOutlined style={{ color: '#8c8c8c', fontSize: '11px' }} />
+            <span style={{ fontWeight: 600 }}>
+              {(() => {
+                const totalHours = Number(ticket.estimatedHours) || 0;
+                const h = Math.floor(totalHours);
+                const m = Math.round((totalHours - h) * 60);
+                if (h > 0 && m > 0) return `${h}h ${m}m`;
+                if (m > 0) return `${m}m`;
+                return `${h}h`;
+              })()}
+            </span>
+          </span>
+
+          {/* Date range or specific dates */}
+          {(ticket.startDate || ticket.dueDate) && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <CalendarOutlined style={{ color: isOverdue ? '#ef4444' : '#8c8c8c', fontSize: '11px' }} />
+              <span style={{ 
+                color: isOverdue ? '#ef4444' : (isDarkMode ? '#a1a1aa' : '#71717a'),
+                fontWeight: isOverdue ? 600 : 500
+              }}>
+                {(() => {
+                  if (ticket.startDate && ticket.dueDate) {
+                    return `${dayjs(ticket.startDate).format('DD MMM')} - ${dayjs(ticket.dueDate).format('DD MMM')}`;
+                  }
+                  if (ticket.startDate) {
+                    return `Start: ${dayjs(ticket.startDate).format('DD MMM')}`;
+                  }
+                  return `Due: ${dayjs(ticket.dueDate).format('DD MMM')}`;
+                })()}
+              </span>
+            </span>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div style={{ 
+          borderTop: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, 
+          margin: '10px 0 10px 0' 
+        }} />
+
+        {/* Bottom Row: Assignee Info */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space size={8}>
             <Tooltip title={user ? `${user.name || user.fullName} (${user.role})` : 'Unassigned'}>
@@ -182,7 +236,7 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
                   fontSize: '12px', 
                   fontWeight: 600, 
                   color: isDarkMode ? '#e4e4e7' : '#3f3f46',
-                  maxWidth: '120px',
+                  maxWidth: '180px',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -196,68 +250,6 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
               <span style={{ fontSize: '11px', color: '#a1a1aa', fontStyle: 'italic' }}>
                 Not Assigned
               </span>
-            )}
-
-          </Space>
-          <Space size={4}>
-            <Tag 
-              color="processing" 
-              style={{ 
-                fontSize: '10px', 
-                borderRadius: 4, 
-                margin: 0,
-                display: 'flex',
-                alignItems: 'center',
-                fontWeight: 600
-              }}
-            >
-              {(() => {
-                const totalHours = Number(ticket.estimatedHours) || 0;
-                const h = Math.floor(totalHours);
-                const m = Math.round((totalHours - h) * 60);
-                if (h > 0 && m > 0) {
-                  return `${h}h ${m}m`;
-                } else if (m > 0) {
-                  return `${m}m`;
-                } else {
-                  return `${h}h`;
-                }
-              })()}
-            </Tag>
-            {ticket.startDate && (
-              <Tag 
-                style={{ 
-                  fontSize: '10px', 
-                  borderRadius: 4, 
-                  margin: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}
-              >
-                <CalendarOutlined style={{ color: '#8c8c8c' }} />
-                <span style={{ color: '#64748b', fontWeight: 500 }}>
-                  Start: {dayjs(ticket.startDate).format('DD MMM')}
-                </span>
-              </Tag>
-            )}
-            {ticket.dueDate && (
-              <Tag 
-                color={isOverdue ? 'red' : 'default'} 
-                style={{ 
-                  fontSize: '10px', 
-                  borderRadius: 4, 
-                  margin: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}
-              >
-                <CalendarOutlined style={{ color: isOverdue ? '#ef4444' : '#8c8c8c' }} />
-                <span style={{ color: isOverdue ? '#ef4444' : '#64748b', fontWeight: 500 }}>
-                  Due: {dayjs(ticket.dueDate).format('DD MMM')}
-                </span>
-              </Tag>
             )}
           </Space>
         </div>
