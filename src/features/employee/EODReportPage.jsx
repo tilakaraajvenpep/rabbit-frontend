@@ -630,7 +630,21 @@ const EODReportPage = () => {
   const getAvailableHoursForTicket = (ticketId) => {
     const ticket = allMyTickets.find(t => String(t.id) === String(ticketId));
     if (!ticket) return 0;
-    const est = Number(ticket.estimatedHours) || 0;
+    
+    const uId = currentUser?.userId || currentUser?.id;
+    // Find hours specifically assigned to this employee on this ticket
+    let est = 0;
+    if (ticket.assignedEmployees && Array.isArray(ticket.assignedEmployees)) {
+      const empAssign = ticket.assignedEmployees.find(emp => String(emp.userId) === String(uId));
+      if (empAssign) {
+        est = Number(empAssign.hours) || 0;
+      } else {
+        est = Number(ticket.estimatedHours) || 0;
+      }
+    } else {
+      est = Number(ticket.estimatedHours) || 0;
+    }
+    
     const consumed = Number(ticket.consumedHours) || 0;
     
     // Today's hours logged in the database report
