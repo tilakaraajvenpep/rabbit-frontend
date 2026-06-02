@@ -82,6 +82,12 @@ const EODReportPage = () => {
   const [leaveApplying, setLeaveApplying] = useState(false);
   const [leaveForm] = Form.useForm();
 
+  // Modal State for Editing Applied Leave
+  const [isEditLeaveModalOpen, setIsEditLeaveModalOpen] = useState(false);
+  const [editLeaveSubmitting, setEditLeaveSubmitting] = useState(false);
+  const [editingLeave, setEditingLeave] = useState(null);
+  const [editLeaveForm] = Form.useForm();
+
   // Modal State for Report Access Request
   const [isAccessRequestModalOpen, setIsAccessRequestModalOpen] = useState(false);
   const [accessRequestSubmitting, setAccessRequestSubmitting] = useState(false);
@@ -365,7 +371,7 @@ const EODReportPage = () => {
       try {
         const leavesRes = await leaveService.getMyLeaves();
         leaveOnDate = (leavesRes.data || []).find(
-          l => dayjs(l.leaveDate).format('YYYY-MM-DD') === date && l.status === 'Approved'
+          l => dayjs(l.leaveDate).format('YYYY-MM-DD') === date
         );
       } catch (err) {
         console.error('Failed to fetch leave for report date');
@@ -471,7 +477,7 @@ const EODReportPage = () => {
         reset({ items: mappedItems, blockers: '', isAlertIssue: false, alertMessage: '' });
         setExistingReport(null);
 
-        const isFullDayLeave = leaveOnDate && leaveOnDate.type === 'FullDay';
+        const isFullDayLeave = leaveOnDate && leaveOnDate.type === 'FullDay' && leaveOnDate.status === 'Approved';
         if (isHoliday || (outsideCurrentWeek && !approvedAccess) || isFullDayLeave) {
           setViewOnly(true);
           if (outsideCurrentWeek && !approvedAccess && !isHoliday) {
@@ -597,6 +603,89 @@ const EODReportPage = () => {
     } finally {
       setLeaveApplying(false);
     }
+  };
+
+  const handleOpenEditLeaveModal = (leave) => {
+    setEditingLeave(leave);
+    editLeaveForm.resetFields();
+    
+    let permissionDuration = '2hrs'; // default
+    let cleanReason = leave.reason || '';
+    
+    if (leave.type === 'Permission' && cleanReason.startsWith('[Permission Duration:')) {
+      const match = cleanReason.match(/^\[Permission Duration:\s*([^\]]+)\]\s*-\s*(.*)$/);
+      if (match) {
+        permissionDuration = match[1];
+        cleanReason = match[2];
+      }
+    }
+    
+    editLeaveForm.setFieldsValue({
+      fromDate: dayjs(leave.leaveDate),
+      type: leave.type,
+      permissionDuration,
+      reason: cleanReason
+    });
+    setIsEditLeaveModalOpen(true);
+  };
+
+  const handleEditLeaveSubmit = async (values) => {
+    setEditLeaveSubmitting(true);
+    try {
+      const dateStr = values.fromDate ? values.fromDate.format('YYYY-MM-DD') : selectedDate;
+      
+      let leaveReason = values.reason || '';
+      if (values.type === 'Permission') {
+        leaveReason = `[Permission Duration: ${values.permissionDuration}] - ${leaveReason}`;
+      }
+
+      await leaveService.updateLeave(editingLeave.leaveId, {
+        leaveDate: dateStr,
+        type: values.type,
+        reason: leaveReason || `Applied from EOD Weekly Work Report Page (${values.type})`
+      });
+
+      notification.success({
+        message: 'Leave Request Updated',
+        description: 'Your leave request has been successfully updated.'
+      });
+      setIsEditLeaveModalOpen(false);
+      fetchReportForDate(selectedDate);
+      fetchWeeklyStatus(weekDates);
+    } catch (e) {
+      notification.error({
+        message: 'Failed to update leave',
+        description: e.response?.data?.message || 'Error occurred.'
+      });
+    } finally {
+      setEditLeaveSubmitting(false);
+    }
+  };
+
+  const handleDeleteLeave = (leaveId) => {
+    Modal.confirm({
+      title: 'Cancel Leave Request',
+      content: 'This will permanently remove the leave request. Continue?',
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: async () => {
+        try {
+          await leaveService.deleteLeave(leaveId);
+          notification.success({
+            message: 'Leave Request Cancelled',
+            description: 'Your leave request has been cancelled.'
+          });
+          fetchReportForDate(selectedDate);
+          fetchWeeklyStatus(weekDates);
+        } catch (e) {
+          notification.error({
+            message: 'Failed to cancel leave',
+            description: e.response?.data?.message || 'Error occurred.'
+          });
+        }
+      },
+    });
   };
 
   const getAllottedHoursForTicket = (ticketId) => {
@@ -919,14 +1008,42 @@ const EODReportPage = () => {
 
         {/* Action Controls */}
         <Space>
-          <Button 
-            size="middle" 
-            icon={<CalendarOutlined />} 
-            style={{ borderColor: '#ec4899', color: '#ec4899', borderRadius: 8, fontWeight: 600 }}
-            onClick={() => handleOpenApplyLeaveModal(selectedDate)}
-          >
-            Apply Leave / Permission
-          </Button>
+          {currentLeave ? (
+            currentLeave.status === 'Pending' ? (
+              <Space>
+                <Button 
+                  size="middle" 
+                  icon={<EditOutlined />} 
+                  style={{ borderColor: '#6366f1', color: '#6366f1', borderRadius: 8, fontWeight: 600 }}
+                  onClick={() => handleOpenEditLeaveModal(currentLeave)}
+                >
+                  Edit Leave
+                </Button>
+                <Button 
+                  size="middle" 
+                  danger
+                  icon={<DeleteOutlined />} 
+                  style={{ borderRadius: 8, fontWeight: 600 }}
+                  onClick={() => handleDeleteLeave(currentLeave.leaveId)}
+                >
+                  Cancel Leave
+                </Button>
+              </Space>
+            ) : (
+              <Tag color={currentLeave.status === 'Approved' ? 'success' : 'error'} style={{ fontWeight: 600, padding: '4px 12px', borderRadius: 8, margin: 0 }}>
+                Leave {currentLeave.status}
+              </Tag>
+            )
+          ) : (
+            <Button 
+              size="middle" 
+              icon={<CalendarOutlined />} 
+              style={{ borderColor: '#ec4899', color: '#ec4899', borderRadius: 8, fontWeight: 600 }}
+              onClick={() => handleOpenApplyLeaveModal(selectedDate)}
+            >
+              Apply Leave / Permission
+            </Button>
+          )}
 
           {existingReport && viewOnly && (
             <Button size="middle" type="primary" icon={<EditOutlined />}
@@ -1248,6 +1365,44 @@ const EODReportPage = () => {
 
           <Form.Item name="reason" label="Reason"><TextArea rows={3} /></Form.Item>
           <Button type="primary" htmlType="submit" loading={leaveApplying} block style={{ background: accent, borderColor: accent }}>Submit Request</Button>
+        </Form>
+      </Modal>
+
+      <Modal title="Edit Leave / Permission" open={isEditLeaveModalOpen} onCancel={() => setIsEditLeaveModalOpen(false)} footer={null} destroyOnClose>
+        <Form form={editLeaveForm} layout="vertical" onFinish={handleEditLeaveSubmit} style={{ marginTop: 16 }}>
+          <Form.Item name="fromDate" label="Date" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} disabled /></Form.Item>
+          
+          <Form.Item name="type" label="Leave / Permission Type" rules={[{ required: true }]}>
+            <Radio.Group style={{ width: '100%' }} buttonStyle="solid">
+              <Radio.Button value="FullDay" style={{ width: '33.33%', textAlign: 'center' }}>Full Day</Radio.Button>
+              <Radio.Button value="HalfDay" style={{ width: '33.33%', textAlign: 'center' }}>Half Day</Radio.Button>
+              <Radio.Button value="Permission" style={{ width: '33.33%', textAlign: 'center' }}>Permission</Radio.Button>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.type !== curr.type}>
+            {({ getFieldValue }) => {
+              const type = getFieldValue('type');
+              if (type === 'Permission') {
+                return (
+                  <Form.Item name="permissionDuration" label="Permission Duration" rules={[{ required: true, message: 'Please select duration' }]}>
+                    <Radio.Group optionType="button" buttonStyle="solid" style={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      <Radio.Button value="2hrs" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>2 hrs</Radio.Button>
+                      <Radio.Button value="1hrs" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>1 hrs</Radio.Button>
+                      <Radio.Button value="50mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>50 mins</Radio.Button>
+                      <Radio.Button value="30mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>30 mins</Radio.Button>
+                      <Radio.Button value="15mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>15 mins</Radio.Button>
+                      <Radio.Button value="10mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>10 mins</Radio.Button>
+                    </Radio.Group>
+                  </Form.Item>
+                );
+              }
+              return null;
+            }}
+          </Form.Item>
+
+          <Form.Item name="reason" label="Reason"><TextArea rows={3} /></Form.Item>
+          <Button type="primary" htmlType="submit" loading={editLeaveSubmitting} block style={{ background: accent, borderColor: accent }}>Save Changes</Button>
         </Form>
       </Modal>
 
