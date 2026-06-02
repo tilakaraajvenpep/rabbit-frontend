@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, 
-  Drawer, Select, theme, Modal, message, Input, Alert, Form, DatePicker, InputNumber, Tag, Tabs, List, Popconfirm 
+  Drawer, Select, theme, Modal, message, Input, Alert, Form, DatePicker, InputNumber, Tag, Tabs, List, Popconfirm,
+  Table, Upload
 } from 'antd';
+import * as XLSX from 'xlsx';
 import { 
   DndContext, 
   PointerSensor, 
@@ -18,7 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined, BookOutlined, CopyOutlined, SaveOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined, BookOutlined, CopyOutlined, SaveOutlined, UploadOutlined, InboxOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
@@ -431,6 +433,11 @@ const KanbanBoard = () => {
   const [isRequestHoursModalOpen, setIsRequestHoursModalOpen] = useState(false);
   const [requestHoursForm] = Form.useForm();
   const [submittingHoursRequest, setSubmittingHoursRequest] = useState(false);
+
+  // Excel Import states
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importedTickets, setImportedTickets] = useState([]);
+  const [importingLoading, setImportingLoading] = useState(false);
 
   const isManager = authRole === 'ProjectManager' || authRole === 'TenantAdmin'
     || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
@@ -916,6 +923,103 @@ const KanbanBoard = () => {
     }
   };
 
+  const parseExcelData = (jsonData) => {
+    return jsonData.map(row => {
+      // Find keys case-insensitively
+      const findValue = (keys) => {
+        const foundKey = Object.keys(row).find(k => 
+          keys.some(key => k.toLowerCase().replace(/[\s_-]/g, '') === key.toLowerCase().replace(/[\s_-]/g, ''))
+        );
+        return foundKey ? row[foundKey] : null;
+      };
+
+      const milestone = findValue(['milestone', 'mileston']);
+      const title = findValue(['title', 'name', 'ticket']) || milestone || 'Untitled Ticket';
+      const description = findValue(['description', 'desc', 'work', 'details']) || '';
+      
+      // Parse Dates resiliently
+      let startDateVal = findValue(['startdate', 'start', 'start_date']);
+      let endDateVal = findValue(['enddate', 'end', 'end_date', 'duedate', 'due', 'due_date']);
+
+      // Convert SheetJS serial dates to format YYYY-MM-DD
+      const formatExcelDate = (val) => {
+        if (!val) return null;
+        if (typeof val === 'number') {
+          const date = new Date((val - 25569) * 86400 * 1000);
+          return dayjs(date).format('YYYY-MM-DD');
+        }
+        const parsed = dayjs(val);
+        return parsed.isValid() ? parsed.format('YYYY-MM-DD') : null;
+      };
+
+      return {
+        title: String(title),
+        milestone: milestone ? String(milestone) : '',
+        description: String(description),
+        startDate: formatExcelDate(startDateVal),
+        dueDate: formatExcelDate(endDateVal),
+        priority: 'Medium',
+        estimatedHours: 0
+      };
+    });
+  };
+
+  const handleExcelUpload = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        if (jsonData.length === 0) {
+          message.error("The uploaded Excel sheet is empty.");
+          return;
+        }
+
+        const parsed = parseExcelData(jsonData);
+        setImportedTickets(parsed);
+        message.success(`Parsed ${parsed.length} tickets successfully! Review them in the table below before generating.`);
+      } catch (err) {
+        console.error(err);
+        message.error("Failed to parse the Excel file. Please ensure it is a valid Excel spreadsheet.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    return false; // Prevent automatic upload
+  };
+
+  const handleExcelImportSubmit = async () => {
+    if (!projectId) return;
+    setImportingLoading(true);
+    try {
+      await Promise.all(importedTickets.map(t => 
+        ticketService.createTicket(projectId, {
+          title: t.title,
+          description: t.description,
+          priority: t.priority,
+          estimatedHours: t.estimatedHours || 0,
+          milestone: t.milestone,
+          startDate: t.startDate || null,
+          dueDate: t.dueDate || null,
+          assignedToUserId: null,
+          assignedEmployees: []
+        })
+      ));
+      message.success(`Successfully generated ${importedTickets.length} tickets from the uploaded Excel sheet!`);
+      setIsImportModalOpen(false);
+      setImportedTickets([]);
+      loadTickets(projectId);
+    } catch (err) {
+      console.error(err);
+      message.error("Failed to generate some or all tickets from the Excel sheet.");
+    } finally {
+      setImportingLoading(false);
+    }
+  };
+
   const currentAssignee = selectedTicket
     ? (users.find(u => u.id === selectedTicket.assignedToUserId) || mockUsers.find(u => u.id === selectedTicket.assignedToUserId))
     : null;
@@ -957,6 +1061,14 @@ const KanbanBoard = () => {
             )}
             {projectId && canEdit && (
               <Space>
+                {isManager && (
+                  <Button icon={<UploadOutlined />} onClick={() => {
+                    setImportedTickets([]);
+                    setIsImportModalOpen(true);
+                  }}>
+                    Import Excel
+                  </Button>
+                )}
                 <Button icon={<BookOutlined />} onClick={handleOpenTemplatesModal}>
                   Templates
                 </Button>
@@ -1680,6 +1792,86 @@ const KanbanBoard = () => {
             <Input.TextArea rows={3} placeholder="Explain why the ticket needs extra hours..." />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Import Excel Modal */}
+      <Modal
+        title={<span style={{ fontWeight: 800, fontSize: '18px', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>Import Tickets from Excel/CSV</span>}
+        open={isImportModalOpen}
+        onCancel={() => setIsImportModalOpen(false)}
+        width={750}
+        footer={[
+          <Button key="cancel" onClick={() => setIsImportModalOpen(false)} size="large" style={{ borderRadius: 8 }}>
+            Cancel
+          </Button>,
+          <Button 
+            key="import" 
+            type="primary" 
+            onClick={handleExcelImportSubmit} 
+            loading={importingLoading} 
+            disabled={importedTickets.length === 0}
+            size="large"
+            style={{ borderRadius: 8, background: '#4f46e5', borderColor: '#4f46e5', fontWeight: 600 }}
+          >
+            Generate {importedTickets.length > 0 ? `${importedTickets.length} ` : ''}Tickets
+          </Button>
+        ]}
+        destroyOnClose
+      >
+        <div style={{ marginTop: 16 }}>
+          <Upload.Dragger
+            accept=".xlsx,.xls,.csv"
+            beforeUpload={handleExcelUpload}
+            showUploadList={false}
+            style={{ 
+              background: isDarkMode ? '#11131c' : '#f8fafc', 
+              padding: 24, 
+              borderRadius: 12, 
+              border: `2px dashed ${border}`,
+              cursor: 'pointer'
+            }}
+          >
+            <p className="ant-upload-drag-icon" style={{ fontSize: 44, color: accent, marginBottom: 12 }}>
+              <InboxOutlined />
+            </p>
+            <p className="ant-upload-text" style={{ fontWeight: 700, fontSize: 15, color: t1 }}>Click or drag Excel/CSV file to this area to upload</p>
+            <p className="ant-upload-hint" style={{ fontSize: 12, color: t2, marginTop: 4 }}>
+              The sheet should contain columns for <strong>Milestone</strong>, <strong>Description</strong>, <strong>Start Date</strong>, and <strong>End Date</strong> (or Due Date).
+            </p>
+          </Upload.Dragger>
+
+          {importedTickets.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <Title level={5} style={{ marginBottom: 12, fontSize: '14px', fontWeight: 700, color: t1 }}>
+                Import Preview ({importedTickets.length} tickets detected)
+              </Title>
+              <Table
+                size="small"
+                dataSource={importedTickets}
+                rowKey={(record, index) => index}
+                pagination={{ pageSize: 5 }}
+                bordered
+                style={{ borderRadius: 8, overflow: 'hidden' }}
+                columns={[
+                  { title: 'Milestone / Title', dataIndex: 'title', ellipsis: true },
+                  { title: 'Description', dataIndex: 'description', ellipsis: true },
+                  { 
+                    title: 'Start Date', 
+                    dataIndex: 'startDate', 
+                    width: 130, 
+                    render: d => d ? <Tag color="blue">{d}</Tag> : '-' 
+                  },
+                  { 
+                    title: 'End Date / Due', 
+                    dataIndex: 'dueDate', 
+                    width: 130, 
+                    render: d => d ? <Tag color="cyan">{d}</Tag> : '-' 
+                  },
+                ]}
+              />
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );
