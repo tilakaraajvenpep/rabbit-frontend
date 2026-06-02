@@ -112,7 +112,6 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/teamlead/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
         { key: '/teamlead/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/teamlead/report', icon: <FileTextOutlined />, label: 'Daily Report' },
-        { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },
         { key: '/teamlead/scrum-master', icon: <TeamOutlined />, label: 'Scrum Master' },
         { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
