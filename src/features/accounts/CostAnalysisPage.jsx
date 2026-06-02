@@ -46,7 +46,7 @@ const CostAnalysisPage = () => {
   // Core cost states
   const [totalHours, setTotalHours] = useState(0);
   const [totalBudget, setTotalBudget] = useState(0);
-  const [bufferHours, setBufferHours] = useState(0);
+  const [bufferPercentage, setBufferPercentage] = useState(10);
   const [billingType, setBillingType] = useState('fixed');
   const [costCalculationType, setCostCalculationType] = useState('custom');
   const [standardCost, setStandardCost] = useState(500);
@@ -76,7 +76,17 @@ const CostAnalysisPage = () => {
 
       // Pre-fill saved values
       if (p.totalHours) setTotalHours(Number(p.totalHours));
-      if (p.bufferHours) setBufferHours(Number(p.bufferHours));
+      if (p.bufferHours) {
+        const total = Number(p.totalHours) || 0;
+        const buf = Number(p.bufferHours);
+        if (total > 0) {
+          setBufferPercentage(Math.round((buf / total) * 100));
+        } else {
+          setBufferPercentage(10);
+        }
+      } else {
+        setBufferPercentage(10);
+      }
       if (p.costCalculationType) setCostCalculationType(p.costCalculationType);
       if (p.billingType) setBillingType(p.billingType);
 
@@ -145,7 +155,6 @@ const CostAnalysisPage = () => {
       if (sumBudget > 0) setTotalBudget(sumBudget);
       if (calcHours > 0) {
         setTotalHours(calcHours);
-        setBufferHours(Math.round(calcHours * 0.10));
       }
       setExtractedOnce(true);
     } catch (err) {
@@ -174,7 +183,6 @@ const CostAnalysisPage = () => {
       if (sumBudget > 0) setTotalBudget(sumBudget);
       if (calcHours > 0) {
         setTotalHours(calcHours);
-        setBufferHours(Math.round(calcHours * 0.10));
       }
       setExtractedOnce(true);
 
@@ -196,7 +204,6 @@ const CostAnalysisPage = () => {
   const handleTotalHoursChange = (val) => {
     const hrs = val || 0;
     setTotalHours(hrs);
-    setBufferHours(Math.round(hrs * 0.10));
   };
 
   const handleOpenPMModal = () => {
@@ -215,11 +222,12 @@ const CostAnalysisPage = () => {
 
     setSubmitting(true);
     try {
+      const calcBufferHours = Number(((totalHours * bufferPercentage) / 100).toFixed(2));
       const payload = {
         status: 'PendingPMApproval',
         assignedProjectManagerId: Number(selectedPMId),
         totalHours: totalHours,
-        bufferHours: bufferHours,
+        bufferHours: calcBufferHours,
         costCalculationType: costCalculationType,
         billingType: billingType,
         budgetTable: totalBudget > 0 ? [{ key: 1, item: 'Total Project Budget', cost: totalBudget, hours: totalHours }] : [],
@@ -502,7 +510,6 @@ const CostAnalysisPage = () => {
                       onClick={() => {
                         const generated = Math.round(totalBudget / (standardCost || 500));
                         setTotalHours(generated);
-                        setBufferHours(Math.round(generated * 0.10));
                         notification.success({
                           message: 'Hours Generated',
                           description: `${generated} hrs calculated from ₹${totalBudget.toLocaleString('en-IN')} ÷ ₹${standardCost}/hr (standard cost)`
@@ -520,34 +527,51 @@ const CostAnalysisPage = () => {
         </Row>
       )}
 
-      {/* BUFFER (auto 10%) */}
+      {/* BUFFER (Standard 10%) */}
       {!extracting && (
         <Card
           title="Project Contingency Buffer"
           style={{ ...cardStyle, marginBottom: 24 }}
         >
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '16px 20px',
-            background: isDarkMode ? 'rgba(255,255,255,0.04)' : '#f0f9ff',
-            borderRadius: 10,
-            border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#bae6fd'}`
-          }}>
-            <div>
-              <Text type="secondary" style={{ fontSize: 12 }}>Auto-calculated at 10% of total hours</Text>
-              <div>
-                <Text strong style={{ fontSize: 32, color: '#0ea5e9' }}>{bufferHours} hrs</Text>
+          <Row gutter={24} align="middle">
+            <Col xs={24} md={12}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                background: isDarkMode ? 'rgba(255,255,255,0.04)' : '#f0f9ff',
+                borderRadius: 10,
+                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : '#bae6fd'}`
+              }}>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>Standard Buffer Rate</Text>
+                  <div>
+                    <Text strong style={{ fontSize: 32, color: '#0ea5e9' }}>{bufferPercentage}%</Text>
+                  </div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Standard contingency buffer is 10%
+                  </Text>
+                </div>
+                <ClockCircleOutlined style={{ fontSize: 48, color: '#0ea5e9', opacity: 0.3 }} />
               </div>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {totalHours > 0
-                  ? `10% of ${totalHours} hrs = ${bufferHours} hrs buffer`
-                  : 'Buffer will be calculated once total hours are set'}
-              </Text>
-            </div>
-            <ClockCircleOutlined style={{ fontSize: 48, color: '#0ea5e9', opacity: 0.3 }} />
-          </div>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="Edit Buffer Value (%)" style={{ marginBottom: 0 }}>
+                <InputNumber
+                  value={bufferPercentage}
+                  min={0}
+                  max={100}
+                  style={{ width: '100%' }}
+                  size="large"
+                  formatter={value => `${value}%`}
+                  parser={value => value.replace('%', '')}
+                  placeholder="Enter buffer percentage"
+                  onChange={val => setBufferPercentage(val !== null ? val : 10)}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
         </Card>
       )}
 
@@ -653,8 +677,8 @@ const CostAnalysisPage = () => {
                 <Text strong>{totalHours} hrs <Tag color={billingType === 'fixed' ? 'green' : 'blue'} style={{ fontSize: 10 }}>{billingType}</Tag></Text>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Text type="secondary">Buffer Hours (10%):</Text>
-                <Text strong>{bufferHours} hrs</Text>
+                <Text type="secondary">Buffer Value:</Text>
+                <Text strong>{bufferPercentage}%</Text>
               </div>
             </div>
           </div>
