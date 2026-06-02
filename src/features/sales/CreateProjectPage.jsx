@@ -86,17 +86,20 @@ const CreateProjectPage = () => {
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
   const [previewData, setPreviewData] = useState(null);
 
-  const { control, handleSubmit, setValue, formState: { errors } } = useForm({
+  const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm({
     defaultValues: {
       name: '',
       client: '',
       projectCategory: '',
       expectedStart: null,
+      expectedEnd: null,
       description: '',
       scopeFile: null,
       budgetFile: null
     }
   });
+
+  const expectedStart = watch('expectedStart');
 
   const [categories, setCategories] = useState([
     'Consulting',
@@ -151,6 +154,7 @@ const CreateProjectPage = () => {
           }
           setValue('projectCategory', p.projectCategory || '');
           if (p.startDate) setValue('expectedStart', dayjs(p.startDate));
+          if (p.endDate) setValue('expectedEnd', dayjs(p.endDate));
           setValue('description', p.description);
         } catch (error) {
           console.error(error);
@@ -172,6 +176,7 @@ const CreateProjectPage = () => {
         client: projectData.client,
         projectCategory: projectData.projectCategory,
         expectedStart: projectData.expectedStart ? projectData.expectedStart.toISOString() : null,
+        expectedEnd: projectData.expectedEnd ? projectData.expectedEnd.toISOString() : null,
         description: projectData.description,
         budgetTable: null,
         milestones: null,
@@ -328,6 +333,28 @@ const CreateProjectPage = () => {
             />
           </Form.Item>
 
+          <Form.Item label="Expected End Date" required validateStatus={errors.expectedEnd ? 'error' : ''} help={errors.expectedEnd?.message}>
+            <Controller
+              name="expectedEnd"
+              control={control}
+              rules={{ required: 'Expected end date is required' }}
+              render={({ field }) => (
+                <DatePicker
+                  {...field}
+                  style={{ width: '100%' }}
+                  disabledDate={(current) => {
+                    if (!current) return false;
+                    if (expectedStart) {
+                      return current.isBefore(expectedStart, 'day');
+                    }
+                    return current < dayjs().startOf('day');
+                  }}
+                  size="large"
+                />
+              )}
+            />
+          </Form.Item>
+
           <Form.Item label="Project Description" validateStatus={errors.description ? 'error' : ''} help={errors.description?.message}>
             <Controller
               name="description"
@@ -462,7 +489,12 @@ const CreateProjectPage = () => {
                 label="Expected Start Date"
                 value={previewData.expectedStart ? previewData.expectedStart.format('DD MMMM YYYY') : '—'}
                 accent="#10b981"
-                span
+              />
+              <InfoRow
+                icon={<CalendarOutlined />}
+                label="Expected End Date"
+                value={previewData.expectedEnd ? previewData.expectedEnd.format('DD MMMM YYYY') : '—'}
+                accent="#ef4444"
               />
               <InfoRow icon={<AlignLeftOutlined />} label="Project Description" value={previewData.description || '—'} accent="#f59e0b" span />
             </div>

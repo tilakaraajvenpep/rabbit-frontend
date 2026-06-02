@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Avatar, Badge, Spin, Typography, Space, notification, Tooltip, Button } from 'antd';
 import { UserOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { projectService } from '../../services/projectService';
 import { ticketService } from '../../services/ticketService';
 import { adminService } from '../../services/adminService';
@@ -74,6 +75,16 @@ const HRProjectsPage = () => {
         </Space>
       ),
       sorter: (a, b) => (a.name || '').localeCompare(b.name || ''),
+    },
+    {
+      title: 'Timeline',
+      key: 'timeline',
+      render: (_, record) => (
+        <div style={{ fontSize: '11px' }}>
+          <div>Start: <span style={{ fontWeight: 600 }}>{record.startDate ? dayjs(record.startDate).format('DD MMM YYYY') : 'N/A'}</span></div>
+          <div>End: <span style={{ fontWeight: 600, color: record.endDate ? '#ef4444' : 'inherit' }}>{record.endDate ? dayjs(record.endDate).format('DD MMM YYYY') : 'N/A'}</span></div>
+        </div>
+      ),
     },
     {
       title: 'Approved Hours',

@@ -194,14 +194,15 @@ const EODReportPage = () => {
       const rawTickets = res.data || [];
       setAllMyTickets(rawTickets);
 
-      let ticketsData = rawTickets.filter(t => t.status !== 'Done');
-      if (role === 'TeamLead' || role === 'ProjectManager' || role === 'TenantAdmin') {
-        const myUserId = currentUser?.userId || currentUser?.id;
-        ticketsData = ticketsData.filter(t => 
-          (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
-          (t.assignedTo && String(t.assignedTo) === String(myUserId))
-        );
-      }
+      const myUserId = currentUser?.userId || currentUser?.id;
+      const ticketsData = rawTickets.filter(t => {
+        if (t.status === 'Done') return false;
+        
+        const isAssigned = (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
+                           (t.assignedTo && String(t.assignedTo) === String(myUserId)) ||
+                           (t.assignedEmployees && Array.isArray(t.assignedEmployees) && t.assignedEmployees.some(emp => String(emp.userId) === String(myUserId)));
+        return isAssigned;
+      });
       setMyTickets(ticketsData);
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to load tickets.' });
@@ -438,6 +439,10 @@ const EODReportPage = () => {
 
       // Filter visible tickets for this EOD Page
       const visibleTickets = ticketsList.filter(ticket => {
+        if (role === 'ProjectManager' || role === 'TeamLead' || role === 'TenantAdmin') {
+          return true;
+        }
+
         const allotted = getAllottedHoursForTicket(ticket.id);
         const totalConsumed = Number(ticket.consumedHours) || 0;
         

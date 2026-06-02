@@ -150,11 +150,15 @@ const ProjectCard = ({ record, isDarkMode, onAnalyze, onDelete }) => {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: isDarkMode ? '#a1a1aa' : '#71717a', fontWeight: 500 }}>
             <UserOutlined style={{ color: '#6366f1', fontSize: 13 }} />
-            {record.client || '—'}
+            Client: <strong>{record.client || '—'}</strong>
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: isDarkMode ? '#a1a1aa' : '#71717a', fontWeight: 500 }}>
             <CalendarOutlined style={{ color: '#6366f1', fontSize: 13 }} />
-            {dayjs(record.createdAt).format('DD MMM YYYY')}
+            Start: <strong>{record.startDate ? dayjs(record.startDate).format('DD MMM YYYY') : dayjs(record.createdAt).format('DD MMM YYYY')}</strong>
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: isDarkMode ? '#a1a1aa' : '#71717a', fontWeight: 500 }}>
+            <CalendarOutlined style={{ color: '#ef4444', fontSize: 13 }} />
+            End: <strong>{record.endDate ? dayjs(record.endDate).format('DD MMM YYYY') : 'Not Set'}</strong>
           </span>
         </div>
 

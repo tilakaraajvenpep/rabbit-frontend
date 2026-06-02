@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Typography, Tag, Skeleton, Input, Modal, Form, Select, notification, message } from 'antd';
 import { EyeOutlined, SearchOutlined, DashboardOutlined, AlertOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import { projectService } from '../../services/projectService';
 import { analyticsService } from '../../services/analyticsService';
 import { ticketService } from '../../services/ticketService';
@@ -144,6 +145,16 @@ const TeamLeadDashboardPage = () => {
       render: (_, record) => (
         <Text>{record.consumedHours} / {record.approvedHours}</Text>
       )
+    },
+    {
+      title: 'Timeline',
+      key: 'timeline',
+      render: (_, record) => (
+        <div style={{ fontSize: '11px' }}>
+          <div>Start: <span style={{ fontWeight: 600 }}>{record.startDate ? dayjs(record.startDate).format('DD MMM YYYY') : 'N/A'}</span></div>
+          <div>End: <span style={{ fontWeight: 600, color: record.endDate ? '#ef4444' : 'inherit' }}>{record.endDate ? dayjs(record.endDate).format('DD MMM YYYY') : 'N/A'}</span></div>
+        </div>
+      ),
     },
     {
       title: 'Scope',

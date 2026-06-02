@@ -95,10 +95,14 @@ const ProjectListPage = () => {
       render: (status) => <StatusBadge status={status} />,
     },
     {
-      title: 'Created Date',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date) => dayjs(date).format('DD MMM YYYY'),
+      title: 'Timeline',
+      key: 'timeline',
+      render: (_, record) => (
+        <div style={{ fontSize: '12px' }}>
+          <div>Start: <span style={{ fontWeight: 600 }}>{record.startDate ? dayjs(record.startDate).format('DD MMM YYYY') : 'N/A'}</span></div>
+          <div>End: <span style={{ fontWeight: 600, color: record.endDate ? '#ef4444' : 'inherit' }}>{record.endDate ? dayjs(record.endDate).format('DD MMM YYYY') : 'N/A'}</span></div>
+        </div>
+      ),
     },
     {
       title: 'Actions',

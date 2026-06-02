@@ -495,6 +495,17 @@ const PMDashboardPage = () => {
       render: (cat) => <Tag color="cyan">{cat || 'N/A'}</Tag>
     },
     {
+      title: 'Timeline',
+      key: 'timeline',
+      width: 185,
+      render: (_, record) => (
+        <div style={{ fontSize: '12px' }}>
+          <div>Start: <span style={{ fontWeight: 600 }}>{record.startDate ? dayjs(record.startDate).format('DD MMM YYYY') : 'N/A'}</span></div>
+          <div>End: <span style={{ fontWeight: 600, color: record.endDate ? '#ef4444' : 'inherit' }}>{record.endDate ? dayjs(record.endDate).format('DD MMM YYYY') : 'N/A'}</span></div>
+        </div>
+      ),
+    },
+    {
       title: 'Submitted By Accounts',
       key: 'totalHours',
       width: 200,
