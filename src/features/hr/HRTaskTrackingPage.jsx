@@ -10,6 +10,7 @@ import {
 import dayjs from 'dayjs';
 import { adminService } from '../../services/adminService';
 import { reportService } from '../../services/reportService';
+import { leaveService } from '../../services/leaveService';
 import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
 
@@ -19,6 +20,7 @@ const HRTaskTrackingPage = () => {
   const { isDarkMode } = useThemeStore();
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
+  const [leaves, setLeaves] = useState([]);
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [loading, setLoading] = useState(true);
   
@@ -34,12 +36,14 @@ const HRTaskTrackingPage = () => {
     setLoading(true);
     try {
       const dateStr = selectedDate.format('YYYY-MM-DD');
-      const [usersRes, reportsRes] = await Promise.all([
+      const [usersRes, reportsRes, leavesRes] = await Promise.all([
         adminService.getUsers(),
-        reportService.getAllReportsByRange(dateStr, dateStr)
+        reportService.getAllReportsByRange(dateStr, dateStr),
+        leaveService.getAllLeaves()
       ]);
       setUsers(usersRes.data || []);
       setReports(reportsRes.data || []);
+      setLeaves(leavesRes.data || []);
     } catch (error) {
       console.error('Failed to fetch missing tasks data:', error);
     } finally {
@@ -83,6 +87,15 @@ const HRTaskTrackingPage = () => {
       }
     }
 
+    // Find if they applied for leave or permission for that day
+    const dateStr = selectedDate.format('YYYY-MM-DD');
+    const userLeaves = leaves.filter(l => 
+      String(l.userId || l.user?.id) === String(user.id || user.userId) &&
+      dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr &&
+      l.status !== 'Rejected'
+    );
+    const matchedLeave = userLeaves.find(l => l.status === 'Approved') || userLeaves.find(l => l.status === 'Pending') || null;
+
     return {
       key: user.id || user.userId,
       user,
@@ -94,7 +107,8 @@ const HRTaskTrackingPage = () => {
       minutes,
       isMissing,
       reportItems: userReport?.items || [],
-      submittedAt: userReport?.submittedAt || null
+      submittedAt: userReport?.submittedAt || null,
+      matchedLeave
     };
   }).filter(item => item.isMissing); // Only keep users who missed or short-reported
 
@@ -161,20 +175,50 @@ const HRTaskTrackingPage = () => {
     {
       title: 'Status',
       key: 'status',
-      width: 200,
+      width: 240,
       render: (_, record) => {
+        const tags = [];
+        
         if (record.totalMinutes === 0) {
-          return (
-            <Tag color="error" icon={<CloseCircleOutlined />} style={{ padding: '4px 8px', borderRadius: 6, fontWeight: 600 }}>
+          tags.push(
+            <Tag key="report-status" color="error" icon={<CloseCircleOutlined />} style={{ padding: '4px 8px', borderRadius: 6, fontWeight: 600, margin: 0 }}>
               Not Reported
             </Tag>
           );
+        } else {
+          tags.push(
+            <Tag key="report-status" color="warning" icon={<WarningOutlined />} style={{ padding: '4px 8px', borderRadius: 6, fontWeight: 600, margin: 0 }}>
+              Short Logged (&lt; 8h 30m)
+            </Tag>
+          );
         }
-        return (
-          <Tag color="warning" icon={<WarningOutlined />} style={{ padding: '4px 8px', borderRadius: 6, fontWeight: 600 }}>
-            Short Logged (&lt; 8h 30m)
-          </Tag>
-        );
+
+        if (record.matchedLeave) {
+          const { type, status, reason } = record.matchedLeave;
+          let label = 'Leave';
+          let color = 'purple';
+          
+          if (type === 'Permission') {
+            label = 'Permission';
+            color = 'cyan';
+          } else if (type === 'HalfDay') {
+            label = 'Half Day Leave';
+            color = 'blue';
+          } else if (type === 'FullDay') {
+            label = 'Full Day Leave';
+            color = 'indigo';
+          }
+
+          tags.push(
+            <Tooltip key="leave-status" title={reason ? `Reason: ${reason}` : 'No reason provided'}>
+              <Tag color={color} style={{ padding: '4px 8px', borderRadius: 6, fontWeight: 600, margin: 0, cursor: 'help' }}>
+                {label} ({status})
+              </Tag>
+            </Tooltip>
+          );
+        }
+
+        return <Space direction="vertical" size={6} style={{ width: '100%' }}>{tags}</Space>;
       }
     },
     {
