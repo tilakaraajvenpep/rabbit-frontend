@@ -209,21 +209,6 @@ const HRTeamPage = () => {
       )
     },
     {
-      title: 'Date of Joining',
-      dataIndex: 'dateOfJoining',
-      key: 'dateOfJoining',
-      width: 180,
-      render: (dateOfJoining, record) => (
-        <DatePicker
-          placeholder="Select Join Date"
-          style={{ width: '100%', borderRadius: 6 }}
-          value={dateOfJoining ? dayjs(dateOfJoining) : null}
-          onChange={(date, dateString) => handleDateChange(record.id, date, dateString)}
-          format="YYYY-MM-DD"
-        />
-      )
-    },
-    {
       title: 'Reporting Team Lead',
       dataIndex: 'teamLeadId',
       key: 'teamLeadId',
