@@ -28,20 +28,56 @@ const EmployeeReportsPage = () => {
   // Filters
   const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs()]);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [selectedTeamLead, setSelectedTeamLead] = useState(null);
+  const [selectedPM, setSelectedPM] = useState(null);
   const [employees, setEmployees] = useState([]);
+  const [teamLeads, setTeamLeads] = useState([]);
+  const [projectManagers, setProjectManagers] = useState([]);
+  const [allUsersCache, setAllUsersCache] = useState([]);
 
   useEffect(() => {
     fetchInitialData();
   }, []);
 
-  // Filter effect to update filteredData when selectedEmployee changes or rawReportData updates
+  // Filter effect to update filteredData when filters change or rawReportData updates
   useEffect(() => {
+    let data = rawReportData;
+
     if (selectedEmployee) {
-      setFilteredData(rawReportData.filter(r => String(r.userId) === String(selectedEmployee)));
-    } else {
-      setFilteredData(rawReportData);
+      data = data.filter(r => String(r.userId) === String(selectedEmployee));
     }
-  }, [selectedEmployee, rawReportData]);
+
+    if (selectedTeamLead && role === 'HR') {
+      data = data.filter(r => {
+        const u = allUsersCache.find(u => String(u.id || u.userId) === String(r.userId));
+        if (!u) return false;
+        // Employee under this TL
+        if (u.role === 'Employee' && String(u.teamLeadId) === String(selectedTeamLead)) return true;
+        // The TL themselves
+        if (String(u.id || u.userId) === String(selectedTeamLead)) return true;
+        return false;
+      });
+    }
+
+    if (selectedPM && role === 'HR') {
+      data = data.filter(r => {
+        const u = allUsersCache.find(u => String(u.id || u.userId) === String(r.userId));
+        if (!u) return false;
+        // Direct PM
+        if (String(u.projectManagerId) === String(selectedPM)) return true;
+        // PM themselves
+        if (String(u.id || u.userId) === String(selectedPM)) return true;
+        // Employee whose TL reports to this PM
+        if (u.role === 'Employee' && u.teamLeadId) {
+          const tl = allUsersCache.find(t => String(t.id || t.userId) === String(u.teamLeadId));
+          if (tl && String(tl.projectManagerId) === String(selectedPM)) return true;
+        }
+        return false;
+      });
+    }
+
+    setFilteredData(data);
+  }, [selectedEmployee, selectedTeamLead, selectedPM, rawReportData, allUsersCache]);
 
   const fetchInitialData = async () => {
     try {
@@ -185,43 +221,32 @@ const EmployeeReportsPage = () => {
       // Dynamically collect unique employees from generated dataset
       const uniqueEmployeesMap = new Map();
       sorted.forEach(r => {
-        const userObj = allUsers.find(u => String(u.id || u.userId) === String(r.userId));
-        let details = '';
-        if (role === 'HR' && userObj) {
-          let tlName = '';
-          let pmName = '';
-          
-          if (userObj.role === 'Employee' && userObj.teamLeadId) {
-            const tl = allUsers.find(u => String(u.id || u.userId) === String(userObj.teamLeadId));
-            if (tl) tlName = tl.fullName || tl.name;
-          }
-          if (userObj.projectManagerId) {
-            const pm = allUsers.find(u => String(u.id || u.userId) === String(userObj.projectManagerId));
-            if (pm) pmName = pm.fullName || pm.name;
-          } else if (userObj.role === 'Employee' && userObj.teamLeadId) {
-            // Find TL's PM
-            const tl = allUsers.find(u => String(u.id || u.userId) === String(userObj.teamLeadId));
-            if (tl && tl.projectManagerId) {
-              const pm = allUsers.find(u => String(u.id || u.userId) === String(tl.projectManagerId));
-              if (pm) pmName = pm.fullName || pm.name;
-            }
-          }
-          
-          const parts = [];
-          if (tlName) parts.push(`TL: ${tlName}`);
-          if (pmName) parts.push(`PM: ${pmName}`);
-          
-          if (parts.length > 0) {
-            details = ` (${parts.join(', ')})`;
-          }
-        }
-        uniqueEmployeesMap.set(String(r.userId), `${r.employeeName}${details}`);
+        uniqueEmployeesMap.set(String(r.userId), r.employeeName);
       });
       const collectedEmployees = Array.from(uniqueEmployeesMap.entries()).map(([id, name]) => ({
         id,
         name
       }));
       setEmployees(collectedEmployees);
+
+      // Cache allUsers for filter effect
+      setAllUsersCache(allUsers);
+
+      // Collect unique Team Leads and Project Managers for HR filters
+      if (role === 'HR') {
+        const tlMap = new Map();
+        const pmMap = new Map();
+        allUsers.forEach(u => {
+          if (u.role === 'TeamLead') {
+            tlMap.set(String(u.id || u.userId), u.fullName || u.name);
+          }
+          if (u.role === 'ProjectManager') {
+            pmMap.set(String(u.id || u.userId), u.fullName || u.name);
+          }
+        });
+        setTeamLeads(Array.from(tlMap.entries()).map(([id, name]) => ({ id, name })));
+        setProjectManagers(Array.from(pmMap.entries()).map(([id, name]) => ({ id, name })));
+      }
 
       setHasGenerated(true);
     } catch (error) {
@@ -335,32 +360,70 @@ const EmployeeReportsPage = () => {
       {/* Display all work reports once generated */}
       {hasGenerated && (
         <Card style={{ borderRadius: 12, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }} bodyStyle={{ padding: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 280 }}>
-              <Text strong style={{ whiteSpace: 'nowrap' }}>Filter by Employee:</Text>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <Text strong style={{ whiteSpace: 'nowrap', minWidth: 120 }}>Filter by Employee:</Text>
               <Select
                 placeholder="All Employees"
-                style={{ minWidth: 200, flex: 1 }}
+                style={{ minWidth: 220, flex: 1 }}
                 allowClear
                 value={selectedEmployee}
                 onChange={setSelectedEmployee}
                 size="large"
+                showSearch
+                optionFilterProp="children"
               >
                 {employees.map(u => (
                   <Select.Option key={u.id} value={u.id}>{u.name || u.fullName}</Select.Option>
                 ))}
               </Select>
-            </div>
 
-            <Button 
-              icon={<DownloadOutlined />} 
-              onClick={handleExport}
-              disabled={filteredData.length === 0}
-              size="large"
-              style={{ borderRadius: 8, height: 40 }}
-            >
-              Export CSV
-            </Button>
+              {role === 'HR' && (
+                <>
+                  <Text strong style={{ whiteSpace: 'nowrap', minWidth: 100 }}>Team Lead:</Text>
+                  <Select
+                    placeholder="All Team Leads"
+                    style={{ minWidth: 200, flex: 1 }}
+                    allowClear
+                    value={selectedTeamLead}
+                    onChange={setSelectedTeamLead}
+                    size="large"
+                    showSearch
+                    optionFilterProp="children"
+                  >
+                    {teamLeads.map(tl => (
+                      <Select.Option key={tl.id} value={tl.id}>{tl.name}</Select.Option>
+                    ))}
+                  </Select>
+
+                  <Text strong style={{ whiteSpace: 'nowrap', minWidth: 60 }}>PM:</Text>
+                  <Select
+                    placeholder="All PMs"
+                    style={{ minWidth: 200, flex: 1 }}
+                    allowClear
+                    value={selectedPM}
+                    onChange={setSelectedPM}
+                    size="large"
+                    showSearch
+                    optionFilterProp="children"
+                  >
+                    {projectManagers.map(pm => (
+                      <Select.Option key={pm.id} value={pm.id}>{pm.name}</Select.Option>
+                    ))}
+                  </Select>
+                </>
+              )}
+
+              <Button 
+                icon={<DownloadOutlined />} 
+                onClick={handleExport}
+                disabled={filteredData.length === 0}
+                size="large"
+                style={{ borderRadius: 8, height: 44 }}
+              >
+                Export CSV
+              </Button>
+            </div>
           </div>
 
           <Table 
