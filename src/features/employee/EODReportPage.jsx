@@ -95,14 +95,51 @@ const EODReportPage = () => {
   const [myAccessRequests, setMyAccessRequests] = useState([]);
   const [hasAccessForDate, setHasAccessForDate] = useState(false);
 
+  // Alert Modal State
+  const [alertModalOpen, setAlertModalOpen] = useState(false);
+  const [alertModalIndex, setAlertModalIndex] = useState(null);
+  const [alertForm] = Form.useForm();
+
   const { control, handleSubmit, watch, reset, setValue, trigger } = useForm({
     defaultValues: {
-      items: [{ projectId: '', ticketId: '', hours: 0, workDone: '' }],
-      blockers: '',
-      isAlertIssue: false,
-      alertMessage: ''
+      items: [{ projectId: '', ticketId: '', hours: 0, workDone: '', isAlertIssue: false, alertMessage: '' }],
+      blockers: ''
     }
   });
+
+  const handleAlertButtonClick = (index, ticketObj) => {
+    if (viewOnly) return;
+    const currentIsAlert = watch(`items.${index}.isAlertIssue`);
+    const currentMsg = watch(`items.${index}.alertMessage`) || '';
+    
+    setAlertModalIndex(index);
+    alertForm.setFieldsValue({
+      ticketCode: ticketObj ? (ticketObj.code || '#' + ticketObj.id) : 'Ticket',
+      ticketTitle: ticketObj ? (ticketObj.title || ticketObj.ticketTitle || '') : '',
+      alertMessage: currentMsg
+    });
+    setAlertModalOpen(true);
+  };
+
+  const handleAlertModalSubmit = (values) => {
+    const idx = alertModalIndex;
+    if (idx !== null) {
+      setValue(`items.${idx}.isAlertIssue`, true);
+      setValue(`items.${idx}.alertMessage`, values.alertMessage);
+      trigger(`items.${idx}.isAlertIssue`);
+    }
+    setAlertModalOpen(false);
+  };
+
+  const handleRemoveAlert = () => {
+    const idx = alertModalIndex;
+    if (idx !== null) {
+      setValue(`items.${idx}.isAlertIssue`, false);
+      setValue(`items.${idx}.alertMessage`, '');
+      trigger(`items.${idx}.isAlertIssue`);
+    }
+    setAlertModalOpen(false);
+  };
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
 
@@ -465,7 +502,9 @@ const EODReportPage = () => {
           ticketId: ticket.id,
           hoursInput: matchingItem ? hVal : 0,
           minutesInput: matchingItem ? mVal : 0,
-          workDone: matchingItem ? matchingItem.workDone : ''
+          workDone: matchingItem ? matchingItem.workDone : '',
+          isAlertIssue: false,
+          alertMessage: ''
         };
       });
 
@@ -479,7 +518,7 @@ const EODReportPage = () => {
         setExistingReport(mappedReport);
         setViewOnly(true);
       } else {
-        reset({ items: mappedItems, blockers: '', isAlertIssue: false, alertMessage: '' });
+        reset({ items: mappedItems, blockers: '' });
         setExistingReport(null);
 
         const isFullDayLeave = leaveOnDate && leaveOnDate.type === 'FullDay' && leaveOnDate.status === 'Approved';
@@ -846,21 +885,22 @@ const EODReportPage = () => {
       };
       await reportService.submitDailyReport(reportData);
       
-      if (data.isAlertIssue && data.alertMessage) {
-        const firstItem = mappedItems?.[0];
-        const selectedTicket = myTickets.find(t => t.id === firstItem?.ticketId);
-        const resolvedProjectId = selectedTicket 
-          ? Number(selectedTicket.projectId) 
-          : (allProjects?.[0]?.id || 1);
+      for (const item of mappedItems) {
+        if (item.isAlertIssue && item.alertMessage) {
+          const selectedTicket = myTickets.find(t => String(t.id) === String(item.ticketId));
+          const resolvedProjectId = selectedTicket 
+            ? Number(selectedTicket.projectId) 
+            : (allProjects?.[0]?.id || 1);
 
-        await analyticsService.createAlert({
-          type: 'Employee Report Alert',
-          severity: 'Critical',
-          message: data.alertMessage,
-          employeeName: currentUser.fullName,
-          projectId: resolvedProjectId,
-          projectName: 'EOD Report'
-        });
+          await analyticsService.createAlert({
+            type: 'Employee Report Alert',
+            severity: 'Critical',
+            message: `${selectedTicket ? `[${selectedTicket.code || '#' + selectedTicket.id}] ` : ''}${item.alertMessage}`,
+            employeeName: currentUser.fullName,
+            projectId: resolvedProjectId,
+            projectName: 'EOD Report'
+          });
+        }
       }
 
       notification.success({ message: 'Success', description: `Report submitted successfully.` });
@@ -1188,12 +1228,23 @@ const EODReportPage = () => {
                               <div style={{ flex: 1 }} />
                               
                               {/* Alert raise button */}
-                              <Controller control={control} name="isAlertIssue" render={({ field: af }) => (
-                                <Button size="small" icon={<AlertOutlined />} danger={af.value} type={af.value ? 'primary' : 'default'}
-                                  style={{ fontSize: 11, borderRadius: 6 }} onClick={() => af.onChange(!af.value)}>
-                                  {af.value ? 'Alert ON' : 'Alert'}
-                                </Button>
-                              )} />
+                              {(() => {
+                                const isAlert = watch(`items.${index}.isAlertIssue`);
+                                const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                                return (
+                                  <Button 
+                                    size="small" 
+                                    icon={<AlertOutlined />} 
+                                    danger={isAlert} 
+                                    type={isAlert ? 'primary' : 'default'}
+                                    disabled={viewOnly || isTicketDateBlocked(item.ticketId)}
+                                    style={{ fontSize: 11, borderRadius: 6 }} 
+                                    onClick={() => handleAlertButtonClick(index, ticketObj)}
+                                  >
+                                    {isAlert ? 'Alert ON' : 'Alert'}
+                                  </Button>
+                                );
+                              })()}
                             </div>
 
                             {/* Select Ticket and Text box to enter hours and minutes */}
@@ -1357,17 +1408,24 @@ const EODReportPage = () => {
                             </div>
 
                             {/* Alert Block Description */}
-                            {index === 0 && (
-                              <Controller control={control} name="isAlertIssue" render={({ field: af }) => af.value ? (
-                                <div style={{ marginTop: 12 }}>
-                                  <Controller control={control} name="alertMessage" render={({ field: f }) => (
-                                    <Input {...f} prefix={<WarningOutlined style={{ color: '#ef4444' }} />}
-                                      placeholder="Describe the blocker or critical issue..." disabled={viewOnly}
-                                      style={{ borderRadius: 8, borderColor: '#ef4444', fontSize: 12 }} />
-                                  )} />
-                                </div>
-                              ) : null} />
-                            )}
+                            {(() => {
+                              const isAlert = watch(`items.${index}.isAlertIssue`);
+                              const alertMsg = watch(`items.${index}.alertMessage`);
+                              if (isAlert && alertMsg) {
+                                return (
+                                  <div style={{ marginTop: 12, padding: '8px 12px', background: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#fef2f2', border: '1px dashed #ef4444', borderRadius: 8 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                      <WarningOutlined style={{ color: '#ef4444' }} />
+                                      <span>CRITICAL ALERT RAISED TO TEAM LEADER</span>
+                                    </div>
+                                    <div style={{ fontSize: 12, color: isDarkMode ? '#fca5a5' : '#991b1b', fontStyle: 'italic' }}>
+                                      "{alertMsg}"
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         );
                       })}
@@ -1417,6 +1475,49 @@ const EODReportPage = () => {
 
           <Form.Item name="reason" label="Reason"><TextArea rows={3} /></Form.Item>
           <Button type="primary" htmlType="submit" loading={leaveApplying} block style={{ background: accent, borderColor: accent }}>Submit Request</Button>
+        </Form>
+      </Modal>
+
+      <Modal 
+        title="Raise Alert to Team Leader" 
+        open={alertModalOpen} 
+        onCancel={() => setAlertModalOpen(false)} 
+        footer={null} 
+        destroyOnClose
+      >
+        <Form form={alertForm} layout="vertical" onFinish={handleAlertModalSubmit} style={{ marginTop: 16 }}>
+          <div style={{ marginBottom: 16 }}>
+            <span style={{ fontSize: 12, color: t2, display: 'block', fontWeight: 600 }}>Ticket</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: t1 }}>
+              {alertForm.getFieldValue('ticketCode')} — {alertForm.getFieldValue('ticketTitle')}
+            </span>
+          </div>
+
+          <Form.Item 
+            name="alertMessage" 
+            label="Describe blocker / critical issue" 
+            rules={[{ required: true, message: 'Please describe the blocker' }]}
+          >
+            <TextArea 
+              rows={4} 
+              placeholder="Type critical issues or blockers preventing progress on this ticket..." 
+              style={{ borderRadius: 8 }}
+            />
+          </Form.Item>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
+            {alertModalIndex !== null && watch(`items.${alertModalIndex}.isAlertIssue`) ? (
+              <Button danger onClick={handleRemoveAlert}>
+                Remove Alert
+              </Button>
+            ) : <div />}
+            <Space>
+              <Button onClick={() => setAlertModalOpen(false)}>Cancel</Button>
+              <Button type="primary" htmlType="submit" style={{ background: '#ef4444', borderColor: '#ef4444' }}>
+                Raise Alert
+              </Button>
+            </Space>
+          </div>
         </Form>
       </Modal>
 
