@@ -185,7 +185,37 @@ const EmployeeReportsPage = () => {
       // Dynamically collect unique employees from generated dataset
       const uniqueEmployeesMap = new Map();
       sorted.forEach(r => {
-        uniqueEmployeesMap.set(String(r.userId), r.employeeName);
+        const userObj = allUsers.find(u => String(u.id || u.userId) === String(r.userId));
+        let details = '';
+        if (role === 'HR' && userObj) {
+          let tlName = '';
+          let pmName = '';
+          
+          if (userObj.role === 'Employee' && userObj.teamLeadId) {
+            const tl = allUsers.find(u => String(u.id || u.userId) === String(userObj.teamLeadId));
+            if (tl) tlName = tl.fullName || tl.name;
+          }
+          if (userObj.projectManagerId) {
+            const pm = allUsers.find(u => String(u.id || u.userId) === String(userObj.projectManagerId));
+            if (pm) pmName = pm.fullName || pm.name;
+          } else if (userObj.role === 'Employee' && userObj.teamLeadId) {
+            // Find TL's PM
+            const tl = allUsers.find(u => String(u.id || u.userId) === String(userObj.teamLeadId));
+            if (tl && tl.projectManagerId) {
+              const pm = allUsers.find(u => String(u.id || u.userId) === String(tl.projectManagerId));
+              if (pm) pmName = pm.fullName || pm.name;
+            }
+          }
+          
+          const parts = [];
+          if (tlName) parts.push(`TL: ${tlName}`);
+          if (pmName) parts.push(`PM: ${pmName}`);
+          
+          if (parts.length > 0) {
+            details = ` (${parts.join(', ')})`;
+          }
+        }
+        uniqueEmployeesMap.set(String(r.userId), `${r.employeeName}${details}`);
       });
       const collectedEmployees = Array.from(uniqueEmployeesMap.entries()).map(([id, name]) => ({
         id,
