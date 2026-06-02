@@ -9,6 +9,7 @@ import { reportService } from '../../services/reportService';
 import { ticketService } from '../../services/ticketService';
 import { useAuthStore } from '../../store/authStore';
 import { adminService } from '../../services/adminService';
+import { leaveService } from '../../services/leaveService';
 import PageHeader from '../../components/common/PageHeader';
 import { downloadCSV } from '../../utils/exportUtils';
 
@@ -17,7 +18,7 @@ const { Text } = Typography;
 
 const EmployeeReportsPage = () => {
   const { currentUser, role } = useAuthStore();
-  const isManager = ['TeamLead', 'ProjectManager', 'TenantAdmin'].includes(role);
+  const isManager = ['TeamLead', 'ProjectManager', 'TenantAdmin', 'HR'].includes(role);
   const [loading, setLoading] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [rawReportData, setRawReportData] = useState([]);
@@ -63,23 +64,22 @@ const EmployeeReportsPage = () => {
         end = '2100-12-31';
       }
       
-      let res;
-      if (isManager) {
-        res = await reportService.getAllReportsByRange(start, end);
-      } else {
-        res = await reportService.getReportsByRange(currentUser.id || currentUser.userId, start, end);
-      }
+      const [res, leavesRes, usersRes] = await Promise.all([
+        isManager 
+          ? reportService.getAllReportsByRange(start, end)
+          : reportService.getReportsByRange(currentUser.id || currentUser.userId, start, end),
+        leaveService.getAllLeaves(),
+        adminService.getUsers()
+      ]);
       
-      if (!res || !res.data) {
-        setRawReportData([]);
-        setFilteredData([]);
-        setEmployees([]);
-        setHasGenerated(true);
-        return;
-      }
+      const allUsers = usersRes.data || [];
+      const leavesData = leavesRes.data || [];
+      const reportsData = res?.data || [];
 
       let reports = [];
-      res.data.forEach(report => {
+
+      // Process reports
+      reportsData.forEach(report => {
         if (!report || !report.items) return;
 
         const employeeName = report.user?.fullName || report.user?.name || (Number(report.userId) === Number(currentUser.id || currentUser.userId) ? (currentUser.name || currentUser.fullName) : `Employee #${report.userId}`);
@@ -95,8 +95,57 @@ const EmployeeReportsPage = () => {
             hours: Number(item.hours || item.hoursSpent || 0),
             workDone: item.workDone || '',
             blockers: report.blockers || 'None',
+            isLeave: false,
             key: `${report.userId}-${report.date || report.reportDate}-${item.ticketId || Math.random()}`
           });
+        });
+      });
+
+      // Filter leaves in range
+      const filteredLeaves = leavesData.filter(l => {
+        const lDate = dayjs(l.leaveDate || l.date);
+        const startDay = dayjs(start).startOf('day');
+        const endDay = dayjs(end).endOf('day');
+        const inRange = lDate.isAfter(startDay.subtract(1, 'day')) && lDate.isBefore(endDay.add(1, 'day'));
+        
+        // If they are not manager, only show their own leaves
+        const isOwn = isManager || String(l.userId || l.user?.id) === String(currentUser.id || currentUser.userId);
+        
+        return inRange && l.status === 'Approved' && isOwn;
+      });
+
+      // Process leaves
+      filteredLeaves.forEach(leave => {
+        const targetUserId = leave.userId || leave.user?.id;
+        const userObj = allUsers.find(u => String(u.id || u.userId) === String(targetUserId));
+        const employeeName = userObj ? (userObj.fullName || userObj.name) : (Number(targetUserId) === Number(currentUser.id || currentUser.userId) ? (currentUser.name || currentUser.fullName) : `Employee #${targetUserId}`);
+
+        let leaveHours = 0;
+        if (leave.type === 'Permission') {
+          const duration = leave.permissionDuration || '';
+          if (duration.includes('hr')) {
+            leaveHours = parseFloat(duration) || 0;
+          } else if (duration.includes('min')) {
+            leaveHours = (parseFloat(duration) || 0) / 60;
+          } else {
+            leaveHours = 2;
+          }
+        }
+
+        const leaveLabel = leave.type === 'Permission' ? 'PERMISSION' : leave.type === 'HalfDay' ? 'HALF DAY LEAVE' : 'FULL DAY LEAVE';
+
+        reports.push({
+          userId: targetUserId,
+          date: leave.leaveDate || leave.date,
+          employeeName: employeeName,
+          ticketCode: 'LEAVE',
+          ticketTitle: leaveLabel,
+          hours: leaveHours,
+          workDone: `[Leave Reason] ${leave.reason || 'No reason provided'}`,
+          blockers: 'None',
+          isLeave: true,
+          leaveStatus: leave.status,
+          key: `leave-${leave.id || Math.random()}`
         });
       });
 
@@ -139,9 +188,34 @@ const EmployeeReportsPage = () => {
       render: (date) => dayjs(date).format('DD MMM YYYY')
     },
     { title: 'Employee', dataIndex: 'employeeName', key: 'employeeName', width: 150 },
-    { title: 'Ticket Code', dataIndex: 'ticketCode', key: 'ticketCode', width: 110 },
-    { title: 'Ticket / Task', dataIndex: 'ticketTitle', key: 'ticketTitle' },
-    { title: 'Work Done', dataIndex: 'workDone', key: 'workDone' },
+    { 
+      title: 'Ticket Code', dataIndex: 'ticketCode', key: 'ticketCode', width: 130,
+      render: (code) => {
+        if (code === 'LEAVE') {
+          return <Tag color="cyan" style={{ fontWeight: 600 }}>LEAVE</Tag>;
+        }
+        return code;
+      }
+    },
+    { 
+      title: 'Ticket / Task', dataIndex: 'ticketTitle', key: 'ticketTitle',
+      render: (title, record) => {
+        if (record.isLeave) {
+          const typeColor = title.includes('PERMISSION') ? 'cyan' : title.includes('HALF') ? 'purple' : 'magenta';
+          return <Tag color={typeColor} style={{ fontWeight: 700 }}>{title}</Tag>;
+        }
+        return title;
+      }
+    },
+    { 
+      title: 'Work Done', dataIndex: 'workDone', key: 'workDone',
+      render: (text, record) => {
+        if (record.isLeave) {
+          return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>{text}</span>;
+        }
+        return text;
+      }
+    },
     { 
       title: 'Hours', dataIndex: 'hours', key: 'hours', width: 80, align: 'right',
       render: (h) => h?.toFixed(1)

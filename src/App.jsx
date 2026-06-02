@@ -252,6 +252,7 @@ const App = () => {
                 <Route path="/hr/hours" element={<HRHourAllocationPage />} />
                 <Route path="/hr/timer-requests" element={<HRTimerRequestsPage />} />
                 <Route path="/hr/org-chart" element={<OrgChartPage />} />
+                <Route path="/hr/reports" element={<EmployeeReportsPage />} />
               </Route>
 
               {/* Shared Reports for Managers */}
