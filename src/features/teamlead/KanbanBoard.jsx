@@ -679,6 +679,13 @@ const KanbanBoard = () => {
         return;
       }
 
+      const totalEditHours = editAssignedEmployees.reduce((sum, emp) => sum + emp.hours, 0);
+      const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
+      if (totalEditHours > projectTotalHours) {
+        message.error(`Total assigned hours (${totalEditHours}h) must be less than the total hours allotted to the project (${projectTotalHours}h).`);
+        return;
+      }
+
       setSavingTicket(true);
       await ticketService.updateTicket(editingTicket.id || editingTicket.ticketId, {
         title: values.title,
@@ -1184,8 +1191,17 @@ const KanbanBoard = () => {
                       placeholder="Hours"
                       value={emp.hours || undefined}
                       onChange={(val) => {
+                        const numVal = Number(val) || 0;
+                        const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
+                        if (numVal > projectTotalHours) {
+                          message.error(`Assigned hours (${numVal}h) must be less than the total hours allotted to the project (${projectTotalHours}h).`);
+                          const updated = [...editAssignedEmployees];
+                          updated[index].hours = 0;
+                          setEditAssignedEmployees(updated);
+                          return;
+                        }
                         const updated = [...editAssignedEmployees];
-                        updated[index].hours = Number(val) || 0;
+                        updated[index].hours = numVal;
                         setEditAssignedEmployees(updated);
                       }}
                       style={{ width: 120 }}

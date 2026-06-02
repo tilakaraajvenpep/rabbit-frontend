@@ -80,6 +80,17 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
         return;
       }
 
+      const totalTicketHours = assignedEmployees.reduce((sum, emp) => sum + emp.hours, 0);
+      const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
+      if (totalTicketHours > projectTotalHours) {
+        notification.error({
+          message: 'Validation Error',
+          description: `Total assigned ticket hours (${totalTicketHours}h) must be less than the total hours allotted to the project (${projectTotalHours}h).`
+        });
+        setLoading(false);
+        return;
+      }
+
       const formattedData = {
         title: data.title,
         description: data.description,
@@ -213,8 +224,20 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
                     placeholder="Hours"
                     value={emp.hours || undefined}
                     onChange={(val) => {
+                      const numVal = Number(val) || 0;
+                      const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
+                      if (numVal > projectTotalHours) {
+                        notification.error({
+                          message: 'Invalid Hours',
+                          description: `Assigned hours (${numVal}h) must be less than the total hours allotted to the project (${projectTotalHours}h).`
+                        });
+                        const updated = [...assignedEmployees];
+                        updated[index].hours = 0;
+                        setAssignedEmployees(updated);
+                        return;
+                      }
                       const updated = [...assignedEmployees];
-                      updated[index].hours = Number(val) || 0;
+                      updated[index].hours = numVal;
                       setAssignedEmployees(updated);
                     }}
                     style={{ width: 120 }}
