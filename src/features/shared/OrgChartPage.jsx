@@ -266,115 +266,98 @@ const OrgChartPage = () => {
     );
   };
 
-  // Visual Tree Builder Renderer
+  // Visual Tree Builder Renderer (Vertical Cascade Branch Map)
   const renderTree = (nodes) => {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 32, alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 900, margin: '0 auto', width: '100%', padding: '0 16px' }}>
         {nodes.map(pmNode => {
           const pmCollapsed = collapsedNodes[pmNode.id];
           return (
-            <div key={pmNode.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-              {/* PM Level Card */}
-              <div style={{ position: 'relative', zIndex: 2 }}>
+            <div 
+              key={pmNode.id} 
+              style={{ 
+                background: isDarkMode ? '#18181b' : '#ffffff',
+                border: isDarkMode ? '1px solid #2d2d30' : '1px solid #f3e8ff',
+                borderRadius: 20,
+                padding: '28px',
+                boxShadow: isDarkMode ? '0 10px 30px rgba(0,0,0,0.5)' : '0 10px 30px rgba(139,92,246,0.03)',
+                width: '100%',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
+            >
+              {/* PM Node Card */}
+              <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
                 {renderNodeCard(pmNode, 0)}
               </div>
 
-              {/* TL Level & Employee Level */}
+              {/* TL Level Container */}
               {pmNode.children && pmNode.children.length > 0 && !pmCollapsed && (
-                <div style={{ position: 'relative', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 32 }}>
-                  {/* Connecting Line Down from PM */}
-                  <div style={{
-                    position: 'absolute',
-                    top: -32,
-                    left: '50%',
-                    width: 2,
-                    height: 32,
-                    background: '#8b5cf6',
-                    zIndex: 1
-                  }} />
+                <div style={{ 
+                  marginTop: 24, 
+                  paddingLeft: 36, 
+                  borderLeft: isDarkMode ? '2px dashed #4b5563' : '2px dashed #c084fc',
+                  marginLeft: 22,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 24,
+                  position: 'relative'
+                }}>
+                  {pmNode.children.map(tlNode => {
+                    const tlCollapsed = collapsedNodes[tlNode.id];
+                    return (
+                      <div key={tlNode.id} style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                        {/* Horizontal Connector line from vertical branch to TL Card */}
+                        <div style={{
+                          position: 'absolute',
+                          left: -36,
+                          top: 22,
+                          width: 36,
+                          height: 2,
+                          borderTop: isDarkMode ? '2px dashed #4b5563' : '2px dashed #c084fc',
+                          zIndex: 1
+                        }} />
 
-                  {/* Horizontal Connecting Line across TLs */}
-                  {pmNode.children.length > 1 && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: `${100 / (pmNode.children.length * 2)}%`,
-                      right: `${100 / (pmNode.children.length * 2)}%`,
-                      height: 2,
-                      background: '#8b5cf6',
-                      zIndex: 1
-                    }} />
-                  )}
+                        {/* TL Card or Direct Employee Card */}
+                        <div style={{ position: 'relative', zIndex: 2 }}>
+                          {renderNodeCard(tlNode, 1)}
+                        </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'nowrap', width: '100%', overflowX: 'auto', padding: '0 12px' }}>
-                    {pmNode.children.map((tlNode, idx) => {
-                      const tlCollapsed = collapsedNodes[tlNode.id];
-                      return (
-                        <div key={tlNode.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                          {/* Vertical Connector Line down to TL */}
+                        {/* Employee Level Container under TL */}
+                        {tlNode.children && tlNode.children.length > 0 && !tlCollapsed && (
                           <div style={{
-                            width: 2,
-                            height: 32,
-                            background: '#8b5cf6',
-                            zIndex: 1
-                          }} />
-
-                          {/* TL Level Card */}
-                          <div style={{ position: 'relative', zIndex: 2 }}>
-                            {renderNodeCard(tlNode, 1)}
-                          </div>
-
-                          {/* Employees under this TL */}
-                          {tlNode.children && tlNode.children.length > 0 && !tlCollapsed && (
-                            <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 32 }}>
-                              {/* Connecting Line Down from TL */}
-                              <div style={{
-                                position: 'absolute',
-                                top: -32,
-                                left: '50%',
-                                width: 2,
-                                height: 32,
-                                background: '#8b5cf6',
-                                zIndex: 1
-                              }} />
-
-                              {/* Horizontal Connecting Line across Employees */}
-                              {tlNode.children.length > 1 && (
+                            marginTop: 20,
+                            paddingLeft: 36,
+                            borderLeft: isDarkMode ? '2px dashed #6b7280' : '2px dashed #f472b6',
+                            marginLeft: 22,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 20,
+                            position: 'relative'
+                          }}>
+                            {tlNode.children.map(empNode => (
+                              <div key={empNode.id} style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                                {/* Horizontal Connector line from TL vertical branch to Employee Card */}
                                 <div style={{
                                   position: 'absolute',
-                                  top: 0,
-                                  left: `${100 / (tlNode.children.length * 2)}%`,
-                                  right: `${100 / (tlNode.children.length * 2)}%`,
+                                  left: -36,
+                                  top: 22,
+                                  width: 36,
                                   height: 2,
-                                  background: '#8b5cf6',
+                                  borderTop: isDarkMode ? '2px dashed #6b7280' : '2px dashed #f472b6',
                                   zIndex: 1
                                 }} />
-                              )}
 
-                              <div style={{ display: 'flex', justifyContent: 'center', gap: 16, width: '100%' }}>
-                                {tlNode.children.map(empNode => (
-                                  <div key={empNode.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                                    {/* Connector Line down to Employee */}
-                                    <div style={{
-                                      width: 2,
-                                      height: 32,
-                                      background: '#8b5cf6',
-                                      zIndex: 1
-                                    }} />
-
-                                    {/* Employee Level Card */}
-                                    <div style={{ zIndex: 2 }}>
-                                      {renderNodeCard(empNode, 2)}
-                                    </div>
-                                  </div>
-                                ))}
+                                {/* Employee Card */}
+                                <div style={{ position: 'relative', zIndex: 2 }}>
+                                  {renderNodeCard(empNode, 2)}
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
