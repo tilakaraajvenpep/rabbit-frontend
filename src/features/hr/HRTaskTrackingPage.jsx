@@ -79,16 +79,13 @@ const HRTaskTrackingPage = () => {
     const shortLoggedDates = [];
 
     datesInRange.forEach(dateStr => {
-      // Check if user has an approved leave for this date
-      const hasApprovedLeave = leaves.some(l => 
+      // Find if they applied for leave or permission for that day
+      const userLeaves = leaves.filter(l => 
         String(l.userId || l.user?.id) === String(user.id || user.userId) &&
         dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr &&
-        l.status === 'Approved'
+        l.status !== 'Rejected'
       );
-
-      if (hasApprovedLeave) {
-        return;
-      }
+      const matchedLeave = userLeaves.find(l => l.status === 'Approved') || userLeaves.find(l => l.status === 'Pending') || null;
 
       // Check if user has a daily report for this date
       const reportForDate = userReports.find(r => {
@@ -97,7 +94,7 @@ const HRTaskTrackingPage = () => {
       });
 
       if (!reportForDate) {
-        unreportedDates.push(dateStr);
+        unreportedDates.push({ date: dateStr, leave: matchedLeave });
       } else {
         // Sum total logged minutes for this date
         let totalMinutes = 0;
@@ -109,7 +106,7 @@ const HRTaskTrackingPage = () => {
           });
         }
         if (totalMinutes < 510) {
-          shortLoggedDates.push({ date: dateStr, minutes: totalMinutes });
+          shortLoggedDates.push({ date: dateStr, minutes: totalMinutes, leave: matchedLeave });
         }
       }
     });
@@ -193,11 +190,30 @@ const HRTaskTrackingPage = () => {
         }
         return (
           <Space wrap size={[4, 8]}>
-            {record.unreportedDates.map(dateStr => (
-              <Tag key={dateStr} color="error" style={{ borderRadius: 6, fontWeight: 600 }}>
-                {dayjs(dateStr).format('DD MMM')}
-              </Tag>
-            ))}
+            {record.unreportedDates.map(item => {
+              const dateStr = item.date;
+              const leave = item.leave;
+              
+              if (leave) {
+                const leaveTypeLabel = leave.type === 'Permission' ? 'Permission' : leave.type === 'HalfDay' ? 'Half Day' : 'Leave';
+                const leaveColor = leave.type === 'Permission' ? 'cyan' : 'purple';
+                const tooltipText = `Applied: ${leaveTypeLabel} (${leave.status})${leave.reason ? ` - "${leave.reason}"` : ''}`;
+                
+                return (
+                  <Tooltip key={dateStr} title={tooltipText}>
+                    <Tag color={leaveColor} style={{ borderRadius: 6, fontWeight: 600, cursor: 'help' }}>
+                      {dayjs(dateStr).format('DD MMM')} ({leaveTypeLabel} - {leave.status})
+                    </Tag>
+                  </Tooltip>
+                );
+              }
+
+              return (
+                <Tag key={dateStr} color="error" style={{ borderRadius: 6, fontWeight: 600 }}>
+                  {dayjs(dateStr).format('DD MMM')}
+                </Tag>
+              );
+            })}
           </Space>
         );
       }
@@ -214,6 +230,22 @@ const HRTaskTrackingPage = () => {
             {record.shortLoggedDates.map(item => {
               const h = Math.floor(item.minutes / 60);
               const m = item.minutes % 60;
+              const leave = item.leave;
+              
+              if (leave) {
+                const leaveTypeLabel = leave.type === 'Permission' ? 'Permission' : leave.type === 'HalfDay' ? 'Half Day' : 'Leave';
+                const leaveColor = leave.type === 'Permission' ? 'cyan' : 'purple';
+                const tooltipText = `Logged: ${h}h ${m}m. Applied: ${leaveTypeLabel} (${leave.status})${leave.reason ? ` - "${leave.reason}"` : ''}`;
+                
+                return (
+                  <Tooltip key={item.date} title={tooltipText}>
+                    <Tag color={leaveColor} style={{ borderRadius: 6, fontWeight: 600, cursor: 'help' }}>
+                      {dayjs(item.date).format('DD MMM')} ({h}h {m}m) ({leaveTypeLabel} - {leave.status})
+                    </Tag>
+                  </Tooltip>
+                );
+              }
+
               return (
                 <Tooltip key={item.date} title={`Logged: ${h}h ${m}m (Requirement: 8h 30m)`}>
                   <Tag color="warning" style={{ borderRadius: 6, fontWeight: 600, cursor: 'help' }}>
