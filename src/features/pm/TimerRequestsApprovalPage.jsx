@@ -368,8 +368,6 @@ const TimerRequestsApprovalPage = () => {
           <WorkflowStep step={3} label="Project Manager" active />
           <WorkflowLine />
           <WorkflowStep step={4} label="Accounts" />
-          <WorkflowLine />
-          <WorkflowStep step={5} label="HR / Quota" />
         </div>
       </div>
 

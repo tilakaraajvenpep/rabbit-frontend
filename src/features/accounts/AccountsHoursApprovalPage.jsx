@@ -339,8 +339,6 @@ const AccountsHoursApprovalPage = () => {
           <WorkflowStep step={3} label="Project Manager" done />
           <WorkflowLine done />
           <WorkflowStep step={4} label="Accounts" active />
-          <WorkflowLine />
-          <WorkflowStep step={5} label="HR / Quota" />
         </div>
       </div>
 
