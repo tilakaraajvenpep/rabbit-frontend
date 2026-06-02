@@ -367,19 +367,7 @@ const HRTeamPage = () => {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card 
-            hoverable
-            style={{ 
-              borderRadius: 16, 
-              border: isDarkMode ? '1px solid #3f3f46' : '1px solid #e5e7eb',
-              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)',
-              background: isDarkMode ? '#1f2937' : '#ffffff'
-            }}
-          >
-
-          </Card>
-        </Col>
+        
       </Row>
 
       {/* Toolbar & Filters Card */}
