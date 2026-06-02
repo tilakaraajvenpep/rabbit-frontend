@@ -587,6 +587,21 @@ const KanbanBoard = () => {
     }
 
     if (fromCol && toCol && fromCol !== toCol) {
+      const ticket = allTickets.find(t => t.id === ticketId);
+      if (toCol === 'InProgress' && ticket) {
+        if (!ticket.startDate || !ticket.dueDate) {
+          message.error('A ticket must have both a Start Date and a Due Date to be moved to In Progress.');
+          return;
+        }
+        const today = dayjs().startOf('day');
+        const start = dayjs(ticket.startDate).startOf('day');
+        const due = dayjs(ticket.dueDate).endOf('day');
+        if (today.isBefore(start) || today.isAfter(due)) {
+          message.error(`You can move a ticket to In Progress only between its Start Date (${dayjs(ticket.startDate).format('DD MMM YYYY')}) and Due Date (${dayjs(ticket.dueDate).format('DD MMM YYYY')}).`);
+          return;
+        }
+      }
+
       // Optimistic update
       setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: toCol } : t));
       try {
@@ -594,7 +609,7 @@ const KanbanBoard = () => {
       } catch (err) {
         // Revert on failure
         setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: fromCol } : t));
-        message.error('Failed to move ticket.');
+        message.error(err.response?.data?.message || 'Failed to move ticket.');
       }
     }
   };
@@ -1176,6 +1191,16 @@ const KanbanBoard = () => {
                 {selectedTicket.dueDate 
                   ? dayjs(selectedTicket.dueDate).format('DD MMM YYYY') 
                   : 'No Due Date'
+                }
+              </Text>
+            </Space>
+
+            <Space direction="vertical">
+              <Text strong>In Progress Date</Text>
+              <Text style={{ color: '#16a34a', fontWeight: 600 }}>
+                {selectedTicket.inProgressDate 
+                  ? dayjs(selectedTicket.inProgressDate).format('DD MMM YYYY HH:mm') 
+                  : 'Not Started'
                 }
               </Text>
             </Space>

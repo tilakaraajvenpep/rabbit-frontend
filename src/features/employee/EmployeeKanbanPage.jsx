@@ -123,6 +123,26 @@ const EmployeeKanbanPage = () => {
       }
     }
 
+    if (newStatus === 'InProgress' && ticket) {
+      if (!ticket.startDate || !ticket.dueDate) {
+        notification.error({
+          message: 'Action Blocked',
+          description: 'A ticket must have both a Start Date and a Due Date to be moved to In Progress.'
+        });
+        return;
+      }
+      const today = dayjs().startOf('day');
+      const start = dayjs(ticket.startDate).startOf('day');
+      const due = dayjs(ticket.dueDate).endOf('day');
+      if (today.isBefore(start) || today.isAfter(due)) {
+        notification.error({
+          message: 'Action Blocked',
+          description: `You can move a ticket to In Progress only between its Start Date (${dayjs(ticket.startDate).format('DD MMM YYYY')}) and Due Date (${dayjs(ticket.dueDate).format('DD MMM YYYY')}).`
+        });
+        return;
+      }
+    }
+
     try {
       await ticketService.updateTicketStatus(ticketId, newStatus);
       notification.success({ 
@@ -431,6 +451,29 @@ const EmployeeKanbanPage = () => {
                 )}
               </div>
             )}
+
+            <div style={{ border: '1px solid rgba(0, 0, 0, 0.06)', borderRadius: 8, padding: 12, background: isDarkMode ? '#1e1e1e' : '#f8fafc' }}>
+              <Row gutter={[16, 16]}>
+                <Col span={8}>
+                  <Text type="secondary" block style={{ fontSize: 12 }}>Start Date</Text>
+                  <Text strong style={{ fontSize: 13 }}>
+                    {selectedTicket.startDate ? dayjs(selectedTicket.startDate).format('DD MMM YYYY') : 'None'}
+                  </Text>
+                </Col>
+                <Col span={8}>
+                  <Text type="secondary" block style={{ fontSize: 12 }}>Due Date</Text>
+                  <Text strong style={{ fontSize: 13, color: '#e11d48' }}>
+                    {selectedTicket.dueDate ? dayjs(selectedTicket.dueDate).format('DD MMM YYYY') : 'None'}
+                  </Text>
+                </Col>
+                <Col span={8}>
+                  <Text type="secondary" block style={{ fontSize: 12 }}>In Progress Date</Text>
+                  <Text strong style={{ fontSize: 13, color: '#16a34a' }}>
+                    {selectedTicket.inProgressDate ? dayjs(selectedTicket.inProgressDate).format('DD MMM YYYY HH:mm') : 'Not Started'}
+                  </Text>
+                </Col>
+              </Row>
+            </div>
 
 
 
