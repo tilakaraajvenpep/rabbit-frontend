@@ -197,24 +197,39 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
             )}
 
           </Space>
-          {ticket.dueDate && (
+          <Space size={4}>
             <Tag 
-              color={isOverdue ? 'red' : 'default'} 
+              color="processing" 
               style={{ 
                 fontSize: '10px', 
                 borderRadius: 4, 
                 margin: 0,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 4
+                fontWeight: 600
               }}
             >
-              <CalendarOutlined style={{ color: isOverdue ? '#ef4444' : '#8c8c8c' }} />
-              <span style={{ color: isOverdue ? '#ef4444' : '#64748b', fontWeight: 500 }}>
-                {dayjs(ticket.dueDate).format('DD MMM')}
-              </span>
+              {ticket.estimatedHours || 0}h
             </Tag>
-          )}
+            {ticket.dueDate && (
+              <Tag 
+                color={isOverdue ? 'red' : 'default'} 
+                style={{ 
+                  fontSize: '10px', 
+                  borderRadius: 4, 
+                  margin: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                <CalendarOutlined style={{ color: isOverdue ? '#ef4444' : '#8c8c8c' }} />
+                <span style={{ color: isOverdue ? '#ef4444' : '#64748b', fontWeight: 500 }}>
+                  {dayjs(ticket.dueDate).format('DD MMM')}
+                </span>
+              </Tag>
+            )}
+          </Space>
         </div>
         
         {ticket.status === 'InReview' && (
