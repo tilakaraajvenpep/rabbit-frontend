@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, DatePicker, Select, Button, Table, 
-  Typography, Space, notification, Tag
+  Typography, Space, notification
 } from 'antd';
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -35,55 +35,19 @@ const EmployeeReportsPage = () => {
 
   // Filter effect to update filteredData when selectedEmployee changes or rawReportData updates
   useEffect(() => {
-    if (isManager && selectedEmployee) {
+    if (selectedEmployee) {
       setFilteredData(rawReportData.filter(r => String(r.userId) === String(selectedEmployee)));
     } else {
       setFilteredData(rawReportData);
     }
-  }, [selectedEmployee, rawReportData, isManager]);
+  }, [selectedEmployee, rawReportData]);
 
   const fetchInitialData = async () => {
     try {
-      const [ticketRes, userRes] = await Promise.all([
-        ticketService.getTickets(),
-        isManager ? adminService.getUsers() : Promise.resolve({ data: [] })
-      ]);
-
-      const loadedTickets = ticketRes.data || [];
-      const pmId = currentUser?.userId || currentUser?.id;
-      const loadedEmployees = isManager 
-        ? userRes.data.filter(u => {
-            if (u.role !== 'Employee' && u.role !== 'TeamLead') return false;
-            if (role === 'ProjectManager') {
-              if (u.role === 'TeamLead') {
-                return String(u.projectManagerId) === String(pmId);
-              }
-              if (u.role === 'Employee') {
-                if (String(u.projectManagerId) === String(pmId)) return true;
-                if (u.teamLeadId) {
-                  const tl = userRes.data.find(tlUser => String(tlUser.id) === String(u.teamLeadId));
-                  if (tl && String(tl.projectManagerId) === String(pmId)) return true;
-                }
-                return false;
-              }
-            } else if (role === 'TeamLead') {
-              if (u.role === 'TeamLead') {
-                return String(u.id || u.userId) === String(pmId);
-              }
-              if (u.role === 'Employee') {
-                return String(u.teamLeadId) === String(pmId);
-              }
-            }
-            return true;
-          }) 
-        : [];
-
-      setTickets(loadedTickets);
-      if (isManager) {
-        setEmployees(loadedEmployees);
-      }
+      const ticketRes = await ticketService.getTickets();
+      setTickets(ticketRes.data || []);
     } catch (error) {
-      notification.error({ message: 'Failed to load initial data' });
+      notification.error({ message: 'Failed to load tickets list' });
     }
   };
 
@@ -109,6 +73,7 @@ const EmployeeReportsPage = () => {
       if (!res || !res.data) {
         setRawReportData([]);
         setFilteredData([]);
+        setEmployees([]);
         setHasGenerated(true);
         return;
       }
@@ -117,9 +82,7 @@ const EmployeeReportsPage = () => {
       res.data.forEach(report => {
         if (!report || !report.items) return;
 
-        const employeeName = isManager 
-          ? (report.user?.fullName || report.user?.name || employees.find(u => Number(u.id) === Number(report.userId))?.name || 'Unknown')
-          : (currentUser.name || currentUser.fullName);
+        const employeeName = report.user?.fullName || report.user?.name || (Number(report.userId) === Number(currentUser.id || currentUser.userId) ? (currentUser.name || currentUser.fullName) : `Employee #${report.userId}`);
 
         report.items.forEach(item => {
           const ticketInfo = tickets.find(t => Number(t.id) === Number(item.ticketId));
@@ -139,6 +102,18 @@ const EmployeeReportsPage = () => {
 
       const sorted = reports.sort((a, b) => dayjs(b.date).unix() - dayjs(a.date).unix());
       setRawReportData(sorted);
+
+      // Dynamically collect unique employees from generated dataset
+      const uniqueEmployeesMap = new Map();
+      sorted.forEach(r => {
+        uniqueEmployeesMap.set(String(r.userId), r.employeeName);
+      });
+      const collectedEmployees = Array.from(uniqueEmployeesMap.entries()).map(([id, name]) => ({
+        id,
+        name
+      }));
+      setEmployees(collectedEmployees);
+
       setHasGenerated(true);
     } catch (error) {
       console.error('Report Search Error:', error);
@@ -163,7 +138,7 @@ const EmployeeReportsPage = () => {
       title: 'Date', dataIndex: 'date', key: 'date', width: 120,
       render: (date) => dayjs(date).format('DD MMM YYYY')
     },
-    ...(isManager ? [{ title: 'Employee', dataIndex: 'employeeName', key: 'employeeName', width: 150 }] : []),
+    { title: 'Employee', dataIndex: 'employeeName', key: 'employeeName', width: 150 },
     { title: 'Ticket Code', dataIndex: 'ticketCode', key: 'ticketCode', width: 110 },
     { title: 'Ticket / Task', dataIndex: 'ticketTitle', key: 'ticketTitle' },
     { title: 'Work Done', dataIndex: 'workDone', key: 'workDone' },
@@ -177,7 +152,7 @@ const EmployeeReportsPage = () => {
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
       <PageHeader title="Work Reports & Exports" />
 
-      {/* Date Range picker and Generate button ONLY - as requested */}
+      {/* Date Range picker and Generate button ONLY */}
       <Card style={{ marginBottom: 24, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }} bodyStyle={{ padding: '24px' }}>
         <Row gutter={[16, 24]} align="bottom">
           <Col xs={24} sm={16} md={18}>
@@ -209,23 +184,19 @@ const EmployeeReportsPage = () => {
         <Card style={{ borderRadius: 12, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }} bodyStyle={{ padding: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 280 }}>
-              {isManager && (
-                <>
-                  <Text strong style={{ whiteSpace: 'nowrap' }}>Filter by Employee:</Text>
-                  <Select
-                    placeholder="All Employees"
-                    style={{ minWidth: 200, flex: 1 }}
-                    allowClear
-                    value={selectedEmployee}
-                    onChange={setSelectedEmployee}
-                    size="large"
-                  >
-                    {employees.map(u => (
-                      <Select.Option key={u.id} value={u.id}>{u.name || u.fullName}</Select.Option>
-                    ))}
-                  </Select>
-                </>
-              )}
+              <Text strong style={{ whiteSpace: 'nowrap' }}>Filter by Employee:</Text>
+              <Select
+                placeholder="All Employees"
+                style={{ minWidth: 200, flex: 1 }}
+                allowClear
+                value={selectedEmployee}
+                onChange={setSelectedEmployee}
+                size="large"
+              >
+                {employees.map(u => (
+                  <Select.Option key={u.id} value={u.id}>{u.name || u.fullName}</Select.Option>
+                ))}
+              </Select>
             </div>
 
             <Button 
@@ -251,7 +222,7 @@ const EmployeeReportsPage = () => {
               pageData.forEach(({ hours }) => { total += hours; });
               return (
                 <Table.Summary.Row style={{ background: '#f8fafc' }}>
-                  <Table.Summary.Cell index={0} colSpan={isManager ? 4 : 3}>
+                  <Table.Summary.Cell index={0} colSpan={4}>
                     <Text strong>Total Hours in Current View</Text>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={1} align="right">
