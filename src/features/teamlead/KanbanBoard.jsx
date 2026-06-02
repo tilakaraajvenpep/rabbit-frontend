@@ -679,11 +679,18 @@ const KanbanBoard = () => {
   // --- Edit Ticket ---
   const handleEditTicket = (ticket) => {
     setEditingTicket(ticket);
-    const existingEmployees = Array.isArray(ticket.assignedEmployees) ? ticket.assignedEmployees : (ticket.assignedToUserId ? [{
+    const existingEmployees = (Array.isArray(ticket.assignedEmployees) ? ticket.assignedEmployees : (ticket.assignedToUserId ? [{
       userId: Number(ticket.assignedToUserId),
       name: users.find(u => String(u.id || u.userId) === String(ticket.assignedToUserId))?.name || 'Employee',
       hours: Number(ticket.estimatedHours) || 0
-    }] : []);
+    }] : [])).map(emp => {
+      const h = Number(emp.hours) || 0;
+      return {
+        ...emp,
+        hoursVal: Math.floor(h),
+        minutesVal: Math.round((h - Math.floor(h)) * 60)
+      };
+    });
     setEditAssignedEmployees(existingEmployees);
 
     editForm.setFieldsValue({
@@ -1259,7 +1266,9 @@ const KanbanBoard = () => {
                   return {
                     userId: Number(id),
                     name: user ? (user.name || user.fullName) : `Employee ${id}`,
-                    hours: 0
+                    hours: 0,
+                    hoursVal: 0,
+                    minutesVal: 0
                   };
                 });
                 setEditAssignedEmployees(newAssigned);
@@ -1312,46 +1321,101 @@ const KanbanBoard = () => {
                 {editAssignedEmployees.map((emp, index) => (
                   <div key={emp.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                     <Text strong>{emp.name}</Text>
-                    <InputNumber
-                      min={0.5}
-                      step={0.5}
-                      placeholder="Hours"
-                      value={emp.hours || undefined}
-                      onChange={(val) => {
-                        const numVal = Number(val) || 0;
-                        const otherEmployeesHours = editAssignedEmployees.filter((_, idx) => idx !== index).reduce((sum, emp) => sum + emp.hours, 0);
-                        const currentTicketTotal = otherEmployeesHours + numVal;
-                        const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
-                        if (otherTicketsHours + currentTicketTotal > projectTotalHours) {
-                          Modal.confirm({
-                            title: 'Project Hours Limit Exceeded',
-                            content: (
-                              <div>
-                                <p>The total estimated hours across all tickets would exceed the project's allotted limit.</p>
-                                <p>Other ticket hours on board: <strong>{otherTicketsHours}h</strong></p>
-                                <p>This ticket hours: <strong>{currentTicketTotal}h</strong></p>
-                                <p>Project allotted limit: <strong>{projectTotalHours}h</strong></p>
-                                <p>Please request additional hours before assigning more tasks.</p>
-                              </div>
-                            ),
-                            okText: 'Request Additional Hours',
-                            cancelText: 'Close',
-                            onOk: () => {
-                              setIsEditModalOpen(false);
-                              setIsRequestHoursModalOpen(true);
-                            }
-                          });
+                    <Space>
+                      <InputNumber
+                        min={0}
+                        placeholder="Hours"
+                        value={emp.hoursVal !== undefined ? emp.hoursVal : Math.floor(emp.hours || 0)}
+                        onChange={(val) => {
+                          const hVal = Number(val) || 0;
+                          const mVal = emp.minutesVal !== undefined ? emp.minutesVal : Math.round(((emp.hours || 0) - Math.floor(emp.hours || 0)) * 60);
+                          const numVal = hVal + (mVal / 60);
+
+                          const otherEmployeesHours = editAssignedEmployees.filter((_, idx) => idx !== index).reduce((sum, emp) => sum + emp.hours, 0);
+                          const currentTicketTotal = otherEmployeesHours + numVal;
+                          const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
+                          if (otherTicketsHours + currentTicketTotal > projectTotalHours) {
+                            Modal.confirm({
+                              title: 'Project Hours Limit Exceeded',
+                              content: (
+                                <div>
+                                  <p>The total estimated hours across all tickets would exceed the project's allotted limit.</p>
+                                  <p>Other ticket hours on board: <strong>{otherTicketsHours}h</strong></p>
+                                  <p>This ticket hours: <strong>{currentTicketTotal}h</strong></p>
+                                  <p>Project allotted limit: <strong>{projectTotalHours}h</strong></p>
+                                  <p>Please request additional hours before assigning more tasks.</p>
+                                </div>
+                              ),
+                              okText: 'Request Additional Hours',
+                              cancelText: 'Close',
+                              onOk: () => {
+                                setIsEditModalOpen(false);
+                                setIsRequestHoursModalOpen(true);
+                              }
+                            });
+                            const updated = [...editAssignedEmployees];
+                            updated[index].hours = 0;
+                            updated[index].hoursVal = 0;
+                            updated[index].minutesVal = 0;
+                            setEditAssignedEmployees(updated);
+                            return;
+                          }
                           const updated = [...editAssignedEmployees];
-                          updated[index].hours = 0;
+                          updated[index].hours = numVal;
+                          updated[index].hoursVal = hVal;
+                          updated[index].minutesVal = mVal;
                           setEditAssignedEmployees(updated);
-                          return;
-                        }
-                        const updated = [...editAssignedEmployees];
-                        updated[index].hours = numVal;
-                        setEditAssignedEmployees(updated);
-                      }}
-                      style={{ width: 120 }}
-                    />
+                        }}
+                        style={{ width: 85 }}
+                      />
+                      <InputNumber
+                        min={0}
+                        max={59}
+                        placeholder="Mins"
+                        value={emp.minutesVal !== undefined ? emp.minutesVal : Math.round(((emp.hours || 0) - Math.floor(emp.hours || 0)) * 60)}
+                        onChange={(val) => {
+                          const mVal = Number(val) || 0;
+                          const hVal = emp.hoursVal !== undefined ? emp.hoursVal : Math.floor(emp.hours || 0);
+                          const numVal = hVal + (mVal / 60);
+
+                          const otherEmployeesHours = editAssignedEmployees.filter((_, idx) => idx !== index).reduce((sum, emp) => sum + emp.hours, 0);
+                          const currentTicketTotal = otherEmployeesHours + numVal;
+                          const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
+                          if (otherTicketsHours + currentTicketTotal > projectTotalHours) {
+                            Modal.confirm({
+                              title: 'Project Hours Limit Exceeded',
+                              content: (
+                                <div>
+                                  <p>The total estimated hours across all tickets would exceed the project's allotted limit.</p>
+                                  <p>Other ticket hours on board: <strong>{otherTicketsHours}h</strong></p>
+                                  <p>This ticket hours: <strong>{currentTicketTotal}h</strong></p>
+                                  <p>Project allotted limit: <strong>{projectTotalHours}h</strong></p>
+                                  <p>Please request additional hours before assigning more tasks.</p>
+                                </div>
+                              ),
+                              okText: 'Request Additional Hours',
+                              cancelText: 'Close',
+                              onOk: () => {
+                                setIsEditModalOpen(false);
+                                setIsRequestHoursModalOpen(true);
+                              }
+                            });
+                            const updated = [...editAssignedEmployees];
+                            updated[index].hours = 0;
+                            updated[index].hoursVal = 0;
+                            updated[index].minutesVal = 0;
+                            setEditAssignedEmployees(updated);
+                            return;
+                          }
+                          const updated = [...editAssignedEmployees];
+                          updated[index].hours = numVal;
+                          updated[index].hoursVal = hVal;
+                          updated[index].minutesVal = mVal;
+                          setEditAssignedEmployees(updated);
+                        }}
+                        style={{ width: 85 }}
+                      />
+                    </Space>
                   </div>
                 ))}
               </Space>

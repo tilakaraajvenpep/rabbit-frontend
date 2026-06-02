@@ -68,6 +68,13 @@ const AnalyticsPage = () => {
         }
         return false;
       }
+    } else if (authRole === 'TeamLead') {
+      if (u.role === 'TeamLead') {
+        return String(u.id || u.userId) === String(pmId);
+      }
+      if (u.role === 'Employee') {
+        return String(u.teamLeadId) === String(pmId);
+      }
     }
     return true;
   });
