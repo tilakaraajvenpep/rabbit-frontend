@@ -250,7 +250,7 @@ const EODReportPage = () => {
 
   useEffect(() => {
     fetchReportForDate(selectedDate);
-  }, [selectedDate, currentUser.id, adminUnlocked]);
+  }, [selectedDate, currentUser.id, adminUnlocked, myTickets.length]);
 
   const fetchTimerRequests = async () => {
     try {
@@ -611,6 +611,27 @@ const EODReportPage = () => {
       }
     }
     return Number(ticket.estimatedHours) || 0;
+  };
+
+  const isTicketDateBlocked = (ticketId) => {
+    if (!ticketId) return false;
+    const ticketObj = allMyTickets.find(t => String(t.id) === String(ticketId));
+    if (!ticketObj) return false;
+
+    const repDate = dayjs(selectedDate).startOf('day');
+    const start = ticketObj.startDate ? dayjs(ticketObj.startDate).startOf('day') : null;
+    const due = ticketObj.dueDate ? dayjs(ticketObj.dueDate).endOf('day') : null;
+    const isDateValid = !start || !due || (repDate.isAfter(start.subtract(1, 'day')) && repDate.isBefore(due.add(1, 'day')));
+    
+    if (isDateValid) return false;
+
+    const hasDatePermission = myTimerRequests.some(r => 
+      String(r.request?.ticketId) === String(ticketObj.id) && 
+      r.request?.requestType === 'DateRangeExtension' && 
+      (r.request?.status === 'Approved' || r.request?.status === 'AccountsApproved')
+    );
+
+    return !hasDatePermission;
   };
 
   const onSubmit = async (data) => {
@@ -1088,12 +1109,12 @@ const EODReportPage = () => {
                                 <label style={{ fontSize: 11, fontWeight: 700, color: t2, display: 'block', marginBottom: 4 }}>Time Logged</label>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
-                                    <InputNumber {...f} min={0} size="middle" style={{ width: '100%' }} disabled={viewOnly} placeholder="Hrs" />
+                                    <InputNumber {...f} min={0} size="middle" style={{ width: '100%' }} disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Hrs" />
                                   )} />
                                   <span style={{ fontSize: 12, color: t2, fontWeight: 600 }}>hrs</span>
                                   
                                   <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
-                                    <InputNumber {...f} min={0} max={59} size="middle" style={{ width: '100%' }} disabled={viewOnly} placeholder="Mins" />
+                                    <InputNumber {...f} min={0} max={59} size="middle" style={{ width: '100%' }} disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Mins" />
                                   )} />
                                   <span style={{ fontSize: 12, color: t2, fontWeight: 600 }}>mins</span>
                                 </div>
@@ -1162,7 +1183,7 @@ const EODReportPage = () => {
                             <div style={{ marginTop: 12 }}>
                               <label style={{ fontSize: 11, fontWeight: 700, color: t2, display: 'block', marginBottom: 4 }}>Work Done Description</label>
                               <Controller control={control} name={`items.${index}.workDone`} render={({ field: f }) => (
-                                <TextArea {...f} rows={2} disabled={viewOnly} placeholder="Describe work done for this task..." style={{ resize: 'none', fontSize: 12, borderRadius: 8 }} />
+                                <TextArea {...f} rows={2} disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Describe work done for this task..." style={{ resize: 'none', fontSize: 12, borderRadius: 8 }} />
                               )} />
                             </div>
 
