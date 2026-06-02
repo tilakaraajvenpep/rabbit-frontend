@@ -121,6 +121,27 @@ const TimerRequestsApprovalPage = () => {
     finally { setRejecting(false); }
   };
 
+  const handleApproveDirectly = async (record) => {
+    Modal.confirm({
+      title: 'Approve Request Directly?',
+      content: `Are you sure you want to approve additional ${record.request?.requestedHours}h for ${record.employeeName}? This will deduct from the project buffer.`,
+      okText: 'Approve',
+      cancelText: 'Cancel',
+      okButtonProps: { style: { background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none' } },
+      onOk: async () => {
+        try {
+          await timerRequestService.respondToRequest(record.request.requestId, { approved: true, comments: 'Approved by PM directly' });
+          message.success('Request approved successfully!');
+          fetchPMRequests();
+          fetchHistory();
+        } catch (err) {
+          message.error(err?.response?.data?.message || err?.message || 'Failed to approve request.');
+        }
+      }
+    });
+  };
+
+
   const totalApprovedHours = Array.isArray(history) 
     ? history
         .filter(r => ['Approved', 'AccountsApproved', 'PendingAccounts'].includes(r?.request?.status))
@@ -201,9 +222,15 @@ const TimerRequestsApprovalPage = () => {
     {
       title: 'Actions',
       key: 'actions',
-      width: 240,
+      width: 320,
       render: (_, record) => (
         <Space size={6}>
+          <Button
+            size="small"
+            onClick={() => handleApproveDirectly(record)}
+            style={{ background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
+            icon={<CheckCircleOutlined />}
+          >Approve</Button>
           <Button
             size="small"
             onClick={() => { setSelectedRequest(record); setPmComment(''); setIsForwardModalOpen(true); }}

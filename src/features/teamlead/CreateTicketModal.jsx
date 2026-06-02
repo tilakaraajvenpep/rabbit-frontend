@@ -41,9 +41,26 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
   };
 
   const projectTLId = project?.assignedTeamLeadId;
+  const pmId = authUser?.userId || authUser?.id;
   let eligibleUsers = [];
-  if (authRole === 'ProjectManager' || authRole === 'TenantAdmin') {
-    eligibleUsers = users.filter(u => u.role === 'Employee' || u.role === 'TeamLead');
+  if (authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin') {
+    eligibleUsers = users.filter(u => {
+      if (u.role !== 'Employee' && u.role !== 'TeamLead') return false;
+      if (authRole === 'ProjectManager' || authUser?.role === 'ProjectManager') {
+        if (u.role === 'TeamLead') {
+          return String(u.projectManagerId) === String(pmId);
+        }
+        if (u.role === 'Employee') {
+          if (String(u.projectManagerId) === String(pmId)) return true;
+          if (u.teamLeadId) {
+            const tl = users.find(tlUser => String(tlUser.id || tlUser.userId) === String(u.teamLeadId));
+            if (tl && String(tl.projectManagerId) === String(pmId)) return true;
+          }
+          return false;
+        }
+      }
+      return true;
+    });
   } else {
     eligibleUsers = users.filter(u => {
       if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';

@@ -25,6 +25,7 @@ import { projectService } from '../../services/projectService';
 import { adminService } from '../../services/adminService';
 import { ticketTemplateService } from '../../services/ticketTemplateService';
 import { useAuthStore } from '../../store/authStore';
+import { timerRequestService } from '../../services/timerRequestService';
 import { mockUsers } from '../../mocks/mockUsers';
 import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
@@ -381,6 +382,11 @@ const KanbanBoard = () => {
   const [applyingTemplate, setApplyingTemplate] = useState(false);
   const [templateForm] = Form.useForm();
 
+  // Request Additional Hours states
+  const [isRequestHoursModalOpen, setIsRequestHoursModalOpen] = useState(false);
+  const [requestHoursForm] = Form.useForm();
+  const [submittingHoursRequest, setSubmittingHoursRequest] = useState(false);
+
   const isManager = authRole === 'ProjectManager' || authRole === 'TenantAdmin'
     || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
   const canEdit = authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authRole === 'TeamLead'
@@ -391,6 +397,15 @@ const KanbanBoard = () => {
 
   // Effective column config — from saved project data or defaults
   const effectiveColumnList = useMemo(() => deriveColumnConfig(project?.kanbanColumns), [project]);
+
+  const totalTicketHours = useMemo(() => {
+    return allTickets.reduce((sum, t) => sum + (Number(t.estimatedHours) || 0), 0);
+  }, [allTickets]);
+
+  const isHoursExceeded = useMemo(() => {
+    if (!projectId || !project) return false;
+    return totalTicketHours > Number(project.totalHours || project.approvedHours || 0);
+  }, [projectId, project, totalTicketHours]);
 
   const nonBacklogTickets = useMemo(() => {
     return allTickets.filter(t => {
@@ -787,6 +802,29 @@ const KanbanBoard = () => {
     }
   };
 
+  const handleRequestHoursSubmit = async () => {
+    try {
+      const values = await requestHoursForm.validateFields();
+      setSubmittingHoursRequest(true);
+      
+      await timerRequestService.createRequest({
+        ticketId: values.ticketId,
+        requestType: 'ExceededLimit',
+        requestedHours: values.requestedHours,
+        reason: values.reason,
+      });
+
+      message.success('Additional hours request submitted successfully!');
+      setIsRequestHoursModalOpen(false);
+      requestHoursForm.resetFields();
+    } catch (err) {
+      console.error(err);
+      message.error(err?.response?.data?.message || 'Failed to submit hours request.');
+    } finally {
+      setSubmittingHoursRequest(false);
+    }
+  };
+
   const currentAssignee = selectedTicket
     ? (users.find(u => u.id === selectedTicket.assignedToUserId) || mockUsers.find(u => u.id === selectedTicket.assignedToUserId))
     : null;
@@ -872,6 +910,33 @@ const KanbanBoard = () => {
           }
           type="info"
           showIcon
+          style={{ marginBottom: 20, borderRadius: 8 }}
+        />
+      )}
+
+      {/* Exceeded project hours limit alert */}
+      {isHoursExceeded && (
+        <Alert
+          type="warning"
+          showIcon
+          message={<span style={{ fontWeight: 700 }}>Project Hours Limit Exceeded</span>}
+          description={
+            <div style={{ marginTop: 4 }}>
+              <div style={{ marginBottom: 8 }}>
+                Total estimated hours allocated to tickets on this board (<strong>{totalTicketHours}h</strong>) exceeds the project's overall allocated hours (<strong>{Number(project?.totalHours || project?.approvedHours || 0)}h</strong>).
+              </div>
+              {canEdit && (
+                <Button 
+                  type="primary" 
+                  size="small" 
+                  onClick={() => setIsRequestHoursModalOpen(true)}
+                  style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)', border: 'none', borderRadius: 6 }}
+                >
+                  Request Additional Hours
+                </Button>
+              )}
+            </div>
+          }
           style={{ marginBottom: 20, borderRadius: 8 }}
         />
       )}
@@ -1074,8 +1139,25 @@ const KanbanBoard = () => {
             >
               {(() => {
                 const projectTLId = project?.assignedTeamLeadId;
+                const pmId = authUser?.userId || authUser?.id;
                 const eligibleUsers = users.filter(u => {
-                  if (authRole === 'ProjectManager' || authRole === 'TenantAdmin') return u.role === 'Employee' || u.role === 'TeamLead';
+                  if (authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin') {
+                    if (u.role !== 'Employee' && u.role !== 'TeamLead') return false;
+                    if (authRole === 'ProjectManager' || authUser?.role === 'ProjectManager') {
+                      if (u.role === 'TeamLead') {
+                        return String(u.projectManagerId) === String(pmId);
+                      }
+                      if (u.role === 'Employee') {
+                        if (String(u.projectManagerId) === String(pmId)) return true;
+                        if (u.teamLeadId) {
+                          const tl = users.find(tlUser => String(tlUser.id || tlUser.userId) === String(u.teamLeadId));
+                          if (tl && String(tl.projectManagerId) === String(pmId)) return true;
+                        }
+                        return false;
+                      }
+                    }
+                    return true;
+                  }
                   if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
                   if (u.role === 'TeamLead' && u.id === projectTLId) return true;
                   if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
@@ -1272,6 +1354,50 @@ const KanbanBoard = () => {
             </Form>
           </Tabs.TabPane>
         </Tabs>
+      </Modal>
+
+      {/* Request Additional Hours Modal */}
+      <Modal
+        title={<span style={{ fontWeight: 700 }}>Request Additional Project Hours</span>}
+        open={isRequestHoursModalOpen}
+        onCancel={() => setIsRequestHoursModalOpen(false)}
+        onOk={handleRequestHoursSubmit}
+        confirmLoading={submittingHoursRequest}
+        okText="Submit Request"
+        cancelText="Cancel"
+        destroyOnClose
+      >
+        <Form form={requestHoursForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="ticketId"
+            label="Select Ticket"
+            rules={[{ required: true, message: 'Please select a ticket' }]}
+          >
+            <Select placeholder="Select a ticket to associate this request with">
+              {allTickets.map(t => (
+                <Select.Option key={t.id || t.ticketId} value={t.id || t.ticketId}>
+                  {t.ticketCode || t.code} - {t.title} ({t.estimatedHours}h)
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="requestedHours"
+            label="Additional Hours Required"
+            rules={[{ required: true, message: 'Please enter requested hours' }]}
+          >
+            <InputNumber min={0.5} step={0.5} style={{ width: '100%' }} placeholder="e.g. 10" />
+          </Form.Item>
+
+          <Form.Item
+            name="reason"
+            label="Reason for Additional Hours"
+            rules={[{ required: true, message: 'Please provide a reason' }]}
+          >
+            <Input.TextArea rows={3} placeholder="Explain why the ticket needs extra hours..." />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );
