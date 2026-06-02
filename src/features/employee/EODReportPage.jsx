@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Form, Input, InputNumber, Select, Button, Space, Typography,
-  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Table, Badge, Tabs, DatePicker, Collapse, Grid
+  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Badge, DatePicker, Grid
 } from 'antd';
 const { useBreakpoint } = Grid;
 import {
-  PlusOutlined, DeleteOutlined, SendOutlined, CheckCircleOutlined,
-  CheckCircleFilled, ExclamationCircleFilled, ClockCircleOutlined,
+  PlusOutlined, DeleteOutlined, CheckCircleOutlined,
+  ExclamationCircleFilled, ClockCircleOutlined,
   LeftOutlined, RightOutlined, ProjectOutlined, AlertOutlined,
-  WarningOutlined, SendOutlined as RaiseIcon, ApartmentOutlined, CalendarOutlined,
-  EditOutlined, CalendarFilled
+  WarningOutlined, CalendarOutlined, EditOutlined
 } from '@ant-design/icons';
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -28,10 +27,9 @@ import { reportAccessService } from '../../services/reportAccessService';
 
 import { useAuthStore } from '../../store/authStore';
 import { useThemeStore } from '../../store/themeStore';
-import PageHeader from '../../components/common/PageHeader';
 
 const { TextArea } = Input;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const EODReportPage = () => {
   const navigate = useNavigate();
@@ -40,10 +38,8 @@ const EODReportPage = () => {
   const { isDarkMode } = useThemeStore();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
-  const [selectedTopProjectId, setSelectedTopProjectId] = useState(null);
   const [baseDate, setBaseDate] = useState(dayjs().startOf('week').add(1, 'day'));
   const [weekDates, setWeekDates] = useState([]);
   const [weeklyStatus, setWeeklyStatus] = useState({});
@@ -61,8 +57,6 @@ const EODReportPage = () => {
   const [allocatedHoursPerDay, setAllocatedHoursPerDay] = useState(0);
   const [currentWeekRemainingHours, setCurrentWeekRemainingHours] = useState(null);
   const [currentRealWeekReports, setCurrentRealWeekReports] = useState([]);
-  const [hasWarnedExceeded, setHasWarnedExceeded] = useState(false);
-  const [accessRequestType, setAccessRequestType] = useState('single');
 
   // Timer Requests State
   const [myTimerRequests, setMyTimerRequests] = useState([]);
@@ -94,9 +88,8 @@ const EODReportPage = () => {
   const [accessRequestForm] = Form.useForm();
   const [myAccessRequests, setMyAccessRequests] = useState([]);
   const [hasAccessForDate, setHasAccessForDate] = useState(false);
-  const [activeTabKey, setActiveTabKey] = useState('task-0');
 
-  const { control, handleSubmit, watch, reset, setValue, trigger, formState: { errors } } = useForm({
+  const { control, handleSubmit, watch, reset, setValue, trigger } = useForm({
     defaultValues: {
       items: [{ projectId: '', ticketId: '', hours: 0, workDone: '' }],
       blockers: '',
@@ -105,50 +98,8 @@ const EODReportPage = () => {
     }
   });
 
-  const handleNextToReview = async () => {
-    const isValid = await trigger('items');
-    if (isValid) {
-      setActiveTabKey('submit-tab');
-    } else {
-      message.error('Please fill in all required task fields before proceeding.');
-    }
-  };
-
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
-  const [taskHours, setTaskHours] = useState(0);
-  const [taskMinutes, setTaskMinutes] = useState(0);
-  const [taskWorkDone, setTaskWorkDone] = useState('');
-  const [selectedTicketId, setSelectedTicketId] = useState('');
 
-  const handleAddTask = () => {
-    if (!selectedTicketId) {
-      notification.warning({ message: 'Select Ticket', description: 'Please select a ticket or task category first.' });
-      return;
-    }
-    if (taskHours === 0 && taskMinutes === 0) {
-      notification.warning({ message: 'Input Hours', description: 'Please input hours or minutes spent.' });
-      return;
-    }
-    if (!taskWorkDone.trim()) {
-      notification.warning({ message: 'Enter Description', description: 'Please describe the work done.' });
-      return;
-    }
-
-    const activeProjectId = selectedTopProjectId || allProjects[0]?.id;
-    append({
-      projectId: activeProjectId,
-      ticketId: selectedTicketId,
-      hoursInput: taskHours,
-      minutesInput: taskMinutes,
-      workDone: taskWorkDone
-    });
-
-    setSelectedTicketId('');
-    setTaskHours(0);
-    setTaskMinutes(0);
-    setTaskWorkDone('');
-    notification.success({ message: 'Task Added', description: "Task added to today's log list." });
-  };
   const watchedItems = watch('items');
   const totalHours = watchedItems?.reduce((acc, curr) => {
     const hrs = Number(curr?.hoursInput) || 0;
@@ -158,28 +109,6 @@ const EODReportPage = () => {
 
   // ─── Pre-render derived values ───────────────────────────────────────────
   const userId = currentUser?.userId || currentUser?.id;
-  const selectedProject = allProjects.find(p => String(p.id) === String(selectedTopProjectId));
-  const projectAllocatedHours = selectedProject ? Number(selectedProject.employeeAllocatedHours?.[userId] || 0) : 0;
-
-  // 1. Calculate the total hours consumed on this project across all time (from the tickets)
-  const projectHoursConsumedAllTime = allMyTickets
-    .filter(t => String(t.projectId) === String(selectedTopProjectId))
-    .reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
-
-  // 2. Find the hours logged on today's/selectedDate's report for this project in the database
-  const selectedDateReport = weeklyReports.find(r => r.date === selectedDate);
-  const projectHoursTodayInDatabase = selectedDateReport?.items
-    ?.filter(item => {
-      const tkt = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-      const pId = tkt ? tkt.projectId : item.projectId;
-      return String(pId) === String(selectedTopProjectId);
-    })
-    .reduce((s, item) => s + (Number(item.hoursSpent || item.hours) || 0), 0) || 0;
-
-  // 3. The hours consumed on other days (excluding selectedDate) is:
-  const projectHoursConsumedOtherDays = Math.max(0, projectHoursConsumedAllTime - projectHoursTodayInDatabase);
-
-  const projectRemainingBeforeToday = Math.max(0, projectAllocatedHours - projectHoursConsumedOtherDays);
 
   // Derivation of assigned Team Lead for the employee
   const assignedTeamLead = allUsers.find(u => String(u.id || u.userId) === String(selectedTeamLeadId)) || 
@@ -203,50 +132,6 @@ const EODReportPage = () => {
 
   // 3. Remaining weekly quota before today's input
   const remainingBeforeToday = weeklyQuota > 0 ? Math.max(0, weeklyQuota - hoursReportedOtherDays) : 24;
-
-  // 4. Dynamic daily quota (REQUIRED_HOURS) capped at remainingBeforeToday
-  const baseRequiredHours = remainingBeforeToday;
-  let REQUIRED_HOURS = baseRequiredHours;
-  if (currentLeave) {
-    if (currentLeave.type === 'FullDay') {
-      REQUIRED_HOURS = 0;
-    } else if (currentLeave.type === 'HalfDay') {
-      REQUIRED_HOURS = baseRequiredHours / 2;
-    } else if (currentLeave.type === 'Permission') {
-      REQUIRED_HOURS = Math.max(0, baseRequiredHours - 2);
-    }
-  }
-
-  const selectedTicketIds = watchedItems?.map(item => item.ticketId).filter(id => !!id) || [];
-
-  useEffect(() => {
-    if (selectedTopProjectId && !viewOnly && !loading) {
-      const hasTasks = watchedItems?.some(item => String(item?.projectId) === String(selectedTopProjectId));
-      if (!hasTasks) {
-        append({
-          projectId: selectedTopProjectId,
-          ticketId: '',
-          hoursInput: 0,
-          minutesInput: 0,
-          workDone: ''
-        });
-      }
-    }
-  }, [selectedTopProjectId, watchedItems, append, viewOnly, loading]);
-
-  // Constraint: block when entered hours exceed this project's remaining available hours
-  useEffect(() => {
-    if (!viewOnly && totalHours > projectRemainingBeforeToday) {
-      setBlockedSubmitTotal(totalHours);
-      setIsHoursBlockedModalOpen(true);
-    }
-  }, [totalHours, projectRemainingBeforeToday, viewOnly]);
-
-  const loggedThisWeek = hoursReportedOtherDays + totalHours;
-  const remainingWeekly = Math.max(0, weeklyAllocated - loggedThisWeek);
-  
-  // Calculate lock state if they have fully completed their weekly quota
-  const isLocked = (viewOnly && !adminUnlocked) || (weeklyQuota > 0 && remainingBeforeToday <= 0 && !existingReport);
 
   const fetchTeamLeads = async () => {
     try {
@@ -347,7 +232,6 @@ const EODReportPage = () => {
     adminService.getMyProfile().then(res => {
       const fresh = Number(res?.data?.allocatedHours) || 0;
       const prev = Number(res?.data?.prevAllocatedHours) || 0;
-      // Keep auth store in sync so it's consistent across page navigation
       setUser({ ...currentUser, allocatedHours: String(fresh), prevAllocatedHours: String(prev) });
       const tlId = res?.data?.teamLeadId;
       if (tlId) setSelectedTeamLeadId(tlId);
@@ -423,8 +307,8 @@ const EODReportPage = () => {
       } catch (_) {}
 
       const today = dayjs();
-      const currentWeekStart = today.startOf('week').add(1, 'day'); // Monday
-      const currentWeekEnd = today.startOf('week').add(7, 'day');   // Sunday
+      const currentWeekStart = today.startOf('week').add(1, 'day');
+      const currentWeekEnd = today.startOf('week').add(7, 'day');
       const isCurrentWeek = dates[0].isSame(currentWeekStart, 'day') ||
                             (dates[0].isBefore(currentWeekEnd) && dates[6].isAfter(currentWeekStart));
 
@@ -474,11 +358,9 @@ const EODReportPage = () => {
     }
   };
 
-   const fetchReportForDate = async (date) => {
-     setLoading(true);
-     setHasWarnedExceeded(false);
-     setSelectedTopProjectId(null);
-     try {
+  const fetchReportForDate = async (date) => {
+    setLoading(true);
+    try {
       let leaveOnDate = null;
       try {
         const leavesRes = await leaveService.getMyLeaves();
@@ -492,8 +374,7 @@ const EODReportPage = () => {
 
       const res = await reportService.getReportByDate(currentUser.id, date);
 
-      const isHoliday = dayjs(date).day() === 0; // Sunday
-      const isSaturday = dayjs(date).day() === 6;
+      const isHoliday = dayjs(date).day() === 0;
       const today = dayjs();
       const currentWeekMonday = today.startOf('week').add(1, 'day');
       const currentWeekSunday = today.startOf('week').add(7, 'day');
@@ -501,7 +382,6 @@ const EODReportPage = () => {
       const outsideCurrentWeek = dateObj.isBefore(currentWeekMonday, 'day') || dateObj.isAfter(currentWeekSunday, 'day');
       setIsOutsideCurrentWeek(outsideCurrentWeek);
 
-      // Check if employee has approved report access for this date
       let approvedAccess = false;
       if (outsideCurrentWeek) {
         try {
@@ -512,13 +392,11 @@ const EODReportPage = () => {
       setHasAccessForDate(approvedAccess);
       await fetchCurrentWeekRemaining();
 
-      // Fetch employee's access requests for status display
       try {
         const arRes = await reportAccessService.getMyRequests();
         setMyAccessRequests(arRes?.data || []);
       } catch (_) {}
 
-      // Force fetch projects if they aren't loaded yet
       let projectsList = allProjects;
       if (projectsList.length === 0) {
         const resProj = await projectService.getProjects();
@@ -533,7 +411,6 @@ const EODReportPage = () => {
         setAllocatedHoursPerDay(totalHours);
       }
 
-      // Force fetch tickets if they aren't loaded yet to map properly
       let ticketsList = myTickets;
       if (ticketsList.length === 0) {
         const ticketsRes = await ticketService.getTickets();
@@ -570,7 +447,6 @@ const EODReportPage = () => {
           };
         });
 
-        // Add empty rows for projects that are allocated to the user but not in the report
         const userId = currentUser.userId || currentUser.id;
         const reportedProjectIds = new Set(mappedItems.map(i => String(i.projectId)));
         
@@ -624,7 +500,6 @@ const EODReportPage = () => {
         setExistingReport(null);
 
         const isFullDayLeave = leaveOnDate && leaveOnDate.type === 'FullDay';
-        // Outside current week with no report = locked unless approved access
         if (isHoliday || (outsideCurrentWeek && !approvedAccess) || isFullDayLeave) {
           setViewOnly(true);
           if (outsideCurrentWeek && !approvedAccess && !isHoliday) {
@@ -695,7 +570,8 @@ const EODReportPage = () => {
       if (activeTicketRowIndex !== null) {
         setValue(`items.${activeTicketRowIndex}.projectId`, values.projectId);
         setValue(`items.${activeTicketRowIndex}.ticketId`, newTicketId);
-        setValue(`items.${activeTicketRowIndex}.hours`, 0);
+        setValue(`items.${activeTicketRowIndex}.hoursInput`, 0);
+        setValue(`items.${activeTicketRowIndex}.minutesInput`, 0);
       }
       setActiveTicketRowIndex(null);
     } catch (error) {
@@ -721,13 +597,19 @@ const EODReportPage = () => {
     try {
       const fromStr = values.fromDate ? values.fromDate.format('YYYY-MM-DD') : selectedDate;
       const toStr = values.toDate ? values.toDate.format('YYYY-MM-DD') : fromStr;
+      
+      let leaveReason = values.reason || '';
+      if (values.type === 'Permission') {
+        leaveReason = `[Permission Duration: ${values.permissionDuration}] - ${leaveReason}`;
+      }
+
       await leaveService.applyLeave({
         fromDate: fromStr,
         toDate: toStr,
         type: values.type,
-        reason: values.reason || `Applied from EOD Weekly Work Report Page (${values.type})`
+        reason: leaveReason || `Applied from EOD Weekly Work Report Page (${values.type})`
       });
-      const typeLabel = values.type === 'FullDay' ? 'Full Day Leave' : values.type === 'HalfDay' ? 'Half Day Leave' : 'Permission';
+      const typeLabel = values.type === 'FullDay' ? 'Full Day Leave' : values.type === 'HalfDay' ? 'Half Day Leave' : `Permission (${values.permissionDuration})`;
       notification.success({
         message: 'Leave Request Submitted',
         description: `Your ${typeLabel} request has been submitted and is pending HR approval.`
@@ -743,6 +625,22 @@ const EODReportPage = () => {
     } finally {
       setLeaveApplying(false);
     }
+  };
+
+  const getAvailableHoursForTicket = (ticketId) => {
+    const ticket = allMyTickets.find(t => String(t.id) === String(ticketId));
+    if (!ticket) return 0;
+    const est = Number(ticket.estimatedHours) || 0;
+    const consumed = Number(ticket.consumedHours) || 0;
+    
+    // Today's hours logged in the database report
+    const dbReportTodayItem = existingReport?.items?.find(item => String(item.ticketId) === String(ticketId));
+    const dbTodayHours = dbReportTodayItem ? (Number(dbReportTodayItem.hoursInput) + (Number(dbReportTodayItem.minutesInput) || 0) / 60) : 0;
+    
+    // Consumed hours from other days is consumed minus what is in the database for today
+    const consumedOtherDays = Math.max(0, consumed - dbTodayHours);
+    
+    return Math.max(0, est - consumedOtherDays);
   };
 
   const onSubmit = async (data) => {
@@ -824,13 +722,20 @@ const EODReportPage = () => {
       }
     }
 
-    const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
-
-    // Single constraint: block if hours exceed the selected project's remaining available hours
-    if (submittedTotal > projectRemainingBeforeToday) {
-      setBlockedSubmitTotal(submittedTotal);
-      setIsHoursBlockedModalOpen(true);
-      return;
+    // Ticket Available Hours Validation Constraint
+    for (let i = 0; i < mappedItems.length; i++) {
+      const item = mappedItems[i];
+      const ticket = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+      if (ticket) {
+        const availHours = getAvailableHoursForTicket(item.ticketId);
+        if (item.hours > availHours) {
+          notification.error({
+            message: 'Validation Error',
+            description: `Hours logged for "${ticket.code || '#' + ticket.id} — ${ticket.title || ticket.ticketTitle}" (${fmtH(item.hours)}) exceeds the available hours (${fmtH(availHours)}). You cannot report beyond the available hours.`
+          });
+          return;
+        }
+      }
     }
 
     setSubmitting(true);
@@ -844,28 +749,6 @@ const EODReportPage = () => {
         }))
       };
       await reportService.submitDailyReport(reportData);
-      
-      // Sync mock projects locally if in mock mode
-      if (import.meta.env.VITE_USE_MOCK === 'true') {
-        try {
-          const { mockProjects } = await import('../../mocks/mockProjects');
-          mappedItems.forEach(item => {
-            const tkt = myTickets.find(t => String(t.id) === String(item.ticketId));
-            if (tkt && tkt.projectId) {
-              const proj = mockProjects.find(p => String(p.id) === String(tkt.projectId));
-              if (proj) {
-                const spent = Number(item.hours) || 0;
-                proj.consumedHours = Number(proj.consumedHours || 0) + spent;
-                if (proj.totalHours !== undefined) {
-                  proj.totalHours = Math.max(0, Number(proj.totalHours) - spent);
-                }
-              }
-            }
-          });
-        } catch (mockErr) {
-          console.error('Failed to sync mock projects:', mockErr);
-        }
-      }
       
       if (data.isAlertIssue && data.alertMessage) {
         const firstItem = mappedItems?.[0];
@@ -884,11 +767,11 @@ const EODReportPage = () => {
         });
       }
 
-      notification.success({ message: 'Success', description: `Report submitted.` });
+      notification.success({ message: 'Success', description: `Report submitted successfully.` });
       setViewOnly(true);
       fetchWeeklyStatus(weekDates);
-      await fetchProjects(); // Refresh projects list to update local state available hours!
-      await fetchTickets();  // Refresh tickets to update consumed hours!
+      await fetchProjects();
+      await fetchTickets();
       await fetchReportForDate(selectedDate);
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to submit report.' });
@@ -929,83 +812,12 @@ const EODReportPage = () => {
       });
       setIsRequestModalOpen(false);
       fetchTimerRequests();
-      // Refetch tickets to update timer values
       fetchTickets();
     } catch (err) {
       notification.error({ message: 'Failed to submit request' });
     } finally {
       setRequesting(false);
     }
-  };
-
-  const getStatusDisplay = (date) => {
-    const status = weeklyStatus[date.format('YYYY-MM-DD')];
-    if (status === 'holiday') return <Badge color="#8c8c8c" text="Holiday" />;
-    if (status === 'optional') return <Badge color="#722ed1" text="Optional" />;
-    if (status === 'leave') return <Badge color="#fa8c16" text="Full Day" />;
-    if (status === 'half_leave') return <Badge color="#1890ff" text="Half Day" />;
-    if (status === 'permission') return <Badge color="#13c2c2" text="Permission" />;
-    if (status === 'submitted') return <Badge status="success" text="Logged" />;
-    if (status === 'incomplete') return <Badge color="#ff4d4f" text="Incomplete" />;
-    if (status === 'restricted') return <Badge status="default" text="Restricted" />;
-    return <Badge status="default" text="Pending" />;
-  };
-
-  const requestColumns = [
-    {
-      title: 'Ticket',
-      dataIndex: 'ticketCode',
-      key: 'ticketCode',
-      render: (code, record) => <Text code>{code} - {record.ticketTitle}</Text>
-    },
-    {
-      title: 'Request Type',
-      dataIndex: ['request', 'requestType'],
-      key: 'requestType',
-      render: (t) => {
-        const config = {
-          TimerMissed: { color: 'volcano', label: 'Timer Missed' },
-          ExceededLimit: { color: 'purple', label: 'Hours Exceeded' },
-          DateRangeExtension: { color: 'cyan', label: 'Date Range Extension' }
-        }[t] || { color: 'default', label: t };
-        return <Tag color={config.color}>{config.label}</Tag>;
-      }
-    },
-    {
-      title: 'Requested Hours',
-      dataIndex: ['request', 'requestedHours'],
-      key: 'requestedHours',
-      render: (h) => h ? `${h} hrs` : '-'
-    },
-    {
-      title: 'Status',
-      dataIndex: ['request', 'status'],
-      key: 'status',
-      render: (status) => {
-        const conf = {
-          PendingTL: { color: 'orange', label: 'Pending TL Approval' },
-          PendingPM: { color: 'blue', label: 'Pending PM Approval' },
-          Approved: { color: 'green', label: 'Approved & Unlocked' },
-          Rejected: { color: 'red', label: 'Rejected' },
-        }[status] || { color: 'default', label: status };
-        return <Badge status={conf.color === 'green' ? 'success' : conf.color === 'red' ? 'error' : 'processing'} text={conf.label} />;
-      }
-    },
-    {
-      title: 'Comments',
-      dataIndex: ['request', 'comments'],
-      key: 'comments',
-      render: (c) => c ? <Text type="secondary">{c}</Text> : <Text italic type="secondary">No comment</Text>
-    }
-  ];
-
-  const formatHoursAndMinutes = (hoursDecimal) => {
-    const h = Math.floor(hoursDecimal);
-    const m = Math.round((hoursDecimal - h) * 60);
-    if (h === 0 && m === 0) return '0 mins';
-    const hStr = h > 0 ? `${h}h` : '';
-    const mStr = m > 0 ? `${m}m` : '';
-    return [hStr, mStr].filter(Boolean).join(' ');
   };
 
   const getStatusColorAndLabel = (dateObj, status, hours) => {
@@ -1044,44 +856,13 @@ const EODReportPage = () => {
       return { bg: '#ff5b60', text: '#ffffff', label: 'Incomplete' };
     }
 
-    // Default/Pending
     return { bg: '#ff5b60', text: '#ffffff', label: 'Incomplete' };
-  };
-
-  const formatHourStrip = (hoursDecimal) => {
-    const h = Math.floor(hoursDecimal);
-    const m = Math.round((hoursDecimal - h) * 60);
-    if (h === 0 && m === 0) return '0 hrs';
-    if (m === 0) return `${h} hrs`;
-    return `${h}h ${m}m`;
   };
 
   const showRestrictionResult = isOutsideCurrentWeek && !existingReport && !hasAccessForDate;
   const hasAccessPending = myAccessRequests.find(r => r.targetDate === selectedDate);
   const isSunday = dayjs(selectedDate).day() === 0;
-  const isFullDayLeave = currentLeave && currentLeave.type === 'FullDay';
   const isNextWeek = dayjs(selectedDate).isAfter(dayjs().endOf('week'));
-
-
-  // 2. Check if selectedDate is in the current real-world week
-  const isSelectedInRealWeek = dayjs(selectedDate).isBetween(
-    dayjs().startOf('week').add(1, 'day').subtract(1, 'day'),
-    dayjs().startOf('week').add(7, 'day').add(1, 'day'),
-    'day'
-  );
-
-  // 5. Calculate today's/selectedDate's hours:
-  let projectHoursToday = 0;
-  if (isSelectedInRealWeek) {
-    projectHoursToday = (watchedItems || [])
-      .filter(item => String(item.projectId) === String(selectedTopProjectId))
-      .reduce((s, item) => s + (Number(item.hoursInput) || 0) + (Number(item.minutesInput) || 0) / 60, 0);
-  } else {
-    projectHoursToday = projectHoursTodayInDatabase;
-  }
-
-  // 6. Total remaining hours on this project:
-  const projectRemaining = Math.max(0, projectAllocatedHours - (projectHoursConsumedOtherDays + projectHoursToday));
 
   const bg = isDarkMode ? '#0d0f18' : '#f1f3f9';
   const card = isDarkMode ? '#161925' : '#ffffff';
@@ -1100,389 +881,399 @@ const EODReportPage = () => {
   const dayStatus = weeklyStatus[selectedDate];
   const { bg: stBg, text: stTxt, label: stLabel } = getStatusColorAndLabel(dayjs(selectedDate), dayStatus, totalHours);
 
+  // Filter assigned projects
+  const myAssignedProjects = allProjects.filter(p => {
+    const uId = currentUser?.userId || currentUser?.id;
+    const hasAllocation = p.employeeAllocatedHours?.[uId] !== undefined && Number(p.employeeAllocatedHours?.[uId]) > 0;
+    const isAssignedEmp = Array.isArray(p.assignedEmployeeIds) && p.assignedEmployeeIds.map(String).includes(String(uId));
+    return hasAllocation || isAssignedEmp;
+  });
+
+  const displayProjects = myAssignedProjects.length > 0 ? myAssignedProjects : allProjects;
+
   return (
     <div style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', background: bg, overflow: 'hidden', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
-      {/* ── TOP BAR ── */}
-      <div style={{ background: card, borderBottom: `1px solid ${border}`, padding: isMobile ? '0 10px' : '0 20px', height: 52, display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 10, flexShrink: 0, overflowX: 'auto' }}>
-        {isMobile && (
-          <Button shape="circle" size="small" onClick={() => setSidebarOpen(v => !v)}
-            style={{ flexShrink: 0, background: accent, borderColor: accent, color: '#fff' }}
-            title="Toggle Sidebar"
-          >☰</Button>
-        )}
-        <Button shape="circle" size="small" icon={<LeftOutlined style={{ fontSize: 10 }} />}
-          onClick={() => { const d = dayjs(selectedDate).subtract(1, 'day'); setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); }} />
-        <DatePicker value={dayjs(selectedDate)} allowClear={false} size="small" style={{ width: isMobile ? 110 : 136, flexShrink: 0 }}
-          onChange={d => { if (d) { setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); if (isMobile) setSidebarOpen(false); } }} />
-        <Button shape="circle" size="small" icon={<RightOutlined style={{ fontSize: 10 }} />}
-          onClick={() => { const d = dayjs(selectedDate).add(1, 'day'); setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); }} />
-
-        {!isMobile && <div style={{ fontWeight: 800, fontSize: 15, color: t1, marginLeft: 4 }}>{dayjs(selectedDate).format('dddd, D MMM YYYY')}</div>}
-        {!isMobile && <span style={{ background: stBg, color: stTxt, padding: '2px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, marginLeft: 2 }}>{stLabel}</span>}
-
-        <div style={{ flex: 1 }} />
-
-        <Button size="small" onClick={handleGoToToday}>Today</Button>
-        <Button 
-          size="small" 
-          icon={<CalendarOutlined />} 
-          style={{ borderColor: '#ec4899', color: '#ec4899', flexShrink: 0 }}
-          onClick={() => handleOpenApplyLeaveModal(selectedDate)}
-        >
-          {!isMobile && "Apply Leave"}
-        </Button>
-        {existingReport && viewOnly && (
-          <Button size="small" type="primary" icon={<EditOutlined />}
-            style={{ background: accent, borderColor: accent }} onClick={() => setViewOnly(false)}>Edit</Button>
-        )}
-        {existingReport && !viewOnly && (
-          <Button size="small" onClick={() => { setViewOnly(true); reset(existingReport); }}>Cancel</Button>
-        )}
-        {!viewOnly && !isSunday && !isNextWeek && (
-          <Button size="small" type="primary" icon={<CheckCircleOutlined />} loading={submitting}
-            style={{ background: emerald, borderColor: emerald, fontWeight: 700 }}
-            onClick={handleSubmit(onSubmit)}>Submit</Button>
-        )}
-      </div>
-
-      {/* ── BODY ── */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-
-        {/* LEFT SIDEBAR */}
-        <div style={{
-          width: isMobile ? '100%' : 252,
-          background: card,
-          borderRight: isMobile ? 'none' : `1px solid ${border}`,
-          borderBottom: isMobile ? `1px solid ${border}` : 'none',
-          display: isMobile ? (sidebarOpen ? 'flex' : 'none') : 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          flexShrink: 0,
-          position: isMobile ? 'absolute' : 'relative',
-          top: isMobile ? 52 : 'auto',
-          left: 0,
-          zIndex: isMobile ? 50 : 'auto',
-          boxShadow: isMobile && sidebarOpen ? '4px 0 20px rgba(0,0,0,0.15)' : 'none',
-          maxWidth: isMobile ? '280px' : 'none',
-        }}>
-
-          {/* Week strip */}
-          <div style={{ padding: '12px 12px 10px', borderBottom: `1px solid ${border}` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: t2 }}>This Week</span>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <Button size="small" style={{ height: 20, width: 24, padding: 0, fontSize: 10 }} icon={<LeftOutlined />} onClick={handlePrevWeek} />
-                <Button size="small" style={{ height: 20, width: 24, padding: 0, fontSize: 10 }} icon={<RightOutlined />} onClick={handleNextWeek} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 3 }}>
-              {weekDates.map((d, i) => {
-                const ds = d.format('YYYY-MM-DD');
-                const sel = ds === selectedDate;
-                const st = weeklyStatus[ds];
-                const dotColors = { submitted: emerald, incomplete: '#ef4444', leave: '#3b82f6', half_leave: '#38bdf8', holiday: '#9ca3af', restricted: '#9ca3af', pending: '#f59e0b', optional: '#8b5cf6' };
-                return (
-                  <div key={i} onClick={() => { setSelectedDate(ds); setBaseDate(d.startOf('week').add(1, 'day')); if (isMobile) setSidebarOpen(false); }}
-                    style={{ flex: 1, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '5px 2px', borderRadius: 8,
-                      background: sel ? `${accent}15` : 'transparent', border: `1.5px solid ${sel ? accent : 'transparent'}` }}>
-                    <span style={{ fontSize: 9, fontWeight: 600, color: sel ? accent : t2 }}>{d.format('dd').toUpperCase()}</span>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: sel ? accent : t1 }}>{d.format('D')}</span>
-                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: dotColors[st] || '#cbd5e1' }} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Project selector */}
-          <div style={{ padding: '16px 12px', borderBottom: `1px solid ${border}` }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: t2, marginBottom: 8 }}>Project Selection</div>
-            <Select placeholder="Choose a Project to Report" value={selectedTopProjectId} onChange={v => { setSelectedTopProjectId(v); if (isMobile) setSidebarOpen(false); }}
-              style={{ width: '100%' }} size="middle" showSearch
-              filterOption={(inp, opt) => (opt?.label ?? '').toLowerCase().includes(inp.toLowerCase())}
-              options={allProjects.map(p => ({ value: p.id, label: p.name || p.projectName }))} />
-            {selectedProject && (
-              <div style={{ marginTop: 12, background: isDarkMode ? '#0b0d15' : '#f8f9ff', borderRadius: 8, padding: '12px', border: `1px solid ${border}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                  <span style={{ fontSize: 11, color: t2 }}>Allocated Hours</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{fmtH(projectAllocatedHours)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: t2 }}>Remaining Hours</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: projectRemaining > 0 ? emerald : '#ef4444' }}>{fmtH(projectRemaining)}</span>
-                </div>
-                <Progress size="small" showInfo={false}
-                  percent={projectAllocatedHours > 0 ? Math.min(100, Math.round(((projectHoursConsumedOtherDays + projectHoursToday) / projectAllocatedHours) * 100)) : 0}
-                  strokeColor={emerald} />
-              </div>
-            )}
-          </div>
-
-          {/* Leave info */}
-          {currentLeave && (
-            <div style={{ padding: '10px 12px' }}>
-              <Alert type="warning" showIcon style={{ fontSize: 11, borderRadius: 8 }}
-                message={currentLeave.type === 'FullDay' ? 'Full Day Leave' : currentLeave.type === 'HalfDay' ? 'Half Day Leave' : 'Permission'} />
-            </div>
-          )}
+      {/* ── HEADER PORTION ── */}
+      <div style={{ background: card, borderBottom: `1px solid ${border}`, padding: '0 20px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: 12 }}>
+        
+        {/* Date Selection */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Button shape="circle" size="small" icon={<LeftOutlined style={{ fontSize: 10 }} />}
+            onClick={() => { const d = dayjs(selectedDate).subtract(1, 'day'); setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); }} />
+          
+          <DatePicker value={dayjs(selectedDate)} allowClear={false} size="small" style={{ width: 136 }}
+            onChange={d => { if (d) { setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); } }} />
+          
+          <Button shape="circle" size="small" icon={<RightOutlined style={{ fontSize: 10 }} />}
+            onClick={() => { const d = dayjs(selectedDate).add(1, 'day'); setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); }} />
         </div>
 
-        {/* RIGHT MAIN */}
-        <div 
-          onClick={() => { if (isMobile && sidebarOpen) setSidebarOpen(false); }}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}
-        >
-          {isSunday ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Result icon={<CheckCircleOutlined style={{ color: '#faad14' }} />} title="Happy Sunday!" subTitle="No EOD reporting required today. Rest & recharge." />
-            </div>
-          ) : showRestrictionResult ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-              <Result icon={<CalendarOutlined style={{ color: accent }} />} title="Reporting Restricted"
-                subTitle="This date is outside your current week. Request access to log a report." />
-              {!hasAccessPending && (
-                <Button type="primary" style={{ background: accent, borderColor: accent }}
-                  onClick={() => setIsAccessRequestModalOpen(true)}>Request Access</Button>
-              )}
-            </div>
-          ) : !selectedTopProjectId ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', padding: 24, textAlign: 'center' }}>
-              <Result
-                icon={<ProjectOutlined style={{ color: accent, fontSize: 56 }} />}
-                title={<span style={{ color: t1, fontSize: 20, fontWeight: 800 }}>No Project Selected</span>}
-                subTitle={<span style={{ color: t2, fontSize: 14 }}>Please select a project from the sidebar dropdown list to start logging tasks.</span>}
-              />
-            </div>
-          ) : (
-            <>
-              {/* Tasks header */}
-              <div style={{ padding: '10px 20px', background: card, borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: t1 }}>Task Entries</span>
-                  {(() => {
-                    const projectTasksCount = (watchedItems || []).filter(item => String(item.projectId) === String(selectedTopProjectId)).length;
-                    return (
-                      <span style={{ fontSize: 12, color: t2 }}>{projectTasksCount} task{projectTasksCount !== 1 ? 's' : ''} for this project</span>
-                    );
-                  })()}
-                </div>
-              </div>
+        {/* Current Date and Status Display */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontWeight: 800, fontSize: 15, color: t1 }}>{dayjs(selectedDate).format('dddd, D MMM YYYY')}</span>
+          <span style={{ background: stBg, color: stTxt, padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>{stLabel}</span>
+        </div>
 
-              {/* Scrollable task list */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {(projectAllocatedHours === 0 || projectRemainingBeforeToday <= 0) && (
-                  <Alert
-                    type="error"
-                    showIcon
-                    message="No hours to report"
-                    description={
-                      projectAllocatedHours === 0
-                        ? "You have 0 allocated hours for this project. Please contact your Team Lead or PM to allocate hours."
-                        : "You have 0 remaining hours to report for this project. Please request additional hours if needed."
-                    }
-                    style={{ borderRadius: 10 }}
-                  />
-                )}
-                {fields.map((field, index) => {
-                  const item = watchedItems?.[index] || {};
-                  const rowProjId = item.projectId || selectedTopProjectId;
-                  
-                  // Only display tasks registered to the active project selection
-                  if (String(rowProjId) !== String(selectedTopProjectId)) {
-                    return null;
+        {/* Action Controls */}
+        <Space>
+          <Button 
+            size="middle" 
+            icon={<CalendarOutlined />} 
+            style={{ borderColor: '#ec4899', color: '#ec4899', borderRadius: 8, fontWeight: 600 }}
+            onClick={() => handleOpenApplyLeaveModal(selectedDate)}
+          >
+            Apply Leave / Permission
+          </Button>
+
+          {existingReport && viewOnly && (
+            <Button size="middle" type="primary" icon={<EditOutlined />}
+              style={{ background: accent, borderColor: accent, borderRadius: 8, fontWeight: 600 }} onClick={() => setViewOnly(false)}>Edit</Button>
+          )}
+
+          {existingReport && !viewOnly && (
+            <Button size="middle" style={{ borderRadius: 8 }} onClick={() => { setViewOnly(true); reset(existingReport); }}>Cancel</Button>
+          )}
+
+          {!viewOnly && !isSunday && !isNextWeek && (
+            <Button size="middle" type="primary" icon={<CheckCircleOutlined />} loading={submitting}
+              style={{ background: emerald, borderColor: emerald, fontWeight: 700, borderRadius: 8 }}
+              onClick={handleSubmit(onSubmit)}>Submit EOD</Button>
+          )}
+        </Space>
+      </div>
+
+      {/* ── HORIZONTAL WEEK STRIP ── */}
+      <div style={{ background: card, borderBottom: `1px solid ${border}`, padding: '8px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: t2 }}>Reporting Week:</span>
+          <Button size="small" style={{ height: 22, width: 26, padding: 0 }} icon={<LeftOutlined style={{ fontSize: 10 }} />} onClick={handlePrevWeek} />
+          <Button size="small" style={{ height: 22, width: 26, padding: 0 }} icon={<RightOutlined style={{ fontSize: 10 }} />} onClick={handleNextWeek} />
+        </div>
+        <div style={{ display: 'flex', gap: 8, flex: 1, justifyContent: 'center', maxWidth: 600 }}>
+          {weekDates.map((d, i) => {
+            const ds = d.format('YYYY-MM-DD');
+            const sel = ds === selectedDate;
+            const st = weeklyStatus[ds];
+            const dotColors = { submitted: emerald, incomplete: '#ef4444', leave: '#3b82f6', half_leave: '#38bdf8', holiday: '#9ca3af', restricted: '#9ca3af', pending: '#f59e0b', optional: '#8b5cf6' };
+            return (
+              <div key={i} onClick={() => { setSelectedDate(ds); setBaseDate(d.startOf('week').add(1, 'day')); }}
+                style={{ flex: 1, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '4px 6px', borderRadius: 8,
+                  background: sel ? `${accent}15` : 'transparent', border: `1px solid ${sel ? accent : 'transparent'}`, transition: 'all 0.2s' }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: sel ? accent : t2 }}>{d.format('dd').toUpperCase()}</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: sel ? accent : t1 }}>{d.format('D')}</span>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColors[st] || '#cbd5e1' }} />
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Button size="small" type="primary" onClick={handleGoToToday} style={{ background: accent, borderColor: accent }}>Go to Today</Button>
+        </div>
+      </div>
+
+      {/* ── MAIN WORKSPACE ── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        
+        {isSunday ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Result icon={<CheckCircleOutlined style={{ color: '#faad14' }} />} title="Happy Sunday!" subTitle="No EOD reporting required today. Rest & recharge." />
+          </div>
+        ) : showRestrictionResult ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+            <Result icon={<CalendarOutlined style={{ color: accent }} />} title="Reporting Restricted"
+              subTitle="This date is outside your current week. Request access to log a report." />
+            {!hasAccessPending && (
+              <Button type="primary" style={{ background: accent, borderColor: accent }}
+                onClick={() => setIsAccessRequestModalOpen(true)}>Request Access</Button>
+            )}
+          </div>
+        ) : displayProjects.length === 0 ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+            <Result
+              icon={<ProjectOutlined style={{ color: accent }} />}
+              title="No Assigned Projects"
+              subTitle="You are not currently assigned to any active projects. Please contact your administrator."
+            />
+          </div>
+        ) : (
+          displayProjects.map(project => {
+            const rowTickets = myTickets.filter(t => String(t.projectId) === String(project.id));
+            const userId = currentUser.userId || currentUser.id;
+            const projectAllocatedHours = Number(project.employeeAllocatedHours?.[userId] || 0);
+
+            return (
+              <Card
+                key={project.id}
+                title={
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <ProjectOutlined style={{ color: accent, fontSize: 18 }} />
+                      <span style={{ fontSize: 16, fontWeight: 800, color: t1 }}>{project.name || project.projectName}</span>
+                      <Tag color="geekblue" style={{ borderRadius: 6 }}>Allocated: {fmtH(projectAllocatedHours)}</Tag>
+                    </div>
+                    {!viewOnly && (
+                      <Space>
+                        <Button 
+                          type="primary" 
+                          icon={<PlusOutlined />} 
+                          size="small"
+                          style={{ background: emerald, borderColor: emerald, borderRadius: 6, fontSize: 12 }}
+                          onClick={() => {
+                            append({
+                              projectId: project.id,
+                              ticketId: '',
+                              hoursInput: 0,
+                              minutesInput: 0,
+                              workDone: ''
+                            });
+                          }}
+                        >
+                          Add Ticket Entry
+                        </Button>
+                        <Button 
+                          type="default" 
+                          icon={<PlusOutlined />} 
+                          size="small"
+                          style={{ borderRadius: 6, fontSize: 12 }}
+                          onClick={() => {
+                            const firstMatchIdx = fields.findIndex(f => String(f.projectId) === String(project.id));
+                            setActiveTicketRowIndex(firstMatchIdx !== -1 ? firstMatchIdx : fields.length);
+                            ticketForm.setFieldsValue({ projectId: project.id });
+                            setIsTicketModalOpen(true);
+                          }}
+                        >
+                          Create Ticket
+                        </Button>
+                      </Space>
+                    )}
+                  </div>
+                }
+                bordered={true}
+                style={{ background: card, borderColor: border, borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}
+                headStyle={{ borderBottom: `1px solid ${border}`, padding: '12px 20px' }}
+                bodyStyle={{ padding: '20px' }}
+              >
+                {/* List task rows inside this project */}
+                {(() => {
+                  const rows = fields.map((field, index) => ({ field, index })).filter(({ field, index }) => {
+                    const item = watchedItems?.[index];
+                    return String(item?.projectId) === String(project.id);
+                  });
+
+                  if (rows.length === 0) {
+                    return (
+                      <div style={{ textAlign: 'center', padding: '20px 0', color: t2, fontSize: 13 }}>
+                        No ticket reports logged for this project today. 
+                        {!viewOnly && (
+                          <Button type="link" size="small" onClick={() => append({ projectId: project.id, ticketId: '', hoursInput: 0, minutesInput: 0, workDone: '' })}>
+                            Click here to add one.
+                          </Button>
+                        )}
+                      </div>
+                    );
                   }
 
-                  const rowTickets = rowProjId
-                    ? myTickets.filter(t => String(t.projectId) === String(rowProjId))
-                    : myTickets;
                   return (
-                    <div key={field.id} style={{ background: card, border: `1px solid ${border}`, borderRadius: 12, padding: '14px 16px' }}>
-                      {/* Row top */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                        <div style={{ width: 22, height: 22, borderRadius: '50%', background: `${accent}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: accent, flexShrink: 0 }}>{index + 1}</div>
-                        {/* Display Premium Project Tag instead of select dropdown */}
-                        <Tag color="geekblue" style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 4, border: 'none' }}>
-                          {selectedProject?.name || selectedProject?.projectName}
-                        </Tag>
-                        <div style={{ flex: 1 }} />
-                        {/* Alert toggle */}
-                        <Controller control={control} name="isAlertIssue" render={({ field: af }) => (
-                          <Button size="small" icon={<AlertOutlined />} danger={af.value} type={af.value ? 'primary' : 'default'}
-                            style={{ fontSize: 11, borderRadius: 6 }} onClick={() => af.onChange(!af.value)}>
-                            {af.value ? 'Alert ON' : 'Alert'}
-                          </Button>
-                        )} />
-                        {/* New ticket */}
-                        {!viewOnly && (
-                          <Button size="small" icon={<PlusOutlined />} style={{ fontSize: 11, borderRadius: 6 }}
-                            onClick={() => { setActiveTicketRowIndex(index); ticketForm.setFieldsValue({ projectId: item.projectId || selectedTopProjectId }); setIsTicketModalOpen(true); }}>
-                            New Ticket
-                          </Button>
-                        )}
-                        {/* Delete */}
-                        {!viewOnly && fields.length > 1 && (
-                          <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
-                        )}
-                      </div>
-
-                      {/* Ticket + Hours row */}
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8, flexWrap: 'wrap' }}>
-                        <Controller control={control} name={`items.${index}.ticketId`} render={({ field: f }) => (
-                          <Select {...f} placeholder="Select ticket / task category" size="small" style={{ flex: 1, minWidth: 200 }}
-                            disabled={viewOnly} showSearch
-                            filterOption={(inp, opt) => (opt?.label ?? '').toLowerCase().includes(inp.toLowerCase())}
-                            options={rowTickets.map(t => ({ value: t.id, label: `${t.code || '#' + t.id} — ${t.title || t.ticketTitle || ''}` }))} />
-                        )} />
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                          <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
-                            <InputNumber {...f} min={0} size="small" style={{ width: 58 }} disabled={viewOnly || projectAllocatedHours === 0 || (projectRemainingBeforeToday <= 0 && !f.value)} placeholder="0" />
-                          )} />
-                          <span style={{ fontSize: 11, color: t2, fontWeight: 600 }}>h</span>
-                          <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
-                            <InputNumber {...f} min={0} max={59} size="small" style={{ width: 58 }} disabled={viewOnly || projectAllocatedHours === 0 || (projectRemainingBeforeToday <= 0 && !f.value)} placeholder="0" />
-                          )} />
-                        </div>
-                      </div>
-
-                      {/* Ticket date schedule validation & request permission */}
-                      {(() => {
-                        if (!item.ticketId) return null;
-                        const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-                        if (!ticketObj) return null;
-
-                        const repDate = dayjs(selectedDate).startOf('day');
-                        const start = ticketObj.startDate ? dayjs(ticketObj.startDate).startOf('day') : null;
-                        const due = ticketObj.dueDate ? dayjs(ticketObj.dueDate).endOf('day') : null;
-                        const isDateValid = !start || !due || (repDate.isAfter(start.subtract(1, 'day')) && repDate.isBefore(due.add(1, 'day')));
-                        
-                        if (isDateValid) return null;
-
-                        const hasDatePermission = myTimerRequests.some(r => 
-                          String(r.request?.ticketId) === String(ticketObj.id) && 
-                          r.request?.requestType === 'DateRangeExtension' && 
-                          (r.request?.status === 'Approved' || r.request?.status === 'AccountsApproved')
-                        );
-
-                        if (hasDatePermission) {
-                          return (
-                            <div style={{ color: '#10b981', fontSize: '11px', marginTop: 4, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <CheckCircleOutlined />
-                              <span>Permission Approved: Date range extension unlocked by TL & PM.</span>
-                            </div>
-                          );
-                        }
-
-                        const pendingRequest = myTimerRequests.find(r => 
-                          String(r.request?.ticketId) === String(ticketObj.id) && 
-                          r.request?.requestType === 'DateRangeExtension' && 
-                          (r.request?.status === 'PendingTL' || r.request?.status === 'PendingPM')
-                        );
-
-                        if (pendingRequest) {
-                          return (
-                            <div style={{ color: '#eab308', fontSize: '11px', marginTop: 4, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <ClockCircleOutlined />
-                              <span>Date Extension request is pending approval from Team Leader / PM.</span>
-                            </div>
-                          );
-                        }
-
-                        const rejectedRequest = myTimerRequests.find(r => 
-                          String(r.request?.ticketId) === String(ticketObj.id) && 
-                          r.request?.requestType === 'DateRangeExtension' && 
-                          r.request?.status === 'Rejected'
-                        );
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {rows.map(({ field, index }) => {
+                        const item = watchedItems?.[index] || {};
 
                         return (
-                          <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 4, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <span>⚠️ Date Blocked: Selected date is outside valid ticket schedule ({start ? start.format('DD MMM YYYY') : ''} to {due ? due.format('DD MMM YYYY') : ''}).</span>
-                            {rejectedRequest ? (
-                              <>
-                                <span>(Previous request rejected)</span>
-                                <Button 
-                                  type="primary" 
-                                  danger
-                                  size="small" 
-                                  style={{ fontSize: '10px', height: '22px', padding: '0 8px', borderRadius: 4 }}
-                                  onClick={() => handleOpenRequestModal('DateRangeExtension', ticketObj)}
-                                >
-                                  Re-request Permission
+                          <div key={field.id} style={{ padding: 16, background: isDarkMode ? '#1e2130' : '#f8fafc', borderRadius: 10, border: `1px solid ${border}` }}>
+                            {/* Header row containing title, alert toggle, delete button */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 700, fontSize: 13, color: t2 }}>Task #{index + 1}</span>
+                              <div style={{ flex: 1 }} />
+                              
+                              {/* Alert raise button */}
+                              <Controller control={control} name="isAlertIssue" render={({ field: af }) => (
+                                <Button size="small" icon={<AlertOutlined />} danger={af.value} type={af.value ? 'primary' : 'default'}
+                                  style={{ fontSize: 11, borderRadius: 6 }} onClick={() => af.onChange(!af.value)}>
+                                  {af.value ? 'Alert ON' : 'Alert'}
                                 </Button>
-                              </>
-                            ) : (
-                              <Button 
-                                type="primary" 
-                                size="small" 
-                                style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: '10px', height: '22px', padding: '0 8px', borderRadius: 4 }}
-                                onClick={() => handleOpenRequestModal('DateRangeExtension', ticketObj)}
-                              >
-                                Request Permission
-                              </Button>
+                              )} />
+
+                              {/* Delete option */}
+                              {!viewOnly && (
+                                <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
+                              )}
+                            </div>
+
+                            {/* Select Ticket and Text box to enter hours and minutes */}
+                            <Row gutter={[12, 12]} align="middle">
+                              <Col xs={24} sm={12} md={14}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  <label style={{ fontSize: 11, fontWeight: 700, color: t2 }}>Assigned Tickets in this Project</label>
+                                  <Controller control={control} name={`items.${index}.ticketId`} render={({ field: f }) => (
+                                    <Select {...f} placeholder="Select ticket / task category" size="middle" style={{ width: '100%' }}
+                                      disabled={viewOnly} showSearch
+                                      filterOption={(inp, opt) => (opt?.label ?? '').toLowerCase().includes(inp.toLowerCase())}
+                                      options={rowTickets.map(t => ({ value: t.id, label: `${t.code || '#' + t.id} — ${t.title || t.ticketTitle || ''}` }))} />
+                                  )} />
+                                  
+                                  {/* Available Hours Display & Validation */}
+                                  {item.ticketId && (
+                                    (() => {
+                                      const availHours = getAvailableHoursForTicket(item.ticketId);
+                                      const availH = Math.floor(availHours);
+                                      const availM = Math.round((availHours - availH) * 60);
+                                      return (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                          <Badge status={availHours > 0 ? 'success' : 'error'} />
+                                          <span style={{ fontSize: '11px', fontWeight: 600, color: availHours > 0 ? emerald : '#ef4444' }}>
+                                            Available: {availH}h {availM}m
+                                          </span>
+                                        </div>
+                                      );
+                                    })()
+                                  )}
+                                </div>
+                              </Col>
+
+                              <Col xs={24} sm={12} md={10}>
+                                <label style={{ fontSize: 11, fontWeight: 700, color: t2, display: 'block', marginBottom: 4 }}>Time Logged</label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
+                                    <InputNumber {...f} min={0} size="middle" style={{ width: '100%' }} disabled={viewOnly} placeholder="Hrs" />
+                                  )} />
+                                  <span style={{ fontSize: 12, color: t2, fontWeight: 600 }}>hrs</span>
+                                  
+                                  <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
+                                    <InputNumber {...f} min={0} max={59} size="middle" style={{ width: '100%' }} disabled={viewOnly} placeholder="Mins" />
+                                  )} />
+                                  <span style={{ fontSize: 12, color: t2, fontWeight: 600 }}>mins</span>
+                                </div>
+                              </Col>
+                            </Row>
+
+                            {/* Ticket valid schedule checkers */}
+                            {(() => {
+                              if (!item.ticketId) return null;
+                              const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                              if (!ticketObj) return null;
+
+                              const repDate = dayjs(selectedDate).startOf('day');
+                              const start = ticketObj.startDate ? dayjs(ticketObj.startDate).startOf('day') : null;
+                              const due = ticketObj.dueDate ? dayjs(ticketObj.dueDate).endOf('day') : null;
+                              const isDateValid = !start || !due || (repDate.isAfter(start.subtract(1, 'day')) && repDate.isBefore(due.add(1, 'day')));
+                              
+                              if (isDateValid) return null;
+
+                              const hasDatePermission = myTimerRequests.some(r => 
+                                String(r.request?.ticketId) === String(ticketObj.id) && 
+                                r.request?.requestType === 'DateRangeExtension' && 
+                                (r.request?.status === 'Approved' || r.request?.status === 'AccountsApproved')
+                              );
+
+                              if (hasDatePermission) {
+                                return (
+                                  <div style={{ color: '#10b981', fontSize: '11px', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <CheckCircleOutlined />
+                                    <span>Date range extension approved by TL & PM.</span>
+                                  </div>
+                                );
+                              }
+
+                              const pendingRequest = myTimerRequests.find(r => 
+                                String(r.request?.ticketId) === String(ticketObj.id) && 
+                                r.request?.requestType === 'DateRangeExtension' && 
+                                (r.request?.status === 'PendingTL' || r.request?.status === 'PendingPM')
+                              );
+
+                              if (pendingRequest) {
+                                return (
+                                  <div style={{ color: '#eab308', fontSize: '11px', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <ClockCircleOutlined />
+                                    <span>Request pending Team Leader / PM approval.</span>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                  <span>⚠️ Date Blocked: Selected date is outside valid ticket schedule ({start ? start.format('DD MMM YYYY') : ''} to {due ? due.format('DD MMM YYYY') : ''}).</span>
+                                  <Button 
+                                    type="primary" 
+                                    size="small" 
+                                    style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: '10px', height: '22px', padding: '0 8px', borderRadius: 4 }}
+                                    onClick={() => handleOpenRequestModal('DateRangeExtension', ticketObj)}
+                                  >
+                                    Request Permission
+                                  </Button>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Message / Description */}
+                            <div style={{ marginTop: 12 }}>
+                              <label style={{ fontSize: 11, fontWeight: 700, color: t2, display: 'block', marginBottom: 4 }}>Work Done Description</label>
+                              <Controller control={control} name={`items.${index}.workDone`} render={({ field: f }) => (
+                                <TextArea {...f} rows={2} disabled={viewOnly} placeholder="Describe work done for this task..." style={{ resize: 'none', fontSize: 12, borderRadius: 8 }} />
+                              )} />
+                            </div>
+
+                            {/* Alert Block Description */}
+                            {index === 0 && (
+                              <Controller control={control} name="isAlertIssue" render={({ field: af }) => af.value ? (
+                                <div style={{ marginTop: 12 }}>
+                                  <Controller control={control} name="alertMessage" render={({ field: f }) => (
+                                    <Input {...f} prefix={<WarningOutlined style={{ color: '#ef4444' }} />}
+                                      placeholder="Describe the blocker or critical issue..." disabled={viewOnly}
+                                      style={{ borderRadius: 8, borderColor: '#ef4444', fontSize: 12 }} />
+                                  )} />
+                                </div>
+                              ) : null} />
                             )}
                           </div>
                         );
-                      })()}
-
-                      {/* Description */}
-                      <Controller control={control} name={`items.${index}.workDone`} render={({ field: f }) => (
-                        <TextArea {...f} rows={2} disabled={viewOnly} placeholder="Describe work done for this task..." style={{ resize: 'none', fontSize: 12, borderRadius: 8 }} />
-                      )} />
-
-                      {/* Alert message (only on first row when alert is ON) */}
-                      {index === 0 && (
-                        <Controller control={control} name="isAlertIssue" render={({ field: af }) => af.value ? (
-                          <div style={{ marginTop: 8 }}>
-                            <Controller control={control} name="alertMessage" render={({ field: f }) => (
-                              <Input {...f} prefix={<WarningOutlined style={{ color: '#ef4444' }} />}
-                                placeholder="Describe the blocker or critical issue..." disabled={viewOnly}
-                                style={{ borderRadius: 8, borderColor: '#ef4444', fontSize: 12 }} />
-                            )} />
-                          </div>
-                        ) : null} />
-                      )}
+                      })}
                     </div>
                   );
-                })}
-
-                {/* Add task for this project */}
-                {!viewOnly && (
-                  <button type="button"
-                    disabled={projectAllocatedHours === 0 || projectRemainingBeforeToday <= 0}
-                    onClick={() => append({ projectId: selectedTopProjectId, ticketId: '', hoursInput: 0, minutesInput: 0, workDone: '' })}
-                    style={{
-                      width: '100%', height: 44,
-                      border: `2px dashed ${accent}60`,
-                      borderRadius: 10,
-                      background: 'transparent',
-                      color: accent,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: (projectAllocatedHours === 0 || projectRemainingBeforeToday <= 0) ? 'not-allowed' : 'pointer',
-                      opacity: (projectAllocatedHours === 0 || projectRemainingBeforeToday <= 0) ? 0.5 : 1,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
-                    }}>
-                    <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add Another Task for this Project
-                  </button>
-                )}
-              </div>
-
-
-            </>
-          )}
-        </div>
+                })()}
+              </Card>
+            );
+          })
+        )}
       </div>
 
       {/* ── MODALS ── */}
-      <Modal title="Apply for Leave" open={isLeaveModalOpen} onCancel={() => setIsLeaveModalOpen(false)} footer={null} destroyOnClose>
+      <Modal title="Apply for Leave / Permission" open={isLeaveModalOpen} onCancel={() => setIsLeaveModalOpen(false)} footer={null} destroyOnClose>
         <Form form={leaveForm} layout="vertical" onFinish={handleApplyLeaveSubmit} style={{ marginTop: 16 }}>
           <Form.Item name="fromDate" label="From Date" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
           <Form.Item name="toDate" label="To Date (optional)"><DatePicker style={{ width: '100%' }} /></Form.Item>
-          <Form.Item name="type" label="Leave Type" rules={[{ required: true }]}>
-            <Select options={[{ value: 'FullDay', label: 'Full Day Leave' }, { value: 'HalfDay', label: 'Half Day Leave' }, { value: 'Permission', label: 'Permission (< 2 hrs)' }]} />
+          
+          <Form.Item name="type" label="Leave / Permission Type" rules={[{ required: true }]}>
+            <Radio.Group style={{ width: '100%' }} buttonStyle="solid" defaultValue="FullDay">
+              <Radio.Button value="FullDay" style={{ width: '33.33%', textAlign: 'center' }}>Full Day</Radio.Button>
+              <Radio.Button value="HalfDay" style={{ width: '33.33%', textAlign: 'center' }}>Half Day</Radio.Button>
+              <Radio.Button value="Permission" style={{ width: '33.33%', textAlign: 'center' }}>Permission</Radio.Button>
+            </Radio.Group>
           </Form.Item>
+
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.type !== curr.type}>
+            {({ getFieldValue }) => {
+              const type = getFieldValue('type');
+              if (type === 'Permission') {
+                return (
+                  <Form.Item name="permissionDuration" label="Permission Duration" rules={[{ required: true, message: 'Please select duration' }]}>
+                    <Radio.Group optionType="button" buttonStyle="solid" style={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      <Radio.Button value="2hrs" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>2 hrs</Radio.Button>
+                      <Radio.Button value="1hrs" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>1 hrs</Radio.Button>
+                      <Radio.Button value="50mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>50 mins</Radio.Button>
+                      <Radio.Button value="30mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>30 mins</Radio.Button>
+                      <Radio.Button value="15mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>15 mins</Radio.Button>
+                      <Radio.Button value="10mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>10 mins</Radio.Button>
+                    </Radio.Group>
+                  </Form.Item>
+                );
+              }
+              return null;
+            }}
+          </Form.Item>
+
           <Form.Item name="reason" label="Reason"><TextArea rows={3} /></Form.Item>
-          <Button type="primary" htmlType="submit" loading={leaveApplying} block style={{ background: accent, borderColor: accent }}>Submit Leave Request</Button>
+          <Button type="primary" htmlType="submit" loading={leaveApplying} block style={{ background: accent, borderColor: accent }}>Submit Request</Button>
         </Form>
       </Modal>
 
@@ -1521,29 +1312,6 @@ const EODReportPage = () => {
           <Form.Item name="description" label="Description"><TextArea rows={3} /></Form.Item>
           <Button type="primary" htmlType="submit" loading={newTicketLoading} block style={{ background: accent, borderColor: accent }}>Create Ticket</Button>
         </Form>
-      </Modal>
-
-      <Modal
-        title={<span style={{ color: '#ff4d4f', fontWeight: 700 }}>⚠️ Available Hours Exceeded</span>}
-        open={isHoursBlockedModalOpen}
-        onCancel={() => setIsHoursBlockedModalOpen(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setIsHoursBlockedModalOpen(false)}>Go Back</Button>,
-          <Button key="req" type="primary" danger
-            onClick={() => {
-              setIsHoursBlockedModalOpen(false);
-              const t = watchedItems?.[0];
-              handleOpenRequestModal('ExceededLimit', { id: t?.ticketId, title: 'EOD Report' });
-            }}>
-            Request Permission from Team Leader
-          </Button>
-        ]}
-      >
-        <Result
-          icon={<ExclamationCircleFilled style={{ color: '#ff4d4f' }} />}
-          title="Permission Required"
-          subTitle={`You have entered ${fmtH(blockedSubmitTotal)} which exceeds your available remaining hours of ${fmtH(projectRemainingBeforeToday)}. Please get permission from your Team Leader to report additional hours.`}
-        />
       </Modal>
 
       <Modal title="Request Additional Hours" open={isRequestModalOpen} onCancel={() => setIsRequestModalOpen(false)} footer={null} destroyOnClose>
@@ -1598,7 +1366,7 @@ const EODReportPage = () => {
                 
                 for (let i = 0; i <= daysDiff; i++) {
                   const target = start.add(i, 'day').format('YYYY-MM-DD');
-                  await reportAccessService.createRequest({ targetDate: target, reason: vals.reason, requestType: accessRequestType });
+                  await reportAccessService.createRequest({ targetDate: target, reason: vals.reason, requestType: 'single' });
                 }
                 notification.success({ 
                   message: 'Access Requests Submitted', 
@@ -1606,7 +1374,7 @@ const EODReportPage = () => {
                 });
               } else {
                 const target = start.format('YYYY-MM-DD');
-                await reportAccessService.createRequest({ targetDate: target, reason: vals.reason, requestType: accessRequestType });
+                await reportAccessService.createRequest({ targetDate: target, reason: vals.reason, requestType: 'single' });
                 notification.success({ 
                   message: 'Access Request Submitted',
                   description: `Requested access for ${target}.`
