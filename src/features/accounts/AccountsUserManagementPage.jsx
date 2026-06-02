@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Switch, notification, Space, Typography, Tag, Skeleton, Popconfirm, InputNumber } from 'antd';
+import { Table, Button, Modal, Form, Input, Select, Switch, notification, Space, Typography, Tag, Skeleton, Popconfirm, InputNumber, Card } from 'antd';
 import { UserAddOutlined, SearchOutlined, SaveOutlined, EditOutlined } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { projectService } from '../../services/projectService';
@@ -138,21 +138,54 @@ const AccountsUserManagementPage = () => {
       title: 'Full Name',
       dataIndex: 'name',
       key: 'name',
-      render: (text) => <Text strong>{text || '-'}</Text>
+      width: 240,
+      render: (text, record) => {
+        const nameVal = text || record.fullName || '-';
+        const initials = nameVal.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 38,
+              height: 38,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #a78bfa, #8b5cf6)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 600,
+              fontSize: 13,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              flexShrink: 0
+            }}>
+              {initials}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <Text strong style={{ display: 'block', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {nameVal}
+              </Text>
+              <Text type="secondary" style={{ fontSize: '11px' }}>ID: #{record.id}</Text>
+            </div>
+          </div>
+        );
+      }
     },
     {
       title: 'Email Address',
       dataIndex: 'email',
       key: 'email',
+      width: 220,
+      render: (text) => <Text style={{ fontSize: '13px', wordBreak: 'break-all', color: '#4b5563' }}>{text}</Text>
     },
     {
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
+      width: 140,
       render: (role, record) => (
         <Select 
           value={role} 
-          style={{ width: 140 }} 
+          style={{ width: '100%' }} 
           onChange={(newRole) => handleRoleChange(record.id, newRole)}
         >
           <Select.Option value="Sales">Sales</Select.Option>
@@ -168,13 +201,14 @@ const AccountsUserManagementPage = () => {
       title: 'Reporting TL',
       dataIndex: 'teamLeadId',
       key: 'teamLead',
+      width: 180,
       render: (tlId, record) => {
-        if (record.role !== 'Employee') return <Text type="secondary">N/A (Non-Employee)</Text>;
+        if (record.role !== 'Employee') return <Tag color="default" style={{ margin: 0 }}>N/A</Tag>;
         return (
           <Select
             value={tlId || undefined}
             placeholder="No Team Lead"
-            style={{ width: 180 }}
+            style={{ width: '100%' }}
             allowClear
             onChange={(newTlId) => handleTeamLeadChange(record.id, newTlId)}
           >
@@ -191,13 +225,14 @@ const AccountsUserManagementPage = () => {
       title: 'Reporting PM',
       dataIndex: 'projectManagerId',
       key: 'projectManager',
+      width: 180,
       render: (pmId, record) => {
-        if (record.role !== 'Employee' && record.role !== 'TeamLead') return <Text type="secondary">N/A</Text>;
+        if (record.role !== 'Employee' && record.role !== 'TeamLead') return <Tag color="default" style={{ margin: 0 }}>N/A</Tag>;
         return (
           <Select
             value={pmId || undefined}
             placeholder="No PM"
-            style={{ width: 180 }}
+            style={{ width: '100%' }}
             allowClear
             onChange={(newPmId) => handleProjectManagerChange(record.id, newPmId)}
           >
@@ -214,21 +249,21 @@ const AccountsUserManagementPage = () => {
       title: 'Cost/Hour',
       dataIndex: 'costPerHour',
       key: 'costPerHour',
-      width: 200,
+      width: 180,
       render: (val, record) => {
         const editable = isEditingCost(record);
         const saving = savingKeys[record.id];
 
         if (editable) {
           return (
-            <Space>
+            <Space size="small">
               <InputNumber
                 value={tempCost}
                 min={0}
                 formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                 parser={value => value.replace(/\₹\s?|(,*)/g, '')}
                 onChange={setTempCost}
-                style={{ width: 100 }}
+                style={{ width: 85 }}
                 autoFocus
                 onPressEnter={() => saveCostPerHour(record.id)}
               />
@@ -238,6 +273,7 @@ const AccountsUserManagementPage = () => {
                 icon={<SaveOutlined />} 
                 onClick={() => saveCostPerHour(record.id)}
                 loading={saving}
+                style={{ background: '#10b981', borderColor: '#10b981' }}
               />
               <Button size="small" onClick={cancelEditCost}>Cancel</Button>
             </Space>
@@ -245,17 +281,17 @@ const AccountsUserManagementPage = () => {
         }
 
         return (
-          <Space>
-            <Text strong style={{ color: '#0f766e' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Tag color="cyan" style={{ fontSize: '13px', fontWeight: 600, padding: '2px 8px', borderRadius: 4, margin: 0 }}>
               ₹{Number(val || 0).toLocaleString('en-IN')}/hr
-            </Text>
+            </Tag>
             <Button 
               type="text" 
               size="small" 
-              icon={<EditOutlined />} 
+              icon={<EditOutlined style={{ color: '#8b5cf6' }} />} 
               onClick={() => startEditCost(record)} 
             />
-          </Space>
+          </div>
         );
       }
     },
@@ -263,6 +299,7 @@ const AccountsUserManagementPage = () => {
       title: 'Status',
       dataIndex: 'isActive',
       key: 'status',
+      width: 110,
       render: (isActive, record) => (
         <Switch 
           checked={isActive !== false} 
@@ -275,47 +312,75 @@ const AccountsUserManagementPage = () => {
   ];
 
   return (
-    <div>
+    <div style={{ paddingBottom: 40 }}>
       <PageHeader 
         title="User Management (Accounts)"
         subtitle="Manage platform users, roles, cost rates and reporting relationships"
-        extra={<Button type="primary" icon={<UserAddOutlined />} onClick={() => setIsModalOpen(true)}>Add User</Button>}
+        extra={
+          <Button 
+            type="primary" 
+            icon={<UserAddOutlined />} 
+            onClick={() => setIsModalOpen(true)}
+            style={{
+              background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)',
+              borderColor: '#7c3aed',
+              borderRadius: 8,
+              fontWeight: 600,
+              boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.2)'
+            }}
+            size="large"
+          >
+            Add User
+          </Button>
+        }
       />
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 16 }}>
-        <Input 
-          prefix={<SearchOutlined />} 
-          placeholder="Search users by name, email or role..." 
-          style={{ width: 300 }} 
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
+      <Card 
+        style={{
+          borderRadius: 16,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+          border: '1px solid #f3e8ff'
+        }}
+      >
+        <div style={{ marginBottom: 20, display: 'flex', gap: 16, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 12, flex: 1, minWidth: 280 }}>
+            <Input 
+              prefix={<SearchOutlined style={{ color: '#8b5cf6' }} />} 
+              placeholder="Search users by name, email or role..." 
+              style={{ width: 320, borderRadius: 8 }} 
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+            <Select 
+              value={statusFilter}
+              onChange={setStatusFilter}
+              style={{ width: 160 }}
+              options={[
+                { label: 'All Statuses', value: 'All' },
+                { label: 'Active Only', value: 'Active' },
+                { label: 'Inactive Only', value: 'Inactive' },
+              ]}
+            />
+          </div>
+        </div>
+
+        <Table 
+          dataSource={users.filter(user => {
+            if (statusFilter === 'Active' && user.isActive === false) return false;
+            if (statusFilter === 'Inactive' && user.isActive !== false) return false;
+
+            const term = searchText.toLowerCase();
+            const name = (user.name || user.fullName || '').toLowerCase();
+            const email = (user.email || '').toLowerCase();
+            const role = (user.role || '').toLowerCase();
+            return name.includes(term) || email.includes(term) || role.includes(term);
+          })} 
+          columns={columns} 
+          rowKey="id" 
+          pagination={{ pageSize: 10 }}
+          style={{ overflowX: 'auto' }}
         />
-        <Select 
-          value={statusFilter}
-          onChange={setStatusFilter}
-          style={{ width: 150 }}
-        >
-          <Select.Option value="All">All Statuses</Select.Option>
-          <Select.Option value="Active">Active Only</Select.Option>
-          <Select.Option value="Inactive">Inactive Only</Select.Option>
-        </Select>
-      </div>
-
-      <Table 
-        dataSource={users.filter(user => {
-          if (statusFilter === 'Active' && user.isActive === false) return false;
-          if (statusFilter === 'Inactive' && user.isActive !== false) return false;
-
-          const term = searchText.toLowerCase();
-          const name = (user.name || user.fullName || '').toLowerCase();
-          const email = (user.email || '').toLowerCase();
-          const role = (user.role || '').toLowerCase();
-          return name.includes(term) || email.includes(term) || role.includes(term);
-        })} 
-        columns={columns} 
-        rowKey="id" 
-        pagination={{ pageSize: 10 }} 
-      />
+      </Card>
 
       <Modal
         title="Add New User"
