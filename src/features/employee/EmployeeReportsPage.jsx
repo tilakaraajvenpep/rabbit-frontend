@@ -45,8 +45,32 @@ const EmployeeReportsPage = () => {
 
       const loadedProjects = projectRes.data || [];
       const loadedTickets = ticketRes.data || [];
+      const pmId = currentUser?.userId || currentUser?.id;
       const loadedEmployees = isManager 
-        ? userRes.data.filter(u => u.role === 'Employee' || u.role === 'TeamLead') 
+        ? userRes.data.filter(u => {
+            if (u.role !== 'Employee' && u.role !== 'TeamLead') return false;
+            if (role === 'ProjectManager') {
+              if (u.role === 'TeamLead') {
+                return String(u.projectManagerId) === String(pmId);
+              }
+              if (u.role === 'Employee') {
+                if (String(u.projectManagerId) === String(pmId)) return true;
+                if (u.teamLeadId) {
+                  const tl = userRes.data.find(tlUser => String(tlUser.id) === String(u.teamLeadId));
+                  if (tl && String(tl.projectManagerId) === String(pmId)) return true;
+                }
+                return false;
+              }
+            } else if (role === 'TeamLead') {
+              if (u.role === 'TeamLead') {
+                return String(u.id || u.userId) === String(pmId);
+              }
+              if (u.role === 'Employee') {
+                return String(u.teamLeadId) === String(pmId);
+              }
+            }
+            return true;
+          }) 
         : [];
 
       setProjects(loadedProjects);
@@ -231,7 +255,7 @@ const EmployeeReportsPage = () => {
                 disabled={!selectedProject}
               >
                 {employees.map(u => (
-                  <Select.Option key={u.id} value={u.id}>{u.name}</Select.Option>
+                  <Select.Option key={u.id} value={u.id}>{u.name || u.fullName}</Select.Option>
                 ))}
               </Select>
             </Col>

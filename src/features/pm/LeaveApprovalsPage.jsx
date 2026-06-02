@@ -5,6 +5,8 @@ import dayjs from 'dayjs';
 import { leaveService } from '../../services/leaveService';
 import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
+import { adminService } from '../../services/adminService';
+import { useAuthStore } from '../../store/authStore';
 
 const { Text } = Typography;
 
@@ -12,6 +14,7 @@ const LeaveApprovalsPage = () => {
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(false);
   const { isDarkMode } = useThemeStore();
+  const { currentUser, role } = useAuthStore();
 
   useEffect(() => {
     fetchLeaves();
@@ -20,10 +23,45 @@ const LeaveApprovalsPage = () => {
   const fetchLeaves = async () => {
     setLoading(true);
     try {
-      const res = await leaveService.getAllLeaves();
-      // Show only HR-approved leaves — descending order (newest first)
-      const approved = (res.data || [])
-        .filter(l => l.status === 'Approved')
+      const [leaveRes, userRes] = await Promise.all([
+        leaveService.getAllLeaves(),
+        adminService.getUsers()
+      ]);
+
+      const allUsers = userRes.data || [];
+      const pmId = currentUser?.userId || currentUser?.id;
+
+      // Filter users who are associated with the current user
+      const associatedUsers = allUsers.filter(u => {
+        if (u.role !== 'Employee' && u.role !== 'TeamLead') return false;
+        if (role === 'ProjectManager') {
+          if (u.role === 'TeamLead') {
+            return String(u.projectManagerId) === String(pmId);
+          }
+          if (u.role === 'Employee') {
+            if (String(u.projectManagerId) === String(pmId)) return true;
+            if (u.teamLeadId) {
+              const tl = allUsers.find(tlUser => String(tlUser.id) === String(u.teamLeadId));
+              if (tl && String(tl.projectManagerId) === String(pmId)) return true;
+            }
+            return false;
+          }
+        } else if (role === 'TeamLead') {
+          if (u.role === 'TeamLead') {
+            return String(u.id || u.userId) === String(pmId);
+          }
+          if (u.role === 'Employee') {
+            return String(u.teamLeadId) === String(pmId);
+          }
+        }
+        return true;
+      });
+
+      const associatedUserIds = new Set(associatedUsers.map(u => String(u.id || u.userId)));
+
+      // Show only HR-approved leaves for associated users — descending order (newest first)
+      const approved = (leaveRes.data || [])
+        .filter(l => l.status === 'Approved' && associatedUserIds.has(String(l.userId)))
         .sort((a, b) => dayjs(b.leaveDate).unix() - dayjs(a.leaveDate).unix());
       setLeaves(approved);
     } catch (e) {
