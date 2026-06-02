@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, 
-  Drawer, Select, theme, Modal, message, Input, Alert, Form, DatePicker, InputNumber, Tag 
+  Drawer, Select, theme, Modal, message, Input, Alert, Form, DatePicker, InputNumber, Tag, Tabs, List, Popconfirm 
 } from 'antd';
 import { 
   DndContext, 
@@ -18,11 +18,12 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined, BookOutlined, CopyOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
 import { adminService } from '../../services/adminService';
+import { ticketTemplateService } from '../../services/ticketTemplateService';
 import { useAuthStore } from '../../store/authStore';
 import { mockUsers } from '../../mocks/mockUsers';
 import { useThemeStore } from '../../store/themeStore';
@@ -371,6 +372,14 @@ const KanbanBoard = () => {
   const [editingTicket, setEditingTicket] = useState(null);
   const [editForm] = Form.useForm();
   const [savingTicket, setSavingTicket] = useState(false);
+  const [editAssignedEmployees, setEditAssignedEmployees] = useState([]);
+
+  // Templates states
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [templateForm] = Form.useForm();
 
   const isManager = authRole === 'ProjectManager' || authRole === 'TenantAdmin'
     || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
@@ -628,13 +637,19 @@ const KanbanBoard = () => {
   // --- Edit Ticket ---
   const handleEditTicket = (ticket) => {
     setEditingTicket(ticket);
+    const existingEmployees = Array.isArray(ticket.assignedEmployees) ? ticket.assignedEmployees : (ticket.assignedToUserId ? [{
+      userId: Number(ticket.assignedToUserId),
+      name: users.find(u => String(u.id || u.userId) === String(ticket.assignedToUserId))?.name || 'Employee',
+      hours: Number(ticket.estimatedHours) || 0
+    }] : []);
+    setEditAssignedEmployees(existingEmployees);
+
     editForm.setFieldsValue({
       title: ticket.title,
       description: ticket.description,
       priority: ticket.priority,
-      estimatedHours: Number(ticket.estimatedHours) || 0,
       dueDate: ticket.dueDate ? dayjs(ticket.dueDate) : null,
-      assignedToUserId: ticket.assignedToUserId || null,
+      assignedTo: existingEmployees.map(emp => emp.userId),
     });
     setIsEditModalOpen(true);
   };
@@ -642,14 +657,22 @@ const KanbanBoard = () => {
   const handleSaveEdit = async () => {
     try {
       const values = await editForm.validateFields();
+      
+      const missingHours = editAssignedEmployees.some(emp => !emp.hours || emp.hours <= 0);
+      if (missingHours) {
+        message.error('Please assign valid hours for all selected employees.');
+        return;
+      }
+
       setSavingTicket(true);
       await ticketService.updateTicket(editingTicket.id || editingTicket.ticketId, {
         title: values.title,
         description: values.description,
         priority: values.priority,
-        estimatedHours: Number(editingTicket.estimatedHours) || 0,
+        estimatedHours: editAssignedEmployees.reduce((sum, emp) => sum + emp.hours, 0),
+        assignedToUserId: editAssignedEmployees[0]?.userId || null,
+        assignedEmployees: editAssignedEmployees,
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
-        assignedToUserId: values.assignedToUserId || null,
       });
       message.success('Ticket updated successfully!');
       setIsEditModalOpen(false);
@@ -659,6 +682,108 @@ const KanbanBoard = () => {
       message.error('Failed to update ticket.');
     } finally {
       setSavingTicket(false);
+    }
+  };
+
+  // --- Templates ---
+  const fetchTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const res = await ticketTemplateService.getTemplates();
+      setTemplates(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch templates');
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const handleOpenTemplatesModal = () => {
+    fetchTemplates();
+    templateForm.resetFields();
+    setIsTemplatesModalOpen(true);
+  };
+
+  const handleSaveTemplate = async () => {
+    try {
+      const values = await templateForm.validateFields();
+      let templateTickets = [];
+
+      if (values.source === 'current') {
+        if (allTickets.length === 0) {
+          message.warning('No tickets in the current project board to save.');
+          return;
+        }
+        templateTickets = allTickets.map(t => ({
+          title: t.title,
+          description: t.description,
+          priority: t.priority,
+          estimatedHours: Number(t.estimatedHours) || 0,
+          milestone: t.milestone || ''
+        }));
+      } else {
+        templateTickets = (values.customTickets || []).map(t => ({
+          title: t.title,
+          description: t.description || '',
+          priority: t.priority || 'Medium',
+          estimatedHours: Number(t.estimatedHours) || 0,
+          milestone: t.milestone || ''
+        }));
+        if (templateTickets.length === 0) {
+          message.warning('Please add at least one ticket to the template.');
+          return;
+        }
+      }
+
+      await ticketTemplateService.createTemplate({
+        templateName: values.templateName,
+        department: values.department || null,
+        projectName: values.projectName || null,
+        tickets: templateTickets
+      });
+
+      message.success('Ticket template saved successfully!');
+      templateForm.resetFields();
+      fetchTemplates();
+    } catch (err) {
+      if (err?.errorFields) return;
+      message.error('Failed to save ticket template.');
+    }
+  };
+
+  const handleApplyTemplate = async (tpl) => {
+    if (!projectId) return;
+    setApplyingTemplate(true);
+    try {
+      const ticketsToCreate = tpl.tickets || [];
+      await Promise.all(ticketsToCreate.map(async (t) => {
+        await ticketService.createTicket(projectId, {
+          title: t.title,
+          description: t.description,
+          priority: t.priority,
+          estimatedHours: Number(t.estimatedHours) || 0,
+          milestone: t.milestone,
+          assignedToUserId: null,
+          assignedEmployees: []
+        });
+      }));
+      message.success(`Successfully applied template "${tpl.templateName}"! Created ${ticketsToCreate.length} tickets.`);
+      setIsTemplatesModalOpen(false);
+      loadTickets(projectId);
+    } catch (err) {
+      message.error('Failed to apply template tickets.');
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId) => {
+    try {
+      await ticketTemplateService.deleteTemplate(templateId);
+      message.success('Template deleted.');
+      fetchTemplates();
+    } catch (err) {
+      message.error('Failed to delete template.');
     }
   };
 
@@ -701,13 +826,14 @@ const KanbanBoard = () => {
                 })()}
               />
             )}
-            {projectId && (
+            {projectId && canEdit && (
               <Space>
-                {canEdit && (
-                  <Button icon={<EditOutlined />} onClick={handleOpenHeadingsModal}>
-                    Edit Headings
-                  </Button>
-                )}
+                <Button icon={<BookOutlined />} onClick={handleOpenTemplatesModal}>
+                  Templates
+                </Button>
+                <Button icon={<EditOutlined />} onClick={handleOpenHeadingsModal}>
+                  Edit Headings
+                </Button>
               </Space>
             )}
             {projectId && canEdit && (
@@ -925,49 +1051,227 @@ const KanbanBoard = () => {
             <Form.Item name="dueDate" label="Due Date" style={{ flex: 1 }}>
               <DatePicker style={{ width: '100%' }} format="DD MMM YYYY" />
             </Form.Item>
-
-            <Form.Item name="assignedToUserId" label="Assign To" style={{ flex: 1 }}>
-              <Select
-                allowClear
-                placeholder="Unassigned"
-                options={(() => {
-                  if (authRole === 'ProjectManager' || authRole === 'TenantAdmin') {
-                    const pmId = authUser?.userId || authUser?.id;
-                    const pmName = authUser?.fullName || authUser?.name || 'Project Manager';
-                    return [{
-                      value: pmId,
-                      label: pmName
-                    }];
-                  }
-                  const projectTLId = project?.assignedTeamLeadId;
-                  const eligibleUsers = users.filter(u => {
-                    if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
-                    if (u.role === 'TeamLead' && u.id === projectTLId) return true;
-                    if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
-                    return false;
-                  });
-
-                  // Ensure the currently assigned user (e.g. PM) is included in the options list for TL
-                  const currentAssigneeId = editingTicket?.assignedToUserId;
-                  if (currentAssigneeId) {
-                    const exists = eligibleUsers.some(u => (u.id || u.userId) === currentAssigneeId);
-                    if (!exists) {
-                      const assignedUserObj = users.find(u => (u.id || u.userId) === currentAssigneeId);
-                      if (assignedUserObj) {
-                        eligibleUsers.push(assignedUserObj);
-                      }
-                    }
-                  }
-
-                  return eligibleUsers.map(u => ({
-                    value: u.id || u.userId,
-                    label: u.role === 'ProjectManager' ? `👑 ${u.name || u.fullName} (PM)` : (u.name || u.fullName)
-                  }));
-                })()}
-              />
-            </Form.Item>
           </div>
+
+          <Form.Item name="assignedTo" label="Assign Employees" rules={[{ required: true, message: 'Please assign at least one employee' }]}>
+            <Select 
+              mode="multiple"
+              style={{ width: '100%' }} 
+              placeholder="Select employees"
+              onChange={(val) => {
+                const newAssigned = val.map(id => {
+                  const existing = editAssignedEmployees.find(emp => String(emp.userId) === String(id));
+                  if (existing) return existing;
+                  const user = users.find(u => String(u.id || u.userId) === String(id));
+                  return {
+                    userId: Number(id),
+                    name: user ? (user.name || user.fullName) : `Employee ${id}`,
+                    hours: 0
+                  };
+                });
+                setEditAssignedEmployees(newAssigned);
+              }}
+            >
+              {(() => {
+                const projectTLId = project?.assignedTeamLeadId;
+                const eligibleUsers = users.filter(u => {
+                  if (authRole === 'ProjectManager' || authRole === 'TenantAdmin') return u.role === 'Employee' || u.role === 'TeamLead';
+                  if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
+                  if (u.role === 'TeamLead' && u.id === projectTLId) return true;
+                  if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
+                  return false;
+                });
+                return eligibleUsers.map(u => (
+                  <Select.Option key={u.id} value={u.id}>
+                    {u.name || u.fullName} ({u.role})
+                  </Select.Option>
+                ));
+              })()}
+            </Select>
+          </Form.Item>
+
+          {editAssignedEmployees.length > 0 && (
+            <Form.Item label="Assign Hours per Employee" required style={{ border: '1px solid #f0f0f0', borderRadius: '8px', padding: '12px 16px', background: '#fafafa' }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                {editAssignedEmployees.map((emp, index) => (
+                  <div key={emp.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                    <Text strong>{emp.name}</Text>
+                    <InputNumber
+                      min={0.5}
+                      step={0.5}
+                      placeholder="Hours"
+                      value={emp.hours || undefined}
+                      onChange={(val) => {
+                        const updated = [...editAssignedEmployees];
+                        updated[index].hours = Number(val) || 0;
+                        setEditAssignedEmployees(updated);
+                      }}
+                      style={{ width: 120 }}
+                    />
+                  </div>
+                ))}
+              </Space>
+            </Form.Item>
+          )}
         </Form>
+      </Modal>
+
+      {/* Templates Modal */}
+      <Modal
+        title="Manage Ticket Templates"
+        open={isTemplatesModalOpen}
+        onCancel={() => setIsTemplatesModalOpen(false)}
+        footer={null}
+        width={720}
+        destroyOnClose
+      >
+        <Tabs defaultActiveKey="1">
+          <Tabs.TabPane tab="Apply Saved Templates" key="1">
+            <List
+              loading={loadingTemplates || applyingTemplate}
+              dataSource={templates}
+              renderItem={tpl => (
+                <List.Item
+                  actions={[
+                    <Button 
+                      type="primary" 
+                      onClick={() => handleApplyTemplate(tpl)}
+                      disabled={!projectId}
+                    >
+                      Apply to Project
+                    </Button>,
+                    <Popconfirm
+                      title="Are you sure you want to delete this template?"
+                      onConfirm={() => handleDeleteTemplate(tpl.templateId)}
+                      okText="Yes"
+                      cancelText="No"
+                    >
+                      <Button type="text" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
+                  ]}
+                >
+                  <List.Item.Meta
+                    avatar={<Avatar icon={<BookOutlined />} style={{ backgroundColor: '#87d068' }} />}
+                    title={<Text strong>{tpl.templateName}</Text>}
+                    description={
+                      <Space split="•" style={{ fontSize: '12px' }}>
+                        {tpl.department && <span>Dept: <strong>{tpl.department}</strong></span>}
+                        {tpl.projectName && <span>Proj: <strong>{tpl.projectName}</strong></span>}
+                        <span>{tpl.tickets?.length || 0} Tickets</span>
+                      </Space>
+                    }
+                  />
+                </List.Item>
+              )}
+              locale={{ emptyText: 'No saved templates found.' }}
+            />
+          </Tabs.TabPane>
+          <Tabs.TabPane tab="Save/Create Template" key="2">
+            <Form form={templateForm} layout="vertical" initialValues={{ source: 'current' }}>
+              <Form.Item 
+                name="templateName" 
+                label="Template Name" 
+                rules={[{ required: true, message: 'Please input a template name' }]}
+              >
+                <Input placeholder="e.g. Node Backend Initial Setup" />
+              </Form.Item>
+
+              <div style={{ display: 'flex', gap: 16 }}>
+                <Form.Item name="department" label="Department" style={{ flex: 1 }}>
+                  <Select placeholder="Select department (optional)">
+                    <Select.Option value="Frontend">Frontend</Select.Option>
+                    <Select.Option value="Backend">Backend</Select.Option>
+                    <Select.Option value="Mobile">Mobile</Select.Option>
+                    <Select.Option value="QA">QA</Select.Option>
+                    <Select.Option value="DevOps">DevOps</Select.Option>
+                    <Select.Option value="Design">Design</Select.Option>
+                  </Select>
+                </Form.Item>
+
+                <Form.Item name="projectName" label="Project Name Reference" style={{ flex: 1 }}>
+                  <Input placeholder="e.g. E-Commerce App (optional)" />
+                </Form.Item>
+              </div>
+
+              <Form.Item name="source" label="Template Source">
+                <Select onChange={() => templateForm.setFieldsValue({ customTickets: [] })}>
+                  <Select.Option value="current">Current Project Board Tickets ({allTickets.length})</Select.Option>
+                  <Select.Option value="manual">Define Custom Tickets Manually</Select.Option>
+                </Select>
+              </Form.Item>
+
+              <Form.Item noStyle shouldUpdate={(prev, curr) => prev.source !== curr.source}>
+                {({ getFieldValue }) => {
+                  const src = getFieldValue('source');
+                  if (src !== 'manual') return null;
+
+                  return (
+                    <Card size="small" title="Define Template Tickets" style={{ marginBottom: 16 }}>
+                      <Form.List name="customTickets">
+                        {(fields, { add, remove }) => (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {fields.map(({ key, name, ...restField }) => (
+                              <div key={key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', borderBottom: '1px solid #f0f0f0', paddingBottom: 12 }}>
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                  <Form.Item
+                                    {...restField}
+                                    name={[name, 'title']}
+                                    rules={[{ required: true, message: 'Title required' }]}
+                                    style={{ margin: 0 }}
+                                  >
+                                    <Input placeholder="Ticket Title" />
+                                  </Form.Item>
+                                  <Form.Item
+                                    {...restField}
+                                    name={[name, 'description']}
+                                    style={{ margin: 0 }}
+                                  >
+                                    <Input.TextArea rows={1} placeholder="Description (optional)" />
+                                  </Form.Item>
+                                  <div style={{ display: 'flex', gap: 8 }}>
+                                    <Form.Item
+                                      {...restField}
+                                      name={[name, 'priority']}
+                                      initialValue="Medium"
+                                      style={{ margin: 0, flex: 1 }}
+                                    >
+                                      <Select placeholder="Priority">
+                                        <Select.Option value="Critical">Critical</Select.Option>
+                                        <Select.Option value="High">High</Select.Option>
+                                        <Select.Option value="Medium">Medium</Select.Option>
+                                        <Select.Option value="Low">Low</Select.Option>
+                                      </Select>
+                                    </Form.Item>
+                                    <Form.Item
+                                      {...restField}
+                                      name={[name, 'estimatedHours']}
+                                      initialValue={0}
+                                      style={{ margin: 0, flex: 1 }}
+                                    >
+                                      <InputNumber min={0} step={0.5} placeholder="Hours" style={{ width: '100%' }} />
+                                    </Form.Item>
+                                  </div>
+                                </div>
+                                <Button type="text" danger onClick={() => remove(name)} icon={<DeleteOutlined />} style={{ marginTop: 4 }} />
+                              </div>
+                            ))}
+                            <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                              Add Ticket
+                            </Button>
+                          </div>
+                        )}
+                      </Form.List>
+                    </Card>
+                  );
+                }}
+              </Form.Item>
+
+              <Button type="primary" onClick={handleSaveTemplate} block>
+                Save Template
+              </Button>
+            </Form>
+          </Tabs.TabPane>
+        </Tabs>
       </Modal>
     </div>
   );
