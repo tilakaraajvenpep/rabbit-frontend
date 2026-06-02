@@ -170,7 +170,14 @@ const TimerRequestsApprovalPage = () => {
       key: 'project',
       render: (_, r) => (
         <div>
-          <div style={{ fontWeight: 600, color: '#6366f1', fontSize: 13 }}>{r.projectName || '—'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, color: '#6366f1', fontSize: 13 }}>{r.projectName || '—'}</span>
+            {r.bufferHours !== undefined && r.bufferHours !== null && (
+              <Tag color="cyan" style={{ border: 'none', borderRadius: 4, fontWeight: 600, fontSize: 10 }}>
+                Buffer: {r.bufferHours}h
+              </Tag>
+            )}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <span style={{ background: '#f1f5f9', color: '#475569', fontSize: 11, padding: '1px 7px', borderRadius: 5, fontFamily: 'monospace' }}>{r.ticketCode}</span>
             <span style={{ fontSize: 12, color: '#64748b' }}>{r.ticketTitle}</span>
@@ -268,8 +275,13 @@ const TimerRequestsApprovalPage = () => {
       key: 'project',
       render: (_, r) => (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600, color: '#6366f1', fontSize: 13 }}>{r.projectName || '—'}</span>
+            {r.bufferHours !== undefined && r.bufferHours !== null && (
+              <Tag color="cyan" style={{ border: 'none', borderRadius: 4, fontWeight: 600, fontSize: 10 }}>
+                Buffer: {r.bufferHours}h
+              </Tag>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
             <span style={{ background: '#f1f5f9', color: '#475569', fontSize: 11, padding: '1px 7px', borderRadius: 5, fontFamily: 'monospace' }}>{r.ticketCode}</span>

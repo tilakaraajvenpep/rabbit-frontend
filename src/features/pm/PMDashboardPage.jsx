@@ -499,10 +499,7 @@ const PMDashboardPage = () => {
       key: 'totalHours',
       width: 200,
       render: (_, record) => (
-        <Space direction="vertical" size={2}>
-          <Text>Total Hours: <strong>{record.totalHours}h</strong></Text>
-          <Text type="secondary" style={{ fontSize: '11px' }}>Buffer: {record.bufferHours}h</Text>
-        </Space>
+        <Text>Total Hours: <strong>{record.totalHours}h</strong></Text>
       )
     },
 
