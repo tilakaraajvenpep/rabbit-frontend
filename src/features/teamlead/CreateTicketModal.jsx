@@ -41,6 +41,8 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
   };
 
   const projectTLId = project?.assignedTeamLeadId;
+  const pmUser = users.find(u => String(u.id || u.userId) === String(project?.assignedProjectManagerId));
+  const pmName = pmUser ? (pmUser.name || pmUser.fullName) : '';
   const pmId = authUser?.userId || authUser?.id;
   let eligibleUsers = [];
   if (authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin') {
@@ -136,6 +138,11 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
       width={640}
     >
       <Form layout="vertical">
+        {pmName && (
+          <Form.Item label="Project Manager" style={{ marginBottom: 16 }}>
+            <Input value={pmName} disabled style={{ color: '#333', fontWeight: 600, backgroundColor: '#f5f5f5' }} />
+          </Form.Item>
+        )}
         <Form.Item label="Ticket Title" required validateStatus={errors.title ? 'error' : ''} help={errors.title?.message}>
           <Controller
             name="title"
