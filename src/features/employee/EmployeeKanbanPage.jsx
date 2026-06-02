@@ -323,9 +323,34 @@ const EmployeeKanbanPage = () => {
                                   {ticket.title}
                                 </Title>
                                 
-                                <Text type="secondary" style={{ display: 'block', fontSize: 11, marginBottom: 12 }}>
-                                  Project: {ticket.projectName || 'General'}
-                                </Text>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+                                  <Text type="secondary" style={{ fontSize: 11 }}>
+                                    Project: {ticket.projectName || 'General'}
+                                  </Text>
+                                  {(() => {
+                                    const userId = currentUser.userId || currentUser.id;
+                                    let allotted = 0;
+                                    if (ticket.assignedEmployees && Array.isArray(ticket.assignedEmployees)) {
+                                      const match = ticket.assignedEmployees.find(emp => String(emp.userId) === String(userId));
+                                      if (match && match.hours !== undefined) {
+                                        allotted = Number(match.hours) || 0;
+                                      }
+                                    }
+                                    if (!allotted) {
+                                      allotted = Number(ticket.estimatedHours) || 0;
+                                    }
+                                    const consumed = Number(ticket.consumedHours) || 0;
+                                    const avail = Math.max(0, allotted - consumed);
+                                    const h = Math.floor(avail);
+                                    const m = Math.round((avail - h) * 60);
+                                    const label = (h > 0 && m > 0) ? `${h}h ${m}m` : (m > 0 ? `${m}m` : `${h}h`);
+                                    return (
+                                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#6366f1' }}>
+                                        Available Hours: {label}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
 
                                 <Divider style={{ margin: '10px 0' }} />
 

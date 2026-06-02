@@ -54,6 +54,9 @@ const AnalyticsPage = () => {
   // Filter associated employees and team leads
   const pmId = authUser?.userId || authUser?.id;
   const filteredUsers = allUsers.filter(u => {
+    if (authRole === 'Employee') {
+      return String(u.id || u.userId) === String(pmId);
+    }
     if (u.role !== 'Employee' && u.role !== 'TeamLead') return false;
     
     if (authRole === 'ProjectManager') {

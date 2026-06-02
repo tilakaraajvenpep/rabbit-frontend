@@ -233,6 +233,7 @@ const App = () => {
                 <Route path="/employee/report" element={<EODReportPage />} />
                 <Route path="/employee/reports" element={<EmployeeReportsPage />} />
                 <Route path="/employee/leaves" element={<LeaveRequestsPage />} />
+                <Route path="/employee/scrum-master" element={<AnalyticsPage />} />
               </Route>
 
               {/* HR Routes */}

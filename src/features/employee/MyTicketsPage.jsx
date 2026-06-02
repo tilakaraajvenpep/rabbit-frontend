@@ -128,7 +128,7 @@ const MyTicketsPage = () => {
     {
       title: 'Total Hours',
       key: 'timer',
-      width: 200,
+      width: 150,
       render: (_, record) => {
         const hrs = Number(record.consumedHours || 0);
         return (
@@ -138,6 +138,34 @@ const MyTicketsPage = () => {
               {hrs.toFixed(2)} hrs
             </Text>
           </Space>
+        );
+      }
+    },
+    {
+      title: 'Available Hours',
+      key: 'availableTimer',
+      width: 160,
+      render: (_, record) => {
+        const userId = currentUser.userId || currentUser.id;
+        let allotted = 0;
+        if (record.assignedEmployees && Array.isArray(record.assignedEmployees)) {
+          const match = record.assignedEmployees.find(emp => String(emp.userId) === String(userId));
+          if (match && match.hours !== undefined) {
+            allotted = Number(match.hours) || 0;
+          }
+        }
+        if (!allotted) {
+          allotted = Number(record.estimatedHours) || 0;
+        }
+        const consumed = Number(record.consumedHours) || 0;
+        const avail = Math.max(0, allotted - consumed);
+        const h = Math.floor(avail);
+        const m = Math.round((avail - h) * 60);
+        const label = (h > 0 && m > 0) ? `${h}h ${m}m` : (m > 0 ? `${m}m` : `${h}h`);
+        return (
+          <Tag color="purple" style={{ fontWeight: 600, fontSize: 13, borderRadius: 6 }}>
+            {label}
+          </Tag>
         );
       }
     }
