@@ -15,7 +15,8 @@ import {
   CalendarOutlined,
   SwapOutlined,
   ClockCircleOutlined,
-  UserDeleteOutlined
+  UserDeleteOutlined,
+  NodeIndexOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -95,6 +96,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/accounts/cost-history', icon: <DollarOutlined />, label: 'Cost Analysis History' },
         { key: '/accounts/profit-loss', icon: <BarChartOutlined />, label: 'Project Profit & Loss' },
         { key: '/accounts/users', icon: <TeamOutlined />, label: 'User Management' },
+        { key: '/accounts/org-chart', icon: <NodeIndexOutlined />, label: 'Organization Chart' },
         { key: '/accounts/standard-cost', icon: <DollarOutlined />, label: 'Standard Cost' },
         { key: '/accounts/hours-approval', icon: <ClockCircleOutlined />, label: 'Additional Hours Approval' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' }
@@ -144,6 +146,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/hr/allocate', icon: <ClockCircleOutlined />, label: 'Allocate Hours' },
         { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },
         { key: '/hr/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Approvals' },
+        { key: '/hr/org-chart', icon: <NodeIndexOutlined />, label: 'Organization Chart' },
         { key: '/hr/offboarding', icon: <UserDeleteOutlined />, label: 'Offboarding' }
       );
     }

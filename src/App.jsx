@@ -65,6 +65,7 @@ const ReportAccessApprovalPage = React.lazy(() => import('./features/pm/ReportAc
 
 const ProjectOverviewPage = React.lazy(() => import('./features/shared/ProjectOverviewPage'));
 const OverallReportsPage = React.lazy(() => import('./features/shared/OverallReportsPage'));
+const OrgChartPage = React.lazy(() => import('./features/shared/OrgChartPage'));
 
 // Chatbot
 const ChatbotPage = React.lazy(() => import('./features/chatbot/ChatbotPage'));
@@ -203,6 +204,7 @@ const App = () => {
                 <Route path="/accounts/users" element={<AccountsUserManagementPage />} />
                 <Route path="/accounts/standard-cost" element={<StandardCostPage />} />
                 <Route path="/accounts/hours-approval" element={<AccountsHoursApprovalPage />} />
+                <Route path="/accounts/org-chart" element={<OrgChartPage />} />
               </Route>
 
               {/* TeamLead Routes */}
@@ -249,6 +251,7 @@ const App = () => {
                 <Route path="/hr/report-access-approvals" element={<ReportAccessApprovalPage />} />
                 <Route path="/hr/hours" element={<HRHourAllocationPage />} />
                 <Route path="/hr/timer-requests" element={<HRTimerRequestsPage />} />
+                <Route path="/hr/org-chart" element={<OrgChartPage />} />
               </Route>
 
               {/* Shared Reports for Managers */}
