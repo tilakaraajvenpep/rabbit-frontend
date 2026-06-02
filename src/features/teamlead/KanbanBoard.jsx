@@ -515,7 +515,13 @@ const KanbanBoard = () => {
       const res = await projectService.getProjects();
       setAllProjects(res.data);
       if ((!projectId || isNaN(Number(projectId))) && res.data && res.data.length > 0) {
-        const routePrefix = (authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin') ? 'pm' : 'teamlead';
+        let routePrefix = 'teamlead';
+        const currentRole = authRole || authUser?.role;
+        if (currentRole === 'ProjectManager' || currentRole === 'TenantAdmin') {
+          routePrefix = 'pm';
+        } else if (currentRole === 'HR') {
+          routePrefix = 'hr';
+        }
         navigate(`/${routePrefix}/projects/${res.data[0].id}/kanban`, { replace: true });
       }
     } catch (error) {
