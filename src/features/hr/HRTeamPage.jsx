@@ -292,22 +292,6 @@ const HRTeamPage = () => {
           unCheckedChildren="Inactive"
         />
       )
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      width: 100,
-      render: (_, record) => (
-        <Tooltip title="Delete Team Member">
-          <Button 
-            type="text" 
-            danger 
-            icon={<DeleteOutlined />} 
-            onClick={() => handleDeleteUser(record)}
-            style={{ borderRadius: 6 }}
-          />
-        </Tooltip>
-      )
     }
   ];
 
