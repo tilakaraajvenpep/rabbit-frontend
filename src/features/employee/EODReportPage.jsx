@@ -798,6 +798,32 @@ const EODReportPage = () => {
       return;
     }
 
+    // Date Range Constraint Validation
+    const repDate = dayjs(selectedDate).startOf('day');
+    for (let i = 0; i < mappedItems.length; i++) {
+      const item = mappedItems[i];
+      const ticket = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+      if (ticket) {
+        const start = ticket.startDate ? dayjs(ticket.startDate).startOf('day') : null;
+        const due = ticket.dueDate ? dayjs(ticket.dueDate).endOf('day') : null;
+        const isDateValid = !start || !due || (repDate.isAfter(start.subtract(1, 'day')) && repDate.isBefore(due.add(1, 'day')));
+        if (!isDateValid) {
+          const hasDatePermission = myTimerRequests.some(r => 
+            String(r.request?.ticketId) === String(ticket.id) && 
+            r.request?.requestType === 'DateRangeExtension' && 
+            (r.request?.status === 'Approved' || r.request?.status === 'AccountsApproved')
+          );
+          if (!hasDatePermission) {
+            notification.error({
+              message: 'Action Blocked',
+              description: `Task #${i + 1}: Reporting date (${dayjs(selectedDate).format('DD MMM YYYY')}) is outside ticket "${ticket.code}"'s valid schedule (${dayjs(ticket.startDate).format('DD MMM YYYY')} to ${dayjs(ticket.dueDate).format('DD MMM YYYY')}). Please request date extension permission first.`
+            });
+            return;
+          }
+        }
+      }
+    }
+
     const submittedTotal = mappedItems.reduce((acc, curr) => acc + curr.hours, 0);
 
     // Single constraint: block if hours exceed the selected project's remaining available hours
@@ -936,7 +962,14 @@ const EODReportPage = () => {
       title: 'Request Type',
       dataIndex: ['request', 'requestType'],
       key: 'requestType',
-      render: (t) => <Tag color={t === 'TimerMissed' ? 'volcano' : 'purple'}>{t === 'TimerMissed' ? 'Timer Missed' : 'Hours Exceeded'}</Tag>
+      render: (t) => {
+        const config = {
+          TimerMissed: { color: 'volcano', label: 'Timer Missed' },
+          ExceededLimit: { color: 'purple', label: 'Hours Exceeded' },
+          DateRangeExtension: { color: 'cyan', label: 'Date Range Extension' }
+        }[t] || { color: 'default', label: t };
+        return <Tag color={config.color}>{config.label}</Tag>;
+      }
     },
     {
       title: 'Requested Hours',
@@ -1309,9 +1342,87 @@ const EODReportPage = () => {
                           <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
                             <InputNumber {...f} min={0} max={59} size="small" style={{ width: 58 }} disabled={viewOnly || projectAllocatedHours === 0 || (projectRemainingBeforeToday <= 0 && !f.value)} placeholder="0" />
                           )} />
-                          <span style={{ fontSize: 11, color: t2, fontWeight: 600 }}>m</span>
                         </div>
                       </div>
+
+                      {/* Ticket date schedule validation & request permission */}
+                      {(() => {
+                        if (!item.ticketId) return null;
+                        const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                        if (!ticketObj) return null;
+
+                        const repDate = dayjs(selectedDate).startOf('day');
+                        const start = ticketObj.startDate ? dayjs(ticketObj.startDate).startOf('day') : null;
+                        const due = ticketObj.dueDate ? dayjs(ticketObj.dueDate).endOf('day') : null;
+                        const isDateValid = !start || !due || (repDate.isAfter(start.subtract(1, 'day')) && repDate.isBefore(due.add(1, 'day')));
+                        
+                        if (isDateValid) return null;
+
+                        const hasDatePermission = myTimerRequests.some(r => 
+                          String(r.request?.ticketId) === String(ticketObj.id) && 
+                          r.request?.requestType === 'DateRangeExtension' && 
+                          (r.request?.status === 'Approved' || r.request?.status === 'AccountsApproved')
+                        );
+
+                        if (hasDatePermission) {
+                          return (
+                            <div style={{ color: '#10b981', fontSize: '11px', marginTop: 4, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <CheckCircleOutlined />
+                              <span>Permission Approved: Date range extension unlocked by TL & PM.</span>
+                            </div>
+                          );
+                        }
+
+                        const pendingRequest = myTimerRequests.find(r => 
+                          String(r.request?.ticketId) === String(ticketObj.id) && 
+                          r.request?.requestType === 'DateRangeExtension' && 
+                          (r.request?.status === 'PendingTL' || r.request?.status === 'PendingPM')
+                        );
+
+                        if (pendingRequest) {
+                          return (
+                            <div style={{ color: '#eab308', fontSize: '11px', marginTop: 4, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <ClockCircleOutlined />
+                              <span>Date Extension request is pending approval from Team Leader / PM.</span>
+                            </div>
+                          );
+                        }
+
+                        const rejectedRequest = myTimerRequests.find(r => 
+                          String(r.request?.ticketId) === String(ticketObj.id) && 
+                          r.request?.requestType === 'DateRangeExtension' && 
+                          r.request?.status === 'Rejected'
+                        );
+
+                        return (
+                          <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 4, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span>⚠️ Date Blocked: Selected date is outside valid ticket schedule ({start ? start.format('DD MMM YYYY') : ''} to {due ? due.format('DD MMM YYYY') : ''}).</span>
+                            {rejectedRequest ? (
+                              <>
+                                <span>(Previous request rejected)</span>
+                                <Button 
+                                  type="primary" 
+                                  danger
+                                  size="small" 
+                                  style={{ fontSize: '10px', height: '22px', padding: '0 8px', borderRadius: 4 }}
+                                  onClick={() => handleOpenRequestModal('DateRangeExtension', ticketObj)}
+                                >
+                                  Re-request Permission
+                                </Button>
+                              </>
+                            ) : (
+                              <Button 
+                                type="primary" 
+                                size="small" 
+                                style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: '10px', height: '22px', padding: '0 8px', borderRadius: 4 }}
+                                onClick={() => handleOpenRequestModal('DateRangeExtension', ticketObj)}
+                              >
+                                Request Permission
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Description */}
                       <Controller control={control} name={`items.${index}.workDone`} render={({ field: f }) => (
@@ -1439,7 +1550,11 @@ const EODReportPage = () => {
         <Form form={requestForm} layout="vertical" onFinish={handleRequestSubmit} style={{ marginTop: 16 }}>
           <Form.Item name="ticketId" hidden><Input /></Form.Item>
           <Form.Item name="requestType" label="Request Type" rules={[{ required: true }]}>
-            <Select options={[{ value: 'TimerMissed', label: 'Timer Missed' }, { value: 'ExceededLimit', label: 'Hours Exceeded' }]} />
+            <Select options={[
+              { value: 'TimerMissed', label: 'Timer Missed' }, 
+              { value: 'ExceededLimit', label: 'Hours Exceeded' },
+              { value: 'DateRangeExtension', label: 'Date Range Extension' }
+            ]} />
           </Form.Item>
           {!['TeamLead', 'ProjectManager', 'TenantAdmin'].includes(role) && (
             <Form.Item name="teamLeadId" label="Team Lead" rules={[{ required: true }]}>
@@ -1449,7 +1564,23 @@ const EODReportPage = () => {
               />
             </Form.Item>
           )}
-          <Form.Item name="requestedHours" label="Requested Hours" rules={[{ required: true }]}><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.requestType !== curr.requestType}>
+            {({ getFieldValue }) => {
+              const rType = getFieldValue('requestType');
+              if (rType === 'DateRangeExtension') {
+                return (
+                  <Form.Item name="requestedHours" label="Requested Hours (Can be 0 for date extension only)" rules={[{ required: true }]}>
+                    <InputNumber min={0} style={{ width: '100%' }} />
+                  </Form.Item>
+                );
+              }
+              return (
+                <Form.Item name="requestedHours" label="Requested Hours" rules={[{ required: true }]}>
+                  <InputNumber min={0} style={{ width: '100%' }} />
+                </Form.Item>
+              );
+            }}
+          </Form.Item>
           <Form.Item name="reason" label="Reason" rules={[{ required: true }]}><TextArea rows={3} /></Form.Item>
           <Button type="primary" htmlType="submit" loading={requesting} block>Submit Request</Button>
         </Form>
