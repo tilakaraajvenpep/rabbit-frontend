@@ -14,6 +14,7 @@ const HRTeamPage = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
   const { isDarkMode } = useThemeStore();
@@ -131,11 +132,15 @@ const HRTeamPage = () => {
     }
   };
 
-  const filteredUsers = users.filter(u => 
-    u.name?.toLowerCase().includes(searchText.toLowerCase()) ||
-    u.fullName?.toLowerCase().includes(searchText.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchText.toLowerCase())
-  );
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = u.name?.toLowerCase().includes(searchText.toLowerCase()) ||
+                          u.fullName?.toLowerCase().includes(searchText.toLowerCase()) ||
+                          u.email?.toLowerCase().includes(searchText.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || 
+                          (statusFilter === 'active' && u.isActive !== false) ||
+                          (statusFilter === 'inactive' && u.isActive === false);
+    return matchesSearch && matchesStatus;
+  });
 
   const columns = [
     {
@@ -218,20 +223,6 @@ const HRTeamPage = () => {
           unCheckedChildren="Inactive"
         />
       )
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <Button 
-          type="link" 
-          danger 
-          icon={<DeleteOutlined />} 
-          onClick={() => handleDeleteUser(record)}
-        >
-          Delete
-        </Button>
-      )
     }
   ];
 
@@ -304,7 +295,17 @@ const HRTeamPage = () => {
             border: isDarkMode ? '1px solid #3f3f46' : '1px solid #e8e8e8'
           }}
         >
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+            <Select 
+              value={statusFilter} 
+              onChange={setStatusFilter} 
+              style={{ width: 160 }}
+              options={[
+                { label: 'All Statuses', value: 'all' },
+                { label: 'Active Only', value: 'active' },
+                { label: 'Inactive Only', value: 'inactive' },
+              ]}
+            />
             <Input
               placeholder="Search by name or email..."
               prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
