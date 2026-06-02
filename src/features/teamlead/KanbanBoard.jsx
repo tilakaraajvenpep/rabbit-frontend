@@ -209,7 +209,18 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
                 fontWeight: 600
               }}
             >
-              {ticket.estimatedHours || 0}h
+              {(() => {
+                const totalHours = Number(ticket.estimatedHours) || 0;
+                const h = Math.floor(totalHours);
+                const m = Math.round((totalHours - h) * 60);
+                if (h > 0 && m > 0) {
+                  return `${h}h ${m}m`;
+                } else if (m > 0) {
+                  return `${m}m`;
+                } else {
+                  return `${h}h`;
+                }
+              })()}
             </Tag>
             {ticket.dueDate && (
               <Tag 
