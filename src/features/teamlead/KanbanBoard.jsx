@@ -1437,11 +1437,6 @@ const KanbanBoard = () => {
         destroyOnClose
       >
         <Form form={editForm} layout="vertical" style={{ marginTop: 12 }}>
-          {pmName && (
-            <Form.Item label="Project Manager" style={{ marginBottom: 16 }}>
-              <Input value={pmName} disabled style={{ color: '#333', fontWeight: 600, backgroundColor: '#f5f5f5' }} />
-            </Form.Item>
-          )}
           <Form.Item name="title" label="Title" rules={[{ required: true, message: 'Title is required' }]}>
             <Input placeholder="Ticket title" />
           </Form.Item>

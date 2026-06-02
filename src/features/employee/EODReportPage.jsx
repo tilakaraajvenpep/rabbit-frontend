@@ -1244,6 +1244,49 @@ const EODReportPage = () => {
                                   )} />
                                   <span style={{ fontSize: 12, color: t2, fontWeight: 600 }}>mins</span>
                                 </div>
+                                {(() => {
+                                  if (!item.ticketId) return null;
+                                  const enteredHrs = Number(item.hoursInput) || 0;
+                                  const enteredMins = Number(item.minutesInput) || 0;
+                                  
+                                  if (enteredHrs < 0 || enteredMins < 0) {
+                                    return (
+                                      <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 4, fontWeight: 'bold' }}>
+                                        ⚠️ Hours and minutes cannot be negative.
+                                      </div>
+                                    );
+                                  }
+                                  if (enteredMins >= 60) {
+                                    return (
+                                      <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 4, fontWeight: 'bold' }}>
+                                        ⚠️ Minutes must be less than 60.
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  const totalEnteredHours = enteredHrs + (enteredMins / 60);
+                                  const allottedHours = getAllottedHoursForTicket(item.ticketId);
+                                  if (totalEnteredHours > allottedHours) {
+                                    const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                                    return (
+                                      <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 6, fontWeight: 'bold', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        <span>⚠️ Entered hours ({fmtH(totalEnteredHours)}) exceeds allotted ({fmtH(allottedHours)}).</span>
+                                        {!viewOnly && (
+                                          <Button 
+                                            type="primary" 
+                                            size="small" 
+                                            danger 
+                                            style={{ fontSize: '10px', height: '22px', padding: '0 8px', borderRadius: 4, alignSelf: 'flex-start', marginTop: 2 }}
+                                            onClick={() => handleOpenRequestModal('ExceededLimit', ticketObj)}
+                                          >
+                                            Request Hours
+                                          </Button>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </Col>
                             </Row>
 

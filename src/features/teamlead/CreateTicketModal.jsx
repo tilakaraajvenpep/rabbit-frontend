@@ -151,11 +151,6 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
       width={640}
     >
       <Form layout="vertical">
-        {pmName && (
-          <Form.Item label="Project Manager" style={{ marginBottom: 16 }}>
-            <Input value={pmName} disabled style={{ color: '#333', fontWeight: 600, backgroundColor: '#f5f5f5' }} />
-          </Form.Item>
-        )}
         <Form.Item label="Ticket Title" required validateStatus={errors.title ? 'error' : ''} help={errors.title?.message}>
           <Controller
             name="title"
