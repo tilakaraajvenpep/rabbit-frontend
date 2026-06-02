@@ -248,11 +248,11 @@ const AnalyticsPage = () => {
                 onClick={() => setScrumDate(prev => prev.subtract(1, 'week'))}
               />
               <DatePicker 
-                picker="week"
                 value={scrumDate} 
                 onChange={(date) => date && setScrumDate(date)} 
                 allowClear={false}
                 style={{ width: 180 }}
+                format="DD MMM YYYY"
               />
               <Button 
                 icon={<RightOutlined />} 
