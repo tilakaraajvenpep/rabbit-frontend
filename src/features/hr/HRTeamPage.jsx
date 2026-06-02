@@ -377,12 +377,7 @@ const HRTeamPage = () => {
               background: isDarkMode ? '#1f2937' : '#ffffff'
             }}
           >
-            <Statistic 
-              title={<span style={{ fontWeight: 600, fontSize: '14px', color: '#8c8c8c' }}>Pending DOJ</span>}
-              value={missingDOJ} 
-              prefix={<CalendarOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />} 
-              valueStyle={{ fontWeight: 700, fontSize: '24px', color: missingDOJ > 0 ? '#ff4d4f' : '#52c41a' }}
-            />
+
           </Card>
         </Col>
       </Row>
