@@ -317,6 +317,20 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
             )}
           </div>
         )}
+
+        {ticket.status === 'Done' && (
+          <div style={{ marginTop: 10 }}>
+            {ticket.approvedForInProgress ? (
+              <Tag color="success" style={{ fontWeight: 600, fontSize: 11, width: '100%', textAlign: 'center', margin: 0, padding: '4px' }}>
+                ✓ Approved for In Progress
+              </Tag>
+            ) : (
+              <Tag color="warning" style={{ fontWeight: 600, fontSize: 11, width: '100%', textAlign: 'center', margin: 0, padding: '4px' }}>
+                🔒 PM Approval Required to Re-Open
+              </Tag>
+            )}
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -607,6 +621,15 @@ const KanbanBoard = () => {
     if (fromCol && toCol && fromCol !== toCol) {
       const ticket = allTickets.find(t => t.id === ticketId);
 
+      if (fromCol === 'Done' && toCol === 'InProgress') {
+        const userRole = authRole || authUser?.role;
+        if (userRole === 'Employee' || userRole === 'TeamLead') {
+          if (ticket && !ticket.approvedForInProgress) {
+            message.error('Approval from Project Manager is required to move this ticket back to In Progress.');
+            return;
+          }
+        }
+      }
 
       // Optimistic update
       setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: toCol } : t));
@@ -1330,6 +1353,27 @@ const KanbanBoard = () => {
                   block
                 >
                   {selectedTicket.approvedForDone ? 'Revoke Done Approval' : 'Approve for Done Stage'}
+                </Button>
+              </Space>
+            )}
+
+            {isManager && selectedTicket.status === 'Done' && (
+              <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
+                <Text strong>PM In-Progress Approval</Text>
+                <Button 
+                  type={selectedTicket.approvedForInProgress ? 'default' : 'primary'}
+                  danger={selectedTicket.approvedForInProgress}
+                  icon={selectedTicket.approvedForInProgress ? <LockOutlined /> : <CheckCircleOutlined />}
+                  onClick={async () => {
+                    const newApproved = !selectedTicket.approvedForInProgress;
+                    await ticketService.updateTicket(selectedTicket.id || selectedTicket.ticketId, { approvedForInProgress: newApproved });
+                    message.success(newApproved ? 'Ticket approved for In Progress stage!' : 'Ticket approval revoked.');
+                    loadTickets(projectId);
+                    setSelectedTicket(prev => prev ? { ...prev, approvedForInProgress: !prev.approvedForInProgress } : null);
+                  }}
+                  block
+                >
+                  {selectedTicket.approvedForInProgress ? 'Revoke In-Progress Approval' : 'Approve for In Progress Stage'}
                 </Button>
               </Space>
             )}

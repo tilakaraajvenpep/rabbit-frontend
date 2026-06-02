@@ -123,6 +123,18 @@ const EmployeeKanbanPage = () => {
       }
     }
 
+    if (ticket && ticket.status === 'Done' && newStatus === 'InProgress') {
+      if (currentUser.role === 'Employee' || currentUser.role === 'TeamLead') {
+        if (!ticket.approvedForInProgress) {
+          notification.error({
+            message: 'Action Blocked',
+            description: 'Approval from Project Manager is required to move this ticket back to In Progress.'
+          });
+          return;
+        }
+      }
+    }
+
 
 
     try {
@@ -382,6 +394,19 @@ const EmployeeKanbanPage = () => {
                                       ) : (
                                         <Tag color="warning" style={{ fontWeight: 600, fontSize: 11 }}>
                                           ⚠ Awaiting TL Approval
+                                        </Tag>
+                                      )}
+                                    </div>
+                                  )}
+                                  {ticket.status === 'Done' && (
+                                    <div style={{ marginTop: 4 }}>
+                                      {ticket.approvedForInProgress ? (
+                                        <Tag color="success" style={{ fontWeight: 600, fontSize: 11 }}>
+                                          ✓ Approved for In Progress
+                                        </Tag>
+                                      ) : (
+                                        <Tag color="warning" style={{ fontWeight: 600, fontSize: 11 }}>
+                                          🔒 PM Approval Required to Re-Open
                                         </Tag>
                                       )}
                                     </div>
