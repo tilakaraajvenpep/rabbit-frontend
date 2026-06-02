@@ -100,9 +100,9 @@ const HRTaskTrackingPage = () => {
         let totalMinutes = 0;
         if (reportForDate.items) {
           reportForDate.items.forEach(item => {
-            const hrs = Number(item.hoursInput) || 0;
-            const mins = Number(item.minutesInput) || 0;
-            totalMinutes += (hrs * 60) + mins;
+            const decimalHrs = Number(item.hoursSpent || item.hours || item.hoursInput || 0);
+            const minsVal = Number(item.minutesInput || 0);
+            totalMinutes += Math.round(decimalHrs * 60) + minsVal;
           });
         }
         if (totalMinutes < 510) {
