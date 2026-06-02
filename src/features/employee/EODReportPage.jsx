@@ -727,9 +727,20 @@ const EODReportPage = () => {
       if (ticket) {
         const allottedHours = getAllottedHoursForTicket(item.ticketId);
         if (item.hours > allottedHours) {
-          notification.error({
-            message: 'Validation Error',
-            description: `Hours logged for "${ticket.code || '#' + ticket.id} — ${ticket.title || ticket.ticketTitle}" (${fmtH(item.hours)}) exceeds the allotted hours (${fmtH(allottedHours)}). You cannot report beyond the allotted hours.`
+          Modal.confirm({
+            title: 'Validation Error',
+            content: (
+              <div>
+                <p>Hours logged for <strong>"{ticket.code || '#' + ticket.id} — {ticket.title || ticket.ticketTitle}"</strong> ({fmtH(item.hours)}) exceeds the allotted hours ({fmtH(allottedHours)}).</p>
+                <p style={{ fontWeight: 600, color: '#ff4d4f', marginTop: 10 }}>You cannot report beyond the allotted hours. Please raise a ticket for additional hours.</p>
+              </div>
+            ),
+            okText: 'Raise Ticket',
+            cancelText: 'Cancel',
+            okButtonProps: { style: { background: accent, borderColor: accent } },
+            onOk: () => {
+              handleOpenRequestModal('ExceededLimit', ticket);
+            }
           });
           return;
         }
