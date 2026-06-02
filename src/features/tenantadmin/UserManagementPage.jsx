@@ -174,22 +174,6 @@ const UserManagementPage = () => {
             ))}
         </Select>
       )
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <Popconfirm
-          title="Delete User"
-          description="Are you sure you want to delete this user? This action cannot be undone."
-          onConfirm={() => handleDeleteUser(record.id)}
-          okText="Yes"
-          cancelText="No"
-          okButtonProps={{ danger: true }}
-        >
-          <Button type="text" danger icon={<DeleteOutlined />} />
-        </Popconfirm>
-      )
     }
   ];
 

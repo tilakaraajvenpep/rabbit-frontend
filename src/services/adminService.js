@@ -7,29 +7,62 @@ const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
 export const adminService = {
   getUsers: async () => {
+    const authState = useAuthStore.getState();
+    const isPM = authState.role === 'ProjectManager';
+    const pmId = authState.user?.id || authState.user?.userId;
+
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 800));
       const { tenantCode } = useAuthStore.getState();
       const filtered = mockUsers.filter(u => u.tenantCode === tenantCode);
-      const mapped = filtered.map(u => ({
+      let mapped = filtered.map(u => ({
         ...u,
         id: u.id,
         name: u.name || u.fullName,
         fullName: u.fullName || u.name
       }));
+      if (isPM && pmId) {
+        const associatedTLs = mapped.filter(u => u.role === 'TeamLead' && String(u.projectManagerId) === String(pmId));
+        const associatedTLIds = new Set(associatedTLs.map(tl => String(tl.id)));
+        mapped = mapped.filter(u => 
+          String(u.id) === String(pmId) ||
+          (u.role === 'TeamLead' && String(u.projectManagerId) === String(pmId)) ||
+          (u.role === 'Employee' && (
+            String(u.projectManagerId) === String(pmId) ||
+            (u.teamLeadId && associatedTLIds.has(String(u.teamLeadId)))
+          ))
+        );
+      }
       return { data: mapped };
     }
     const response = await apiClient.get('/users');
-    const mapped = response.data.data.map(u => ({
+    let mapped = response.data.data.map(u => ({
       ...u,
       id: u.id || u.userId,
       name: u.name || u.fullName,
       fullName: u.fullName || u.name
     }));
+    if (isPM && pmId) {
+      const associatedTLs = mapped.filter(u => u.role === 'TeamLead' && String(u.projectManagerId) === String(pmId));
+      const associatedTLIds = new Set(associatedTLs.map(tl => String(tl.id)));
+      mapped = mapped.filter(u => 
+        String(u.id) === String(pmId) ||
+        (u.role === 'TeamLead' && String(u.projectManagerId) === String(pmId)) ||
+        (u.role === 'Employee' && (
+          String(u.projectManagerId) === String(pmId) ||
+          (u.teamLeadId && associatedTLIds.has(String(u.teamLeadId)))
+        ))
+      );
+    }
     return { data: mapped };
   },
 
   inviteUser: async (data) => {
+    const authState = useAuthStore.getState();
+    const isPM = authState.role === 'ProjectManager';
+    const pmId = authState.user?.id || authState.user?.userId;
+    const finalPMId = isPM ? pmId : data.projectManagerId;
+
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       const { tenantCode } = useAuthStore.getState();
@@ -41,7 +74,7 @@ export const adminService = {
         role: data.role,
         costPerHour: data.costPerHour || 0,
         teamLeadId: data.teamLeadId,
-        projectManagerId: data.projectManagerId,
+        projectManagerId: finalPMId,
         tenantCode: tenantCode,
         status: 'Active',
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.email}`
@@ -57,7 +90,7 @@ export const adminService = {
       role: data.role,
       costPerHour: data.costPerHour,
       teamLeadId: data.teamLeadId,
-      projectManagerId: data.projectManagerId
+      projectManagerId: finalPMId
     };
     return apiClient.post('/users', payload);
   },

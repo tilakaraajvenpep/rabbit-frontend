@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Select, DatePicker, Typography, Skeleton, Table, Space, Button, Divider, notification, Result, Tag, theme } from 'antd';
+import { Row, Col, Card, Select, DatePicker, Typography, Skeleton, Table, Space, Button, Divider, notification, Result, Tag, theme, Avatar } from 'antd';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, ReferenceLine
@@ -12,6 +12,7 @@ import { adminService } from '../../services/adminService';
 import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
 import dayjs from 'dayjs';
+import { UserOutlined, CalendarOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -24,6 +25,9 @@ const AnalyticsPage = () => {
   const [data, setData] = useState(null);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [scrumDate, setScrumDate] = useState(dayjs());
+  const [allTickets, setAllTickets] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
 
   const COLORS = ['#1890ff', '#52c41a', '#fa8c16', '#eb2f96'];
 
@@ -42,14 +46,18 @@ const AnalyticsPage = () => {
       ]);
       
       setProjects(projectsRes.data || []);
+      const ticketsList = ticketsRes.data || [];
+      const usersList = usersRes.data || [];
+      setAllTickets(ticketsList);
+      setAllUsers(usersList);
       
       const activeId = id || (projectsRes.data.length > 0 ? projectsRes.data[0].id : null);
       console.log('[Analytics] Using activeId:', activeId);
       
       if (activeId) {
         const activeProj = projectsRes.data.find(p => String(p.id) === String(activeId));
-        const allTickets = ticketsRes.data || [];
-        const allUsers = usersRes.data || [];
+        const allTickets = ticketsList;
+        const allUsers = usersList;
         
         // Filter tickets for this project
         const projectTickets = allTickets.filter(t => String(t.projectId) === String(activeId));
@@ -156,15 +164,143 @@ const AnalyticsPage = () => {
 
   const activeProject = projects.find(p => String(p.id) === String(id));
 
+  const scrumColumns = [
+    {
+      title: 'Name',
+      dataIndex: 'name',
+      key: 'name',
+      render: (text, record) => (
+        <Space>
+          <Avatar src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${record.email}`} icon={<UserOutlined />} />
+          <div>
+            <Text strong>{text || record.fullName}</Text>
+            <div style={{ fontSize: '12px', color: '#8c8c8c' }}>{record.email}</div>
+          </div>
+        </Space>
+      )
+    },
+    {
+      title: 'Role',
+      dataIndex: 'role',
+      key: 'role',
+      render: (role) => (
+        <Tag color={role === 'TeamLead' ? 'blue' : 'green'}>
+          {role === 'TeamLead' ? 'Team Lead' : 'Employee'}
+        </Tag>
+      )
+    },
+    {
+      title: 'Associated Team Lead',
+      key: 'teamLead',
+      render: (_, record) => {
+        if (record.role === 'TeamLead') return <Text type="secondary">N/A (Is Team Lead)</Text>;
+        const tl = allUsers.find(u => String(u.id) === String(record.teamLeadId));
+        return tl ? <Text strong>{tl.name || tl.fullName}</Text> : <Text type="secondary">None</Text>;
+      }
+    },
+    {
+      title: 'Associated PM',
+      key: 'pm',
+      render: (_, record) => {
+        const pm = allUsers.find(u => String(u.id) === String(record.projectManagerId));
+        return pm ? <Text strong>{pm.name || pm.fullName}</Text> : <Text type="secondary">None</Text>;
+      }
+    },
+    {
+      title: 'Tickets Assigned',
+      key: 'tickets',
+      render: (_, record) => {
+        const dateStr = scrumDate.format('YYYY-MM-DD');
+        const userTickets = allTickets.filter(t => {
+          const isDateMatch = t.dueDate && dayjs(t.dueDate).format('YYYY-MM-DD') === dateStr;
+          if (!isDateMatch) return false;
+          
+          if (String(t.assignedToUserId) === String(record.id)) return true;
+          
+          if (Array.isArray(t.assignedEmployees)) {
+            return t.assignedEmployees.some(emp => String(emp.userId) === String(record.id));
+          }
+          return false;
+        });
+
+        if (userTickets.length === 0) return <Text type="secondary">No tickets assigned</Text>;
+
+        return (
+          <Space wrap>
+            {userTickets.map(t => {
+              let hoursLabel = '';
+              if (Array.isArray(t.assignedEmployees)) {
+                const match = t.assignedEmployees.find(emp => String(emp.userId) === String(record.id));
+                if (match && match.hours) {
+                  hoursLabel = ` (${match.hours}h)`;
+                }
+              }
+              if (!hoursLabel && t.estimatedHours) {
+                hoursLabel = ` (${t.estimatedHours}h)`;
+              }
+
+              return (
+                <Tag key={t.id} color="purple" style={{ padding: '4px 8px', borderRadius: '4px' }}>
+                  <strong>{t.ticketCode}</strong>: {t.title}{hoursLabel}
+                </Tag>
+              );
+            })}
+          </Space>
+        );
+      }
+    }
+  ];
+
+  const renderScrumTable = () => {
+    const scrumData = allUsers.filter(u => u.role === 'Employee' || u.role === 'TeamLead');
+    
+    return (
+      <Card 
+        title={
+          <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <Space>
+              <CalendarOutlined style={{ color: '#4f46e5', fontSize: '18px' }} />
+              <span style={{ fontWeight: 600 }}>Scrum Master Dashboard</span>
+            </Space>
+            <Space align="center">
+              <span style={{ fontSize: '14px', color: token.colorTextSecondary }}>View by Date:</span>
+              <DatePicker 
+                value={scrumDate} 
+                onChange={(date) => date && setScrumDate(date)} 
+                allowClear={false}
+                style={{ width: 150 }}
+              />
+            </Space>
+          </Space>
+        }
+        style={{
+          borderRadius: 12,
+          boxShadow: isDarkMode ? 'none' : '0 4px 20px rgba(0,0,0,0.04)',
+          border: isDarkMode ? '1px solid #3f3f46' : '1px solid #e8e8e8',
+          marginTop: 24
+        }}
+      >
+        <Table 
+          columns={scrumColumns}
+          dataSource={scrumData}
+          rowKey="id"
+          pagination={{ pageSize: 10 }}
+          locale={{ emptyText: 'No employees or team leads found.' }}
+        />
+      </Card>
+    );
+  };
+
   if (!id) {
     return (
       <div style={{ paddingBottom: 40 }}>
         <PageHeader title="Project Analytics" />
         <Card style={{ 
           textAlign: 'center', 
-          padding: '100px 0', 
+          padding: '40px 0', 
           background: isDarkMode ? 'rgba(255, 255, 255, 0.02)' : '#fafafa', 
-          border: `2px dashed ${isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#d9d9d9'}` 
+          border: `2px dashed ${isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#d9d9d9'}`,
+          marginBottom: 24
         }}>
           <Title level={3} type="secondary">Welcome to Analytics</Title>
           <Text type="secondary" style={{ fontSize: '16px', display: 'block', marginBottom: 24 }}>
@@ -181,6 +317,8 @@ const AnalyticsPage = () => {
             {projects.map(p => <Select.Option key={p.id} value={p.id}>{p.code} - {p.name}</Select.Option>)}
           </Select>
         </Card>
+
+        {renderScrumTable()}
       </div>
     );
   }
@@ -327,6 +465,11 @@ const AnalyticsPage = () => {
               ]}
             />
           </Card>
+        </Col>
+
+        {/* Scrum Master Dashboard */}
+        <Col span={24}>
+          {renderScrumTable()}
         </Col>
       </Row>
     </div>

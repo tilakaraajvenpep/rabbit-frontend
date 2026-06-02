@@ -17,14 +17,14 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
       description: '',
       priority: 'Medium',
       estimatedHours: 0,
-      assignedTo: '',
+      assignedTo: [],
       dueDate: null,
       milestone: ''
     }
   });
   
   const [users, setUsers] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const [assignedEmployees, setAssignedEmployees] = useState([]);
 
   React.useEffect(() => {
     fetchUsers();
@@ -35,27 +35,48 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
       const res = await adminService.getUsers();
       const allUsers = res.data || [];
       setUsers(allUsers);
-      setEmployees(allUsers.filter(u => u.role === 'Employee'));
     } catch (e) {
       console.error('Failed to fetch users');
     }
   };
 
+  const projectTLId = project?.assignedTeamLeadId;
+  let eligibleUsers = [];
+  if (authRole === 'ProjectManager' || authRole === 'TenantAdmin') {
+    eligibleUsers = users.filter(u => u.role === 'Employee' || u.role === 'TeamLead');
+  } else {
+    eligibleUsers = users.filter(u => {
+      if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
+      if (u.role === 'TeamLead' && u.id === projectTLId) return true;
+      if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
+      return false;
+    });
+  }
+
   const onSubmit = async (data) => {
     setLoading(true);
     try {
+      const missingHours = assignedEmployees.some(emp => !emp.hours || emp.hours <= 0);
+      if (missingHours) {
+        notification.error({ message: 'Validation Error', description: 'Please assign valid hours for all selected employees.' });
+        setLoading(false);
+        return;
+      }
+
       const formattedData = {
         title: data.title,
         description: data.description,
         priority: data.priority,
-        estimatedHours: 0,
-        assignedToUserId: data.assignedTo,
+        estimatedHours: assignedEmployees.reduce((sum, emp) => sum + emp.hours, 0),
+        assignedToUserId: assignedEmployees[0]?.userId || null,
+        assignedEmployees: assignedEmployees,
         dueDate: data.dueDate && dayjs(data.dueDate).isValid() ? dayjs(data.dueDate).toISOString() : null,
         milestone: data.milestone
       };
       await ticketService.createTicket(projectId, formattedData);
       notification.success({ message: 'Success', description: 'Ticket created successfully.' });
       reset();
+      setAssignedEmployees([]);
       onSuccess();
       onClose();
     } catch (error) {
@@ -110,42 +131,39 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
         </Form.Item>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Form.Item label="Assigned Employee" required>
+          <Form.Item label="Assigned Employees" required validateStatus={errors.assignedTo ? 'error' : ''} help={errors.assignedTo?.message}>
             <Controller
               name="assignedTo"
               control={control}
-              rules={{ required: 'Please assign an employee' }}
-              render={({ field }) => {
-                const projectTLId = project?.assignedTeamLeadId;
-                let eligibleUsers = [];
-                if (authRole === 'ProjectManager' || authRole === 'TenantAdmin') {
-                  const pmId = authUser?.userId || authUser?.id;
-                  const pmName = authUser?.fullName || authUser?.name || 'Project Manager';
-                  eligibleUsers = [{
-                    id: pmId,
-                    userId: pmId,
-                    name: pmName,
-                    fullName: pmName,
-                    role: authRole
-                  }];
-                } else {
-                  eligibleUsers = users.filter(u => {
-                    if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
-                    if (u.role === 'TeamLead' && u.id === projectTLId) return true;
-                    if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
-                    return false;
-                  });
-                }
-                return (
-                  <Select {...field} style={{ width: '100%' }} placeholder="Select employee">
-                    {eligibleUsers.map(u => (
-                      <Select.Option key={u.id} value={u.id}>
-                        {u.name || u.fullName}
-                      </Select.Option>
-                    ))}
-                  </Select>
-                );
-              }}
+              rules={{ required: 'Please assign at least one employee' }}
+              render={({ field }) => (
+                <Select 
+                  {...field} 
+                  mode="multiple"
+                  style={{ width: '100%' }} 
+                  placeholder="Select employees"
+                  onChange={(val) => {
+                    field.onChange(val);
+                    const newAssigned = val.map(id => {
+                      const existing = assignedEmployees.find(emp => String(emp.userId) === String(id));
+                      if (existing) return existing;
+                      const user = eligibleUsers.find(u => String(u.id) === String(id));
+                      return {
+                        userId: Number(id),
+                        name: user ? (user.name || user.fullName) : `Employee ${id}`,
+                        hours: 0
+                      };
+                    });
+                    setAssignedEmployees(newAssigned);
+                  }}
+                >
+                  {eligibleUsers.map(u => (
+                    <Select.Option key={u.id} value={u.id}>
+                      {u.name || u.fullName} ({u.role})
+                    </Select.Option>
+                  ))}
+                </Select>
+              )}
             />
           </Form.Item>
 
@@ -165,6 +183,30 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
             />
           </Form.Item>
         </div>
+
+        {assignedEmployees.length > 0 && (
+          <Form.Item label="Assign Hours per Employee" required style={{ border: '1px solid #f0f0f0', borderRadius: '8px', padding: '12px 16px', background: '#fafafa' }}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              {assignedEmployees.map((emp, index) => (
+                <div key={emp.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <Text strong>{emp.name}</Text>
+                  <InputNumber
+                    min={0.5}
+                    step={0.5}
+                    placeholder="Hours"
+                    value={emp.hours || undefined}
+                    onChange={(val) => {
+                      const updated = [...assignedEmployees];
+                      updated[index].hours = Number(val) || 0;
+                      setAssignedEmployees(updated);
+                    }}
+                    style={{ width: 120 }}
+                  />
+                </div>
+              ))}
+            </Space>
+          </Form.Item>
+        )}
 
         <Form.Item label="Milestone Tag">
           <Controller

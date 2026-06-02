@@ -64,6 +64,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/pm/board', icon: <CheckSquareOutlined />, label: 'Project Board' },
         { key: '/pm/kanban', icon: <DashboardOutlined />, label: 'My Kanban' },
         { key: '/pm/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
+        { key: '/pm/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/pm/report', icon: <FileTextOutlined />, label: 'Daily Report' },
         { key: '/pm/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
         { key: '/pm/alerts', icon: <BellOutlined />, label: 'Alerts Feed' },

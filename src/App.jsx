@@ -169,6 +169,7 @@ const App = () => {
                 <Route path="/pm/board" element={<KanbanBoard />} />
                 <Route path="/pm/kanban" element={<EmployeeKanbanPage />} />
                 <Route path="/pm/tickets" element={<MyTicketsPage />} />
+                <Route path="/pm/backlogs" element={<TicketBacklogsPage />} />
                 <Route path="/pm/report" element={<EODReportPage />} />
                 <Route path="/pm/projects/:id" element={<ProjectOverviewPage />} />
                 <Route path="/pm/projects/:id/kanban" element={<KanbanBoard />} />
