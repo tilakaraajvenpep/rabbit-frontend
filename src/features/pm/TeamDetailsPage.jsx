@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Table, Avatar, Badge, Spin, Typography, Space, notification } from 'antd';
+import { Card, Row, Col, Table, Avatar, Badge, Spin, Typography, Space, notification, Select } from 'antd';
 import { UserOutlined, TeamOutlined, DollarOutlined, MailOutlined } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
+import { useAuthStore } from '../../store/authStore';
 
 const { Title, Text } = Typography;
 
 const TeamDetailsPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
   const { isDarkMode } = useThemeStore();
+  const { currentUser, role } = useAuthStore();
 
   useEffect(() => {
     fetchUsers();
@@ -39,12 +42,25 @@ const TeamDetailsPage = () => {
     );
   }
 
-  // Filter Team Leads
-  const teamLeads = users.filter(u => u.role === 'TeamLead');
+  // Filter based on active status filter
+  const filteredUsers = users.filter(u => {
+    if (statusFilter === 'active') return u.isActive !== false;
+    if (statusFilter === 'inactive') return u.isActive === false;
+    return true;
+  });
+
+  // Filter Team Leads (If TeamLead is logged in, restrict to only themselves)
+  const teamLeads = filteredUsers.filter(u => {
+    const isTL = u.role === 'TeamLead';
+    if (role === 'TeamLead') {
+      return isTL && String(u.id || u.userId) === String(currentUser?.id || currentUser?.userId);
+    }
+    return isTL;
+  });
   
   // Filter Employees and PMs/Admins not in TL list
   const getEmployeesForTL = (tlId) => {
-    return users.filter(u => u.role === 'Employee' && String(u.teamLeadId) === String(tlId));
+    return filteredUsers.filter(u => u.role === 'Employee' && String(u.teamLeadId) === String(tlId));
   };
 
   const columns = [
@@ -96,8 +112,23 @@ const TeamDetailsPage = () => {
   return (
     <div>
       <PageHeader 
-        title="Team Lead & Employee Details" 
-        subTitle="View current organizational breakdown and rate cards."
+        title={role === 'TeamLead' ? "My Team Directory" : "Team Lead & Employee Details"} 
+        subTitle={role === 'TeamLead' ? "View employees working under your leadership." : "View current organizational breakdown and rate cards."}
+        extra={
+          <Space>
+            <span style={{ fontWeight: 600, color: isDarkMode ? '#e4e4e7' : '#3f3f46' }}>Status Filter:</span>
+            <Select 
+              value={statusFilter} 
+              onChange={setStatusFilter} 
+              style={{ width: 160 }}
+              options={[
+                { label: 'All Statuses', value: 'all' },
+                { label: 'Active Only', value: 'active' },
+                { label: 'Inactive Only', value: 'inactive' },
+              ]}
+            />
+          </Space>
+        }
       />
 
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -115,8 +146,11 @@ const TeamDetailsPage = () => {
                 <Space style={{ padding: '8px 0' }}>
                   <Avatar size="large" src={tl.avatar} icon={<UserOutlined />} style={{ border: '2px solid #1890ff' }} />
                   <div>
-                    <Title level={4} style={{ margin: 0 }}>{tl.name || tl.fullName}</Title>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>
+                    <Space>
+                      <Title level={4} style={{ margin: 0 }}>{tl.name || tl.fullName}</Title>
+                      <Badge status={tl.isActive !== false ? 'success' : 'error'} text={tl.isActive !== false ? 'Active' : 'Inactive'} />
+                    </Space>
+                    <Text type="secondary" style={{ display: 'block', fontSize: '13px' }}>
                       Team Lead | Cost per Hour: ₹ {Number(tl.costPerHour || 0).toLocaleString('en-IN')}/hr
                     </Text>
                   </div>
@@ -131,14 +165,14 @@ const TeamDetailsPage = () => {
                 columns={columns}
                 rowKey="id"
                 pagination={false}
-                locale={{ emptyText: 'No employee assigned to this Team Lead.' }}
+                locale={{ emptyText: 'No employees found matching the current status.' }}
               />
             </Card>
           );
         })}
 
         {/* Unassigned Employees section */}
-        {users.filter(u => u.role === 'Employee' && (!u.teamLeadId || !teamLeads.some(tl => String(tl.id) === String(u.teamLeadId)))).length > 0 && (
+        {role !== 'TeamLead' && filteredUsers.filter(u => u.role === 'Employee' && (!u.teamLeadId || !teamLeads.some(tl => String(tl.id) === String(u.teamLeadId)))).length > 0 && (
           <Card
             style={{
               borderRadius: 12,
@@ -159,25 +193,26 @@ const TeamDetailsPage = () => {
             }
             extra={
               <Badge 
-                count={`${users.filter(u => u.role === 'Employee' && (!u.teamLeadId || !teamLeads.some(tl => String(tl.id) === String(u.teamLeadId)))).length} Members`} 
+                count={`${filteredUsers.filter(u => u.role === 'Employee' && (!u.teamLeadId || !teamLeads.some(tl => String(tl.id) === String(u.teamLeadId)))).length} Members`} 
                 style={{ backgroundColor: '#64748b' }} 
               />
             }
           >
             <Table
-              dataSource={users.filter(u => u.role === 'Employee' && (!u.teamLeadId || !teamLeads.some(tl => String(tl.id) === String(u.teamLeadId))))}
+              dataSource={filteredUsers.filter(u => u.role === 'Employee' && (!u.teamLeadId || !teamLeads.some(tl => String(tl.id) === String(u.teamLeadId))))}
               columns={columns}
               rowKey="id"
               pagination={false}
+              locale={{ emptyText: 'No unassigned employees found matching the current status.' }}
             />
           </Card>
         )}
 
-        {teamLeads.length === 0 && users.filter(u => u.role === 'Employee').length === 0 && (
+        {teamLeads.length === 0 && filteredUsers.filter(u => u.role === 'Employee').length === 0 && (
           <Card style={{ textAlign: 'center', padding: '40px 0' }}>
             <TeamOutlined style={{ fontSize: '48px', color: '#bfbfbf', marginBottom: 16 }} />
-            <Title level={4} type="secondary">No Teams Found</Title>
-            <Text type="secondary">You can invite and assign users under the Users feature.</Text>
+            <Title level={4} type="secondary">No Team Members Found</Title>
+            <Text type="secondary">No team members match the current status filter criteria.</Text>
           </Card>
         )}
       </Space>

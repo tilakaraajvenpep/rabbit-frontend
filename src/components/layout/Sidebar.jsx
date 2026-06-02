@@ -66,6 +66,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/pm/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
         { key: '/pm/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/pm/report', icon: <FileTextOutlined />, label: 'Daily Report' },
+        { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },
         { key: '/pm/analytics', icon: <TeamOutlined />, label: 'Scrum Master' },
         { key: '/pm/alerts', icon: <BellOutlined />, label: 'Alerts Feed' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },
@@ -103,11 +104,13 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
     if (role === 'TeamLead') {
       items.push(
         { key: '/teamlead/projects', icon: <ProjectOutlined />, label: 'My Projects' },
+        { key: '/teamlead/team', icon: <TeamOutlined />, label: 'My Team' },
         { key: '/teamlead/board', icon: <DashboardOutlined />, label: 'Project Board' },
         { key: '/teamlead/kanban', icon: <DashboardOutlined />, label: 'My Kanban' },
         { key: '/teamlead/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
         { key: '/teamlead/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/teamlead/report', icon: <FileTextOutlined />, label: 'Daily Report' },
+        { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },
         { key: '/teamlead/scrum-master', icon: <TeamOutlined />, label: 'Scrum Master' },
         { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
@@ -125,6 +128,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/employee/kanban', icon: <DashboardOutlined />, label: 'Kanban Board' },
         { key: '/employee/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/employee/report', icon: <FileTextOutlined />, label: 'Daily Report' },
+        { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },
         { key: '/employee/reports', icon: <BarChartOutlined />, label: 'Work Reports' },
         { key: '/employee/scrum-master', icon: <TeamOutlined />, label: 'Scrum Master' }
       );
@@ -132,12 +136,13 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
 
     if (role === 'HR') {
       items.push(
+        { key: '/hr/board', icon: <CheckSquareOutlined />, label: 'Project Board' },
         { key: '/hr/team', icon: <TeamOutlined />, label: 'Team Details' },
         { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' },
         { key: '/hr/report-access-approvals', icon: <CalendarOutlined />, label: 'Report Access Approvals' },
         { key: '/hr/projects', icon: <ProjectOutlined />, label: 'Project Allocations' },
         { key: '/hr/allocate', icon: <ClockCircleOutlined />, label: 'Allocate Hours' },
-        { key: '/hr/task-tracking', icon: <ClockCircleOutlined />, label: 'Task Tracking' },
+        { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },
         { key: '/hr/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Approvals' },
         { key: '/hr/offboarding', icon: <UserDeleteOutlined />, label: 'Offboarding' }
       );

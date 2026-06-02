@@ -208,6 +208,7 @@ const App = () => {
               {/* TeamLead Routes */}
               <Route element={<ProtectedRoute allowedRoles={['TeamLead']} />}> 
                 <Route path="/teamlead/projects" element={<TeamLeadDashboardPage />} />
+                <Route path="/teamlead/team" element={<TeamDetailsPage />} />
                 <Route path="/teamlead/projects/:id" element={<ProjectDetailPage />} />
                 <Route path="/teamlead/projects/:id/kanban" element={<KanbanBoard />} />
                 <Route path="/teamlead/board" element={<KanbanBoard />} />
@@ -238,9 +239,10 @@ const App = () => {
 
               {/* HR Routes */}
               <Route element={<ProtectedRoute allowedRoles={['HR']} />}>
+                <Route path="/hr/board" element={<KanbanBoard />} />
+                <Route path="/hr/projects/:id/kanban" element={<KanbanBoard />} />
                 <Route path="/hr/team" element={<HRTeamPage />} />
                 <Route path="/hr/leaves" element={<HRApprovedLeavesPage />} />
-                <Route path="/hr/task-tracking" element={<HRTaskTrackingPage />} />
                 <Route path="/hr/offboarding" element={<HROffboardingPage />} />
                 <Route path="/hr/projects" element={<HRProjectsPage />} />
                 <Route path="/hr/allocate" element={<HRAllocateProjectHoursPage />} />
@@ -257,6 +259,7 @@ const App = () => {
               {/* All Auth Roles */}
               <Route element={<ProtectedRoute />}>
                 <Route path="/projects/:id/overview" element={<ProjectOverviewPage />} />
+                <Route path="/missing-tasks" element={<HRTaskTrackingPage />} />
                 <Route path="/chatbot" element={<ChatbotPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
               </Route>

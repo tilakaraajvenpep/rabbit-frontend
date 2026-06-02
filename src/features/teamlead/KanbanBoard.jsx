@@ -446,10 +446,10 @@ const KanbanBoard = () => {
 
   const isManager = authRole === 'ProjectManager' || authRole === 'TenantAdmin'
     || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
-  const canEdit = authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authRole === 'TeamLead'
-    || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin' || authUser?.role === 'TeamLead';
-  const isTLOrPM = authRole === 'TeamLead' || authRole === 'ProjectManager' || authRole === 'TenantAdmin'
-    || authUser?.role === 'TeamLead' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
+  const canEdit = authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authRole === 'TeamLead' || authRole === 'HR'
+    || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin' || authUser?.role === 'TeamLead' || authUser?.role === 'HR';
+  const isTLOrPM = authRole === 'TeamLead' || authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authRole === 'HR'
+    || authUser?.role === 'TeamLead' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin' || authUser?.role === 'HR';
   const project = allProjects.find(p => String(p.id) === String(projectId));
   const pmUser = users.find(u => String(u.id || u.userId) === String(project?.assignedProjectManagerId));
   const pmName = pmUser ? (pmUser.name || pmUser.fullName) : '';
