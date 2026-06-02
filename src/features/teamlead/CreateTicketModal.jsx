@@ -18,6 +18,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
       priority: 'Medium',
       estimatedHours: 0,
       assignedTo: [],
+      startDate: null,
       dueDate: null,
       milestone: ''
     }
@@ -121,6 +122,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
         estimatedHours: assignedEmployees.reduce((sum, emp) => sum + emp.hours, 0),
         assignedToUserId: assignedEmployees[0]?.userId || null,
         assignedEmployees: assignedEmployees,
+        startDate: data.startDate && dayjs(data.startDate).isValid() ? dayjs(data.startDate).toISOString() : null,
         dueDate: data.dueDate && dayjs(data.dueDate).isValid() ? dayjs(data.dueDate).toISOString() : null,
         milestone: data.milestone
       };
@@ -186,7 +188,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
           />
         </Form.Item>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
           <Form.Item label="Assigned Employees" required validateStatus={errors.assignedTo ? 'error' : ''} help={errors.assignedTo?.message}>
             <Controller
               name="assignedTo"
@@ -225,7 +227,23 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
             />
           </Form.Item>
 
-          <Form.Item label="Due Date" required>
+          <Form.Item label="Start Date" required validateStatus={errors.startDate ? 'error' : ''} help={errors.startDate?.message}>
+            <Controller
+              name="startDate"
+              control={control}
+              rules={{ required: 'Start date is required' }}
+              render={({ field }) => (
+                <DatePicker 
+                  {...field} 
+                  format={['DD/MM/YYYY', 'DD/MM/YY', 'YYYY-MM-DD']} 
+                  placeholder="DD/MM/YYYY" 
+                  style={{ width: '100%' }} 
+                />
+              )}
+            />
+          </Form.Item>
+
+          <Form.Item label="Due Date" required validateStatus={errors.dueDate ? 'error' : ''} help={errors.dueDate?.message}>
             <Controller
               name="dueDate"
               control={control}

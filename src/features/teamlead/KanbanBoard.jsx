@@ -222,6 +222,23 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
                 }
               })()}
             </Tag>
+            {ticket.startDate && (
+              <Tag 
+                style={{ 
+                  fontSize: '10px', 
+                  borderRadius: 4, 
+                  margin: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                <CalendarOutlined style={{ color: '#8c8c8c' }} />
+                <span style={{ color: '#64748b', fontWeight: 500 }}>
+                  Start: {dayjs(ticket.startDate).format('DD MMM')}
+                </span>
+              </Tag>
+            )}
             {ticket.dueDate && (
               <Tag 
                 color={isOverdue ? 'red' : 'default'} 
@@ -236,7 +253,7 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
               >
                 <CalendarOutlined style={{ color: isOverdue ? '#ef4444' : '#8c8c8c' }} />
                 <span style={{ color: isOverdue ? '#ef4444' : '#64748b', fontWeight: 500 }}>
-                  {dayjs(ticket.dueDate).format('DD MMM')}
+                  Due: {dayjs(ticket.dueDate).format('DD MMM')}
                 </span>
               </Tag>
             )}
@@ -708,6 +725,7 @@ const KanbanBoard = () => {
       title: ticket.title,
       description: ticket.description,
       priority: ticket.priority,
+      startDate: ticket.startDate ? dayjs(ticket.startDate) : null,
       dueDate: ticket.dueDate ? dayjs(ticket.dueDate) : null,
       assignedTo: existingEmployees.map(emp => emp.userId),
     });
@@ -756,6 +774,7 @@ const KanbanBoard = () => {
         estimatedHours: editAssignedEmployees.reduce((sum, emp) => sum + emp.hours, 0),
         assignedToUserId: editAssignedEmployees[0]?.userId || null,
         assignedEmployees: editAssignedEmployees,
+        startDate: values.startDate ? values.startDate.toISOString() : null,
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
       });
       message.success('Ticket updated successfully!');
@@ -1141,6 +1160,16 @@ const KanbanBoard = () => {
               </Space>
             </Space>
 
+             <Space direction="vertical">
+              <Text strong>Start Date</Text>
+              <Text>
+                {selectedTicket.startDate 
+                  ? dayjs(selectedTicket.startDate).format('DD MMM YYYY') 
+                  : 'No Start Date'
+                }
+              </Text>
+            </Space>
+
             <Space direction="vertical">
               <Text strong>Due Date</Text>
               <Text>
@@ -1259,7 +1288,10 @@ const KanbanBoard = () => {
           </Form.Item>
 
           <div style={{ display: 'flex', gap: 16 }}>
-            <Form.Item name="dueDate" label="Due Date" style={{ flex: 1 }}>
+            <Form.Item name="startDate" label="Start Date" rules={[{ required: true, message: 'Start date is required' }]} style={{ flex: 1 }}>
+              <DatePicker style={{ width: '100%' }} format="DD MMM YYYY" />
+            </Form.Item>
+            <Form.Item name="dueDate" label="Due Date" rules={[{ required: true, message: 'Due date is required' }]} style={{ flex: 1 }}>
               <DatePicker style={{ width: '100%' }} format="DD MMM YYYY" />
             </Form.Item>
           </div>

@@ -136,6 +136,7 @@ const CrossTeamSharePage = () => {
         description: fullDescription,
         priority: values.priority || 'Medium',
         estimatedHours: 0,
+        startDate: values.startDate ? values.startDate.toISOString() : null,
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
         assignedToUserId: selectedEmployee.id || selectedEmployee.userId,
         milestone: values.milestone || 'Cross-Team Sharing'
@@ -399,9 +400,14 @@ const CrossTeamSharePage = () => {
               <Input.TextArea rows={4} placeholder="Please detail the precise tasks this employee will help you complete..." />
             </Form.Item>
 
-            <Form.Item name="dueDate" label="Due Date">
-              <DatePicker style={{ width: '100%' }} suffixIcon={<CalendarOutlined />} />
-            </Form.Item>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <Form.Item name="startDate" label="Start Date" rules={[{ required: true, message: 'Start date is required' }]} style={{ flex: 1 }}>
+                <DatePicker style={{ width: '100%' }} suffixIcon={<CalendarOutlined />} />
+              </Form.Item>
+              <Form.Item name="dueDate" label="Due Date" rules={[{ required: true, message: 'Due date is required' }]} style={{ flex: 1 }}>
+                <DatePicker style={{ width: '100%' }} suffixIcon={<CalendarOutlined />} />
+              </Form.Item>
+            </div>
 
             <Form.Item name="priority" label="Priority" initialValue="Medium">
               <Select>
