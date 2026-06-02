@@ -396,6 +396,11 @@ const KanbanBoard = () => {
   const { isDarkMode } = useThemeStore();
   const { currentUser: authUser, role: authRole } = useAuthStore();
 
+  const border = isDarkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)';
+  const accent = token.colorPrimary;
+  const t1 = isDarkMode ? '#f1f5f9' : '#0f172a';
+  const t2 = isDarkMode ? '#94a3b8' : '#64748b';
+
   const [allProjects, setAllProjects] = useState([]);
   const [allTickets, setAllTickets] = useState([]);  // local ticket state — drives board rendering
   const [selectedAssigneeId, setSelectedAssigneeId] = useState('all');
