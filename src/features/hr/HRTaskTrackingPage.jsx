@@ -113,12 +113,17 @@ const HRTaskTrackingPage = () => {
 
     const isMissing = unreportedDates.length > 0 || shortLoggedDates.length > 0;
     
-    // Find Team Leader Name (if Employee)
+    // Find Team Leader Name (if Employee) or Project Manager Name (if Team Lead)
     let teamLeaderName = 'N/A';
     if (user.role === 'Employee' && user.teamLeadId) {
       const tl = users.find(u => String(u.id || u.userId) === String(user.teamLeadId));
       if (tl) {
         teamLeaderName = tl.name || tl.fullName || 'Unassigned';
+      }
+    } else if (user.role === 'TeamLead' && user.projectManagerId) {
+      const pm = users.find(u => String(u.id || u.userId) === String(user.projectManagerId));
+      if (pm) {
+        teamLeaderName = pm.name || pm.fullName || 'Unassigned';
       }
     }
 
@@ -175,7 +180,7 @@ const HRTaskTrackingPage = () => {
       key: 'teamLeaderName',
       width: 180,
       render: (tlName, record) => {
-        if (record.role !== 'Employee') {
+        if (record.role !== 'Employee' && record.role !== 'TeamLead') {
           return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>N/A (Management)</span>;
         }
         return <Text strong>{tlName}</Text>;
