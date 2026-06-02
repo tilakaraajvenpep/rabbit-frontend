@@ -402,6 +402,14 @@ const KanbanBoard = () => {
     return allTickets.reduce((sum, t) => sum + (Number(t.estimatedHours) || 0), 0);
   }, [allTickets]);
 
+  const otherTicketsHours = useMemo(() => {
+    if (!editingTicket) return 0;
+    const editingId = editingTicket.id || editingTicket.ticketId;
+    return allTickets
+      .filter(t => (t.id || t.ticketId) !== editingId)
+      .reduce((sum, t) => sum + (Number(t.estimatedHours) || 0), 0);
+  }, [allTickets, editingTicket]);
+
   const isHoursExceeded = useMemo(() => {
     if (!projectId || !project) return false;
     return totalTicketHours > Number(project.totalHours || project.approvedHours || 0);
@@ -681,8 +689,20 @@ const KanbanBoard = () => {
 
       const totalEditHours = editAssignedEmployees.reduce((sum, emp) => sum + emp.hours, 0);
       const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
-      if (totalEditHours > projectTotalHours) {
-        message.error(`Total assigned hours (${totalEditHours}h) must be less than the total hours allotted to the project (${projectTotalHours}h).`);
+      if (otherTicketsHours + totalEditHours > projectTotalHours) {
+        Modal.error({
+          title: 'Project Hours Limit Exceeded',
+          content: (
+            <div>
+              <p>The total estimated hours across all tickets would exceed the project's allotted limit.</p>
+              <p>Other ticket hours on board: <strong>{otherTicketsHours}h</strong></p>
+              <p>This ticket hours: <strong>{totalEditHours}h</strong></p>
+              <p>Project allotted limit: <strong>{projectTotalHours}h</strong></p>
+              <p>Please request additional hours before assigning more tasks.</p>
+            </div>
+          ),
+          okText: 'Close'
+        });
         return;
       }
 
@@ -1045,6 +1065,7 @@ const KanbanBoard = () => {
         onClose={() => setIsModalOpen(false)} 
         projectId={projectId} 
         project={project}
+        allTickets={allTickets}
         onSuccess={() => loadTickets(projectId)} 
       />
 
@@ -1192,9 +1213,23 @@ const KanbanBoard = () => {
                       value={emp.hours || undefined}
                       onChange={(val) => {
                         const numVal = Number(val) || 0;
+                        const otherEmployeesHours = editAssignedEmployees.filter((_, idx) => idx !== index).reduce((sum, emp) => sum + emp.hours, 0);
+                        const currentTicketTotal = otherEmployeesHours + numVal;
                         const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
-                        if (numVal > projectTotalHours) {
-                          message.error(`Assigned hours (${numVal}h) must be less than the total hours allotted to the project (${projectTotalHours}h).`);
+                        if (otherTicketsHours + currentTicketTotal > projectTotalHours) {
+                          Modal.error({
+                            title: 'Project Hours Limit Exceeded',
+                            content: (
+                              <div>
+                                <p>The total estimated hours across all tickets would exceed the project's allotted limit.</p>
+                                <p>Other ticket hours on board: <strong>{otherTicketsHours}h</strong></p>
+                                <p>This ticket hours: <strong>{currentTicketTotal}h</strong></p>
+                                <p>Project allotted limit: <strong>{projectTotalHours}h</strong></p>
+                                <p>Please request additional hours before assigning more tasks.</p>
+                              </div>
+                            ),
+                            okText: 'Close'
+                          });
                           const updated = [...editAssignedEmployees];
                           updated[index].hours = 0;
                           setEditAssignedEmployees(updated);

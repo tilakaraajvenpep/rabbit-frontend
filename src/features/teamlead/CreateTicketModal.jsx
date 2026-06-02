@@ -8,7 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 
 const { TextArea } = Input;
 
-const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => {
+const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [], onSuccess }) => {
   const { currentUser: authUser, role: authRole } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
@@ -81,11 +81,21 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
       }
 
       const totalTicketHours = assignedEmployees.reduce((sum, emp) => sum + emp.hours, 0);
+      const existingTicketsHours = allTickets.reduce((sum, t) => sum + (Number(t.estimatedHours) || 0), 0);
       const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
-      if (totalTicketHours > projectTotalHours) {
-        notification.error({
-          message: 'Validation Error',
-          description: `Total assigned ticket hours (${totalTicketHours}h) must be less than the total hours allotted to the project (${projectTotalHours}h).`
+      if (existingTicketsHours + totalTicketHours > projectTotalHours) {
+        Modal.error({
+          title: 'Project Hours Limit Exceeded',
+          content: (
+            <div>
+              <p>The total estimated hours across all tickets would exceed the project's allotted limit.</p>
+              <p>Current ticket hours on board: <strong>{existingTicketsHours}h</strong></p>
+              <p>This ticket hours: <strong>{totalTicketHours}h</strong></p>
+              <p>Project allotted limit: <strong>{projectTotalHours}h</strong></p>
+              <p>Please request additional hours before assigning more tasks.</p>
+            </div>
+          ),
+          okText: 'Close'
         });
         setLoading(false);
         return;
@@ -225,11 +235,23 @@ const CreateTicketModal = ({ open, onClose, projectId, project, onSuccess }) => 
                     value={emp.hours || undefined}
                     onChange={(val) => {
                       const numVal = Number(val) || 0;
+                      const otherEmployeesHours = assignedEmployees.filter((_, idx) => idx !== index).reduce((sum, emp) => sum + emp.hours, 0);
+                      const currentTicketTotal = otherEmployeesHours + numVal;
+                      const existingTicketsHours = allTickets.reduce((sum, t) => sum + (Number(t.estimatedHours) || 0), 0);
                       const projectTotalHours = Number(project?.totalHours || project?.approvedHours || 0);
-                      if (numVal > projectTotalHours) {
-                        notification.error({
-                          message: 'Invalid Hours',
-                          description: `Assigned hours (${numVal}h) must be less than the total hours allotted to the project (${projectTotalHours}h).`
+                      if (existingTicketsHours + currentTicketTotal > projectTotalHours) {
+                        Modal.error({
+                          title: 'Project Hours Limit Exceeded',
+                          content: (
+                            <div>
+                              <p>The total estimated hours across all tickets would exceed the project's allotted limit.</p>
+                              <p>Current ticket hours on board: <strong>{existingTicketsHours}h</strong></p>
+                              <p>This ticket hours: <strong>{currentTicketTotal}h</strong></p>
+                              <p>Project allotted limit: <strong>{projectTotalHours}h</strong></p>
+                              <p>Please request additional hours before assigning more tasks.</p>
+                            </div>
+                          ),
+                          okText: 'Close'
                         });
                         const updated = [...assignedEmployees];
                         updated[index].hours = 0;
