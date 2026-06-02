@@ -66,7 +66,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/pm/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
         { key: '/pm/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/pm/report', icon: <FileTextOutlined />, label: 'Daily Report' },
-        { key: '/pm/analytics', icon: <BarChartOutlined />, label: 'Analytics' },
+        { key: '/pm/analytics', icon: <TeamOutlined />, label: 'Scrum Master' },
         { key: '/pm/alerts', icon: <BellOutlined />, label: 'Alerts Feed' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },
         { key: '/pm/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
