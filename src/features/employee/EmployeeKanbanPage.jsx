@@ -123,25 +123,7 @@ const EmployeeKanbanPage = () => {
       }
     }
 
-    if (newStatus === 'InProgress' && ticket) {
-      if (!ticket.startDate || !ticket.dueDate) {
-        notification.error({
-          message: 'Action Blocked',
-          description: 'A ticket must have both a Start Date and a Due Date to be moved to In Progress.'
-        });
-        return;
-      }
-      const today = dayjs().startOf('day');
-      const start = dayjs(ticket.startDate).startOf('day');
-      const due = dayjs(ticket.dueDate).endOf('day');
-      if (today.isBefore(start) || today.isAfter(due)) {
-        notification.error({
-          message: 'Action Blocked',
-          description: `You can move a ticket to In Progress only between its Start Date (${dayjs(ticket.startDate).format('DD MMM YYYY')}) and Due Date (${dayjs(ticket.dueDate).format('DD MMM YYYY')}).`
-        });
-        return;
-      }
-    }
+
 
     try {
       await ticketService.updateTicketStatus(ticketId, newStatus);
