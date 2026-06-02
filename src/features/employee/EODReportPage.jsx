@@ -1246,8 +1246,8 @@ const EODReportPage = () => {
                                 </div>
                                 {(() => {
                                   if (!item.ticketId) return null;
-                                  const enteredHrs = Number(item.hoursInput) || 0;
-                                  const enteredMins = Number(item.minutesInput) || 0;
+                                  const enteredHrs = Number(watch(`items.${index}.hoursInput`)) || 0;
+                                  const enteredMins = Number(watch(`items.${index}.minutesInput`)) || 0;
                                   
                                   if (enteredHrs < 0 || enteredMins < 0) {
                                     return (
