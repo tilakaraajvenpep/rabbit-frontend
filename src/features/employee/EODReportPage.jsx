@@ -417,14 +417,13 @@ const EODReportPage = () => {
         const rawTickets = ticketsRes.data || [];
         setAllMyTickets(rawTickets);
         
-        let filteredTickets = rawTickets.filter(t => t.status !== 'Done');
-        if (role === 'TeamLead' || role === 'ProjectManager' || role === 'TenantAdmin') {
-          const myUserId = currentUser?.userId || currentUser?.id;
-          filteredTickets = filteredTickets.filter(t => 
-            (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
-            (t.assignedTo && String(t.assignedTo) === String(myUserId))
-          );
-        }
+        const myUserId = currentUser?.userId || currentUser?.id;
+        let filteredTickets = rawTickets.filter(t => {
+          const isAssigned = (t.assignedToUserId && String(t.assignedToUserId) === String(myUserId)) || 
+                             (t.assignedTo && String(t.assignedTo) === String(myUserId)) ||
+                             (t.assignedEmployees && Array.isArray(t.assignedEmployees) && t.assignedEmployees.some(emp => String(emp.userId) === String(myUserId)));
+          return isAssigned;
+        });
         setMyTickets(filteredTickets);
         ticketsList = filteredTickets;
       }
