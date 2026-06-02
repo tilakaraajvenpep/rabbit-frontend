@@ -91,6 +91,22 @@ const HRTeamPage = () => {
     }
   };
 
+  const handleProjectManagerChange = async (userId, projectManagerId) => {
+    try {
+      await adminService.updateUserProjectManager(userId, projectManagerId || null);
+      notification.success({
+        message: 'Success',
+        description: 'Reporting Project Manager updated successfully.'
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, projectManagerId: projectManagerId || null } : u));
+    } catch (error) {
+      notification.error({
+        message: 'Error',
+        description: 'Failed to update Reporting Project Manager.'
+      });
+    }
+  };
+
   const handleDeleteUser = (record) => {
     Modal.confirm({
       title: 'Delete User',
@@ -204,6 +220,32 @@ const HRTeamPage = () => {
             {teamLeads.map(tl => (
               <Select.Option key={tl.id} value={tl.id}>
                 {tl.name || tl.fullName}
+              </Select.Option>
+            ))}
+          </Select>
+        );
+      }
+    },
+    {
+      title: 'Project Manager',
+      dataIndex: 'projectManagerId',
+      key: 'projectManagerId',
+      render: (projectManagerId, record) => {
+        if (record.role !== 'Employee' && record.role !== 'TeamLead') {
+          return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>N/A</span>;
+        }
+        const pms = users.filter(u => (u.role === 'ProjectManager' || u.role === 'TenantAdmin') && String(u.id) !== String(record.id));
+        return (
+          <Select
+            placeholder="Select PM"
+            style={{ width: 180 }}
+            value={projectManagerId || undefined}
+            onChange={(val) => handleProjectManagerChange(record.id, val)}
+            allowClear
+          >
+            {pms.map(pm => (
+              <Select.Option key={pm.id} value={pm.id}>
+                {pm.name || pm.fullName}
               </Select.Option>
             ))}
           </Select>
@@ -362,6 +404,16 @@ const HRTeamPage = () => {
               {users.filter(u => u.role === 'TeamLead').map(tl => (
                 <Select.Option key={tl.id} value={tl.id}>
                   {tl.name || tl.fullName} ({tl.email})
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item name="projectManagerId" label="Reporting Project Manager">
+            <Select placeholder="Select PM" allowClear>
+              {users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin').map(pm => (
+                <Select.Option key={pm.id} value={pm.id}>
+                  {pm.name || pm.fullName} ({pm.email})
                 </Select.Option>
               ))}
             </Select>
