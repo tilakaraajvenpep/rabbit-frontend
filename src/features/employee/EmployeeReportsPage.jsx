@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, DatePicker, Select, Button, Table, 
-  Typography, Space, notification
+  Typography, Space, notification, Tag
 } from 'antd';
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
