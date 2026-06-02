@@ -123,12 +123,12 @@ const EmployeeKanbanPage = () => {
       }
     }
 
-    if (ticket && ticket.status === 'Done' && newStatus === 'InProgress') {
+    if (ticket && ticket.status === 'Done' && newStatus !== 'Done') {
       if (currentUser.role === 'Employee' || currentUser.role === 'TeamLead') {
         if (!ticket.approvedForInProgress) {
           notification.error({
             message: 'Action Blocked',
-            description: 'Approval from Project Manager is required to move this ticket back to In Progress.'
+            description: 'Approval from Project Manager is required to move this ticket out of the Done stage.'
           });
           return;
         }

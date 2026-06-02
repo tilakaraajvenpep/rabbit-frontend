@@ -621,11 +621,11 @@ const KanbanBoard = () => {
     if (fromCol && toCol && fromCol !== toCol) {
       const ticket = allTickets.find(t => t.id === ticketId);
 
-      if (fromCol === 'Done' && toCol === 'InProgress') {
+      if (fromCol === 'Done' && toCol !== 'Done') {
         const userRole = authRole || authUser?.role;
         if (userRole === 'Employee' || userRole === 'TeamLead') {
           if (ticket && !ticket.approvedForInProgress) {
-            message.error('Approval from Project Manager is required to move this ticket back to In Progress.');
+            message.error('Approval from Project Manager is required to move this ticket out of the Done stage.');
             return;
           }
         }
