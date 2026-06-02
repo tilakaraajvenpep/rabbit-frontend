@@ -79,8 +79,10 @@ const AnalyticsPage = () => {
     return true;
   });
 
-  // Calculate start of the isoWeek (Monday)
-  const startOfWeek = scrumDate.startOf('isoWeek');
+  // Calculate start of the week (Monday)
+  const currentDay = scrumDate.day();
+  const daysToSubtract = currentDay === 0 ? 6 : currentDay - 1;
+  const startOfWeek = scrumDate.subtract(daysToSubtract, 'day');
   const days = [];
   for (let i = 0; i < 7; i++) {
     days.push(startOfWeek.add(i, 'day'));
