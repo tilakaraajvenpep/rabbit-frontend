@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined, BookOutlined, CopyOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, CalendarOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined, BookOutlined, CopyOutlined, SaveOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
@@ -362,6 +362,8 @@ const KanbanBoard = () => {
   // Submit to TL states
   const [selectedTLForSubmit, setSelectedTLForSubmit] = useState(null);
   const [submittingTL, setSubmittingTL] = useState(false);
+  const [isEditingTL, setIsEditingTL] = useState(false);
+  const [tempSelectedTL, setTempSelectedTL] = useState(null);
 
   // Edit Headings states
   const [isHeadingsModalOpen, setIsHeadingsModalOpen] = useState(false);
@@ -943,6 +945,76 @@ const KanbanBoard = () => {
             </div>
           }
           type="info"
+          showIcon
+          style={{ marginBottom: 20, borderRadius: 8 }}
+        />
+      )}
+
+      {/* Edit/View Team Lead Assignment for PM */}
+      {projectId && project?.status !== 'Approved' && isManager && (
+        <Alert
+          message={<Text strong style={{ fontSize: '15px' }}>💼 Project Assigned Team Leader</Text>}
+          description={
+            <div style={{ marginTop: 8 }}>
+              {!isEditingTL ? (
+                <Space size="middle">
+                  <span>
+                    Current Team Lead: <strong>{project?.teamLead || users.find(u => u.id === project?.assignedTeamLeadId)?.fullName || 'None'}</strong>
+                  </span>
+                  <Button 
+                    type="link" 
+                    icon={<EditOutlined />} 
+                    onClick={() => {
+                      setTempSelectedTL(project?.assignedTeamLeadId);
+                      setIsEditingTL(true);
+                    }}
+                  >
+                    Edit Assignment
+                  </Button>
+                </Space>
+              ) : (
+                <Space>
+                  <Select
+                    placeholder="Select Team Lead"
+                    style={{ width: 250 }}
+                    value={tempSelectedTL}
+                    onChange={setTempSelectedTL}
+                    options={users.filter(u => u.role === 'TeamLead').map(u => ({ label: u.name || u.fullName, value: u.id }))}
+                  />
+                  <Button 
+                    type="primary" 
+                    icon={<SaveOutlined />} 
+                    onClick={async () => {
+                      if (!tempSelectedTL) return;
+                      setSubmittingTL(true);
+                      try {
+                        await projectService.updateProjectStatus(projectId, {
+                          assignedTeamLeadId: Number(tempSelectedTL),
+                          status: project.status
+                        });
+                        message.success('Team Lead assignment updated successfully!');
+                        setIsEditingTL(false);
+                        fetchProjects();
+                      } catch (err) {
+                        message.error('Failed to update Team Lead assignment.');
+                      } finally {
+                        setSubmittingTL(false);
+                      }
+                    }}
+                    loading={submittingTL}
+                  >
+                    Save
+                  </Button>
+                  <Button 
+                    onClick={() => setIsEditingTL(false)}
+                  >
+                    Cancel
+                  </Button>
+                </Space>
+              )}
+            </div>
+          }
+          type="success"
           showIcon
           style={{ marginBottom: 20, borderRadius: 8 }}
         />
