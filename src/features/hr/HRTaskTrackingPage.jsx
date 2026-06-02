@@ -15,13 +15,14 @@ import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
 
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
 const HRTaskTrackingPage = () => {
   const { isDarkMode } = useThemeStore();
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
   const [leaves, setLeaves] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [dateRange, setDateRange] = useState([dayjs().subtract(6, 'days'), dayjs()]);
   const [loading, setLoading] = useState(true);
   
   // Search & Filter state
@@ -30,15 +31,17 @@ const HRTaskTrackingPage = () => {
 
   useEffect(() => {
     fetchData();
-  }, [selectedDate]);
+  }, [dateRange]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const dateStr = selectedDate.format('YYYY-MM-DD');
+      const [start, end] = dateRange;
+      const startStr = start.format('YYYY-MM-DD');
+      const endStr = end.format('YYYY-MM-DD');
       const [usersRes, reportsRes, leavesRes] = await Promise.all([
         adminService.getUsers(),
-        reportService.getAllReportsByRange(dateStr, dateStr),
+        reportService.getAllReportsByRange(startStr, endStr),
         leaveService.getAllLeaves()
       ]);
       setUsers(usersRes.data || []);
@@ -56,27 +59,62 @@ const HRTaskTrackingPage = () => {
     u.role === 'Employee' || u.role === 'TeamLead' || u.role === 'ProjectManager'
   );
 
-  // 2. Identify missing / short-reported users
-  const missingTasksData = trackableUsers.map(user => {
-    // Find daily report for this user
-    // The backend / mock report structure may have userId as string or number
-    const userReport = reports.find(r => String(r.userId || r.user?.id) === String(user.id || user.userId));
-    
-    // Sum total logged minutes
-    let totalMinutes = 0;
-    if (userReport && userReport.items) {
-      userReport.items.forEach(item => {
-        const hrs = Number(item.hoursInput) || 0;
-        const mins = Number(item.minutesInput) || 0;
-        totalMinutes += (hrs * 60) + mins;
-      });
+  // Generate weekday dates in the selected range
+  const [start, end] = dateRange;
+  const datesInRange = [];
+  let current = dayjs(start);
+  while (current.isBefore(end) || current.isSame(end, 'day')) {
+    const dayOfWeek = current.day();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Exclude Sunday (0) and Saturday (6)
+      datesInRange.push(current.format('YYYY-MM-DD'));
     }
+    current = current.add(1, 'day');
+  }
 
-    // Determine status
-    // Missing task / Short report criteria: < 8 hours 30 mins (510 minutes)
-    const isMissing = totalMinutes < 510;
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
+  // 2. Identify missing / short-reported dates for each user
+  const missingTasksData = trackableUsers.map(user => {
+    const userReports = reports.filter(r => String(r.userId || r.user?.id) === String(user.id || user.userId));
+    
+    const unreportedDates = [];
+    const shortLoggedDates = [];
+
+    datesInRange.forEach(dateStr => {
+      // Check if user has an approved leave for this date
+      const hasApprovedLeave = leaves.some(l => 
+        String(l.userId || l.user?.id) === String(user.id || user.userId) &&
+        dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr &&
+        l.status === 'Approved'
+      );
+
+      if (hasApprovedLeave) {
+        return;
+      }
+
+      // Check if user has a daily report for this date
+      const reportForDate = userReports.find(r => {
+        const rDate = r.reportDate || r.date;
+        return rDate && dayjs(rDate).format('YYYY-MM-DD') === dateStr;
+      });
+
+      if (!reportForDate) {
+        unreportedDates.push(dateStr);
+      } else {
+        // Sum total logged minutes for this date
+        let totalMinutes = 0;
+        if (reportForDate.items) {
+          reportForDate.items.forEach(item => {
+            const hrs = Number(item.hoursInput) || 0;
+            const mins = Number(item.minutesInput) || 0;
+            totalMinutes += (hrs * 60) + mins;
+          });
+        }
+        if (totalMinutes < 510) {
+          shortLoggedDates.push({ date: dateStr, minutes: totalMinutes });
+        }
+      }
+    });
+
+    const isMissing = unreportedDates.length > 0 || shortLoggedDates.length > 0;
     
     // Find Team Leader Name (if Employee)
     let teamLeaderName = 'N/A';
@@ -87,30 +125,17 @@ const HRTaskTrackingPage = () => {
       }
     }
 
-    // Find if they applied for leave or permission for that day
-    const dateStr = selectedDate.format('YYYY-MM-DD');
-    const userLeaves = leaves.filter(l => 
-      String(l.userId || l.user?.id) === String(user.id || user.userId) &&
-      dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr &&
-      l.status !== 'Rejected'
-    );
-    const matchedLeave = userLeaves.find(l => l.status === 'Approved') || userLeaves.find(l => l.status === 'Pending') || null;
-
     return {
       key: user.id || user.userId,
       user,
       name: user.name || user.fullName,
       role: user.role,
       teamLeaderName,
-      totalMinutes,
-      hours,
-      minutes,
-      isMissing,
-      reportItems: userReport?.items || [],
-      submittedAt: userReport?.submittedAt || null,
-      matchedLeave
+      unreportedDates,
+      shortLoggedDates,
+      isMissing
     };
-  }).filter(item => item.isMissing); // Only keep users who missed or short-reported
+  }).filter(item => item.isMissing);
 
   // Apply search text and role filters on the missing items
   const filteredMissingData = missingTasksData.filter(item => {
@@ -160,82 +185,44 @@ const HRTaskTrackingPage = () => {
       }
     },
     {
-      title: 'Hours Logged',
-      key: 'hoursLogged',
-      width: 160,
+      title: 'Unreported Dates',
+      key: 'unreportedDates',
       render: (_, record) => {
-        const timeStr = `${record.hours}h ${record.minutes}m`;
+        if (record.unreportedDates.length === 0) {
+          return <Tag color="success">None</Tag>;
+        }
         return (
-          <span style={{ fontWeight: 700, color: record.totalMinutes === 0 ? '#ef4444' : '#f59e0b' }}>
-            {record.totalMinutes === 0 ? 'None' : timeStr}
-          </span>
+          <Space wrap size={[4, 8]}>
+            {record.unreportedDates.map(dateStr => (
+              <Tag key={dateStr} color="error" style={{ borderRadius: 6, fontWeight: 600 }}>
+                {dayjs(dateStr).format('DD MMM')}
+              </Tag>
+            ))}
+          </Space>
         );
       }
     },
     {
-      title: 'Status',
-      key: 'status',
-      width: 240,
+      title: 'Short Logged Dates',
+      key: 'shortLoggedDates',
       render: (_, record) => {
-        const tags = [];
-        
-        if (record.totalMinutes === 0) {
-          tags.push(
-            <Tag key="report-status" color="error" icon={<CloseCircleOutlined />} style={{ padding: '4px 8px', borderRadius: 6, fontWeight: 600, margin: 0 }}>
-              Not Reported
-            </Tag>
-          );
-        } else {
-          tags.push(
-            <Tag key="report-status" color="warning" icon={<WarningOutlined />} style={{ padding: '4px 8px', borderRadius: 6, fontWeight: 600, margin: 0 }}>
-              Short Logged (&lt; 8h 30m)
-            </Tag>
-          );
-        }
-
-        if (record.matchedLeave) {
-          const { type, status, reason } = record.matchedLeave;
-          let label = 'Leave';
-          let color = 'purple';
-          
-          if (type === 'Permission') {
-            label = 'Permission';
-            color = 'cyan';
-          } else if (type === 'HalfDay') {
-            label = 'Half Day Leave';
-            color = 'blue';
-          } else if (type === 'FullDay') {
-            label = 'Full Day Leave';
-            color = 'indigo';
-          }
-
-          tags.push(
-            <Tooltip key="leave-status" title={reason ? `Reason: ${reason}` : 'No reason provided'}>
-              <Tag color={color} style={{ padding: '4px 8px', borderRadius: 6, fontWeight: 600, margin: 0, cursor: 'help' }}>
-                {label} ({status})
-              </Tag>
-            </Tooltip>
-          );
-        }
-
-        return <Space direction="vertical" size={6} style={{ width: '100%' }}>{tags}</Space>;
-      }
-    },
-    {
-      title: 'Work Summary',
-      key: 'summary',
-      render: (_, record) => {
-        if (record.reportItems.length === 0) {
-          return <span style={{ color: '#8c8c8c', fontSize: '12px' }}>No daily report submitted.</span>;
+        if (record.shortLoggedDates.length === 0) {
+          return <Tag color="success">None</Tag>;
         }
         return (
-          <ul style={{ margin: 0, paddingLeft: 16, fontSize: '12px', color: isDarkMode ? '#cbd5e1' : '#4b5563' }}>
-            {record.reportItems.map((item, idx) => (
-              <li key={idx}>
-                <strong>{item.hoursInput}h {item.minutesInput}m</strong> - {item.workDone || 'No description provided'}
-              </li>
-            ))}
-          </ul>
+          <Space wrap size={[4, 8]}>
+            {record.shortLoggedDates.map(item => {
+              const h = Math.floor(item.minutes / 60);
+              const m = item.minutes % 60;
+              return (
+                <Tooltip key={item.date} title={`Logged: ${h}h ${m}m (Requirement: 8h 30m)`}>
+                  <Tag color="warning" style={{ borderRadius: 6, fontWeight: 600, cursor: 'help' }}>
+                    {dayjs(item.date).format('DD MMM')} ({h}h {m}m)
+                  </Tag>
+                </Tooltip>
+              );
+            })}
+          </Space>
         );
       }
     }
@@ -250,7 +237,7 @@ const HRTaskTrackingPage = () => {
 
       <Alert
         message={<Text strong style={{ fontSize: '14px' }}>📋 Daily Log Compliance Rules</Text>}
-        description="All Employees, Team Leaders, and Project Managers must log a minimum of 8 hours and 30 minutes every work day. This board tracks exceptions and missing timesheets for the selected date."
+        description="All Employees, Team Leaders, and Project Managers must log a minimum of 8 hours and 30 minutes every work day. This board tracks exceptions and missing timesheets for the selected date range."
         type="info"
         showIcon
         style={{ borderRadius: 8 }}
@@ -266,19 +253,19 @@ const HRTaskTrackingPage = () => {
         }}
       >
         <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={6}>
+          <Col xs={24} md={8}>
             <Space direction="vertical" style={{ width: '100%' }}>
-              <span style={{ fontWeight: 600, fontSize: '13px' }}>Select Log Date:</span>
-              <DatePicker 
-                value={selectedDate} 
-                onChange={(date) => date && setSelectedDate(date)} 
+              <span style={{ fontWeight: 600, fontSize: '13px' }}>Select Date Range:</span>
+              <RangePicker 
+                value={dateRange} 
+                onChange={(dates) => dates && setDateRange(dates)} 
                 format="YYYY-MM-DD"
                 allowClear={false}
                 style={{ width: '100%', height: 40, borderRadius: 8 }}
               />
             </Space>
           </Col>
-          <Col xs={24} md={10}>
+          <Col xs={24} md={8}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <span style={{ fontWeight: 600, fontSize: '13px' }}>Search by Name or Email:</span>
               <Input 
@@ -324,7 +311,7 @@ const HRTaskTrackingPage = () => {
             Log Delinquency List ({filteredMissingData.length} Members flagged)
           </Title>
           <Tag color="red" style={{ fontWeight: 700, borderRadius: 12, padding: '4px 12px', fontSize: '12px' }}>
-            Delinquent Date: {selectedDate.format('DD MMM YYYY')}
+            Range: {start.format('DD MMM')} - {end.format('DD MMM YYYY')}
           </Tag>
         </div>
 
@@ -340,7 +327,7 @@ const HRTaskTrackingPage = () => {
             pagination={{ pageSize: 10, showSizeChanger: true }}
             bordered
             locale={{ 
-              emptyText: <Empty description="Excellent! No team members are missing or short-reported for this date." /> 
+              emptyText: <Empty description="Excellent! No team members have missing or short-reported tasks in this date range." /> 
             }}
           />
         )}

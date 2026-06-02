@@ -213,16 +213,12 @@ const TimerRequestsReviewPage = () => {
       key: 'actions',
       width: 260,
       render: (_, record) => {
-        const reqHours = Number(record.request?.requestedHours || 0);
-        const bufHours = Number(record.bufferHours || 0);
-        const canApprove = bufHours >= reqHours;
-
         return (
           <Space size={6}>
             <Button
               size="small"
               onClick={() => { setSelectedRequest(record); setForwardComment(''); setIsForwardModalOpen(true); }}
-              style={{ background: 'linear-gradient(135deg,#10b981,#059669)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
+              style={{ background: 'linear-gradient(135deg,#6366f1,#4f46e5)', border: 'none', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 12 }}
               icon={<SendOutlined />}
             >Forward PM</Button>
             <Button

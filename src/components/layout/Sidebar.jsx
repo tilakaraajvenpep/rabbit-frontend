@@ -141,7 +141,6 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' },
         { key: '/hr/report-access-approvals', icon: <CalendarOutlined />, label: 'Report Access Approvals' },
         { key: '/hr/projects', icon: <ProjectOutlined />, label: 'Project Allocations' },
-        { key: '/hr/allocate', icon: <ClockCircleOutlined />, label: 'Allocate Hours' },
         { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },
         { key: '/hr/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Approvals' },
         { key: '/hr/org-chart', icon: <NodeIndexOutlined />, label: 'Organization Chart' },
