@@ -349,32 +349,58 @@ const CostAnalysisPage = () => {
       )}
 
       {/* PROJECT INFO CARD */}
-      <Card style={cardStyle}>
-        <Row gutter={24} align="middle">
+      <Card 
+        style={{
+          ...cardStyle,
+          background: isDarkMode ? '#1e1b4b' : '#faf5ff',
+          border: isDarkMode ? '1px solid #4338ca' : '1px solid #e9d5ff'
+        }}
+      >
+        <Row gutter={[24, 24]} align="middle">
           <Col xs={24} md={18}>
-            <Descriptions column={2} size="small">
-              <Descriptions.Item label="Project Name"><Text strong>{project.name || project.projectName}</Text></Descriptions.Item>
-              <Descriptions.Item label="Client">{project.client}</Descriptions.Item>
-              <Descriptions.Item label="Project Category">{project.projectCategory || 'N/A'}</Descriptions.Item>
-              <Descriptions.Item label="Status"><StatusBadge status={project.status} /></Descriptions.Item>
-              <Descriptions.Item label="Expected Start">
-                {project.startDate ? dayjs(project.startDate).format('DD MMM YYYY') : '-'}
+            <Descriptions column={2} size="middle" bordered={false}>
+              <Descriptions.Item label={<span style={{ fontWeight: 600 }}>Project Name</span>}><Text strong style={{ fontSize: '15px' }}>{project.name || project.projectName}</Text></Descriptions.Item>
+              <Descriptions.Item label={<span style={{ fontWeight: 600 }}>Client</span>}>{project.client}</Descriptions.Item>
+              <Descriptions.Item label={<span style={{ fontWeight: 600 }}>Project Category</span>}><Tag color="purple">{project.projectCategory || 'General'}</Tag></Descriptions.Item>
+              <Descriptions.Item label={<span style={{ fontWeight: 600 }}>Status</span>}><StatusBadge status={project.status} /></Descriptions.Item>
+              <Descriptions.Item label={<span style={{ fontWeight: 600 }}>Expected Start</span>}>
+                <span style={{ fontWeight: 500 }}>{project.startDate ? dayjs(project.startDate).format('DD MMM YYYY') : '-'}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="Scope Document" span={1}>
+              <Descriptions.Item label={<span style={{ fontWeight: 600 }}>Scope Document</span>} span={2}>
                 {latestDoc ? (
-                  <Space>
-                    <FileTextOutlined style={{ color: '#1890ff' }} />
-                    <Text code>{latestDoc.fileName}</Text>
-                    <Text type="secondary">({(latestDoc.fileSize / 1024).toFixed(1)} KB)</Text>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
+                    <Tag 
+                      icon={<FileTextOutlined style={{ color: '#8b5cf6' }} />} 
+                      color="purple"
+                      style={{ 
+                        padding: '6px 14px', 
+                        borderRadius: 8, 
+                        fontSize: 13, 
+                        fontWeight: 600,
+                        maxWidth: '100%', 
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word',
+                        margin: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}
+                    >
+                      {latestDoc.fileName}
+                    </Tag>
+                    <Text type="secondary" style={{ fontSize: '12px', fontWeight: 500 }}>
+                      ({(latestDoc.fileSize / 1024).toFixed(1)} KB)
+                    </Text>
                     <Button
                       size="small"
                       icon={<DownloadOutlined />}
                       type="link"
                       onClick={handleDownload}
+                      style={{ fontWeight: 600, color: '#8b5cf6', padding: 0 }}
                     >
-                      Download
+                      Download Scope PDF
                     </Button>
-                  </Space>
+                  </div>
                 ) : (
                   <Text type="warning">No scope document uploaded yet</Text>
                 )}
@@ -388,7 +414,14 @@ const CostAnalysisPage = () => {
               onClick={handleManualExtract}
               loading={extracting}
               disabled={!latestDoc}
-              size="middle"
+              size="large"
+              style={{
+                background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)',
+                borderColor: '#7c3aed',
+                borderRadius: 8,
+                fontWeight: 600,
+                boxShadow: '0 4px 6px -1px rgba(124, 58, 237, 0.2)'
+              }}
             >
               {extractedOnce ? 'Re-Extract from Document' : 'Extract from Document'}
             </Button>
