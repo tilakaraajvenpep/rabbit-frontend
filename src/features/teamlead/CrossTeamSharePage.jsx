@@ -83,27 +83,23 @@ const CrossTeamSharePage = () => {
     const currentTLIdStr = String(currentUser?.id || currentUser?.userId);
     
     myProjects.forEach(proj => {
-      const projTickets = tickets.filter(t => String(t.projectId) === String(proj.id));
-      projTickets.forEach(ticket => {
-        const assigneeId = ticket.assignedToUserId || ticket.assignedTo;
-        if (!assigneeId) return;
+      const assignedIds = Array.isArray(proj.assignedEmployeeIds) ? proj.assignedEmployeeIds : [];
+      assignedIds.forEach(empId => {
+        const employee = users.find(u => String(u.id || u.userId) === String(empId));
+        if (!employee || employee.role !== 'Employee') return;
         
-        const assignee = users.find(u => String(u.id || u.userId) === String(assigneeId));
-        if (!assignee || assignee.role !== 'Employee') return;
-        
-        if (String(assignee.teamLeadId) !== currentTLIdStr) {
-          if (!map[assigneeId]) {
-            map[assigneeId] = [];
+        if (String(employee.teamLeadId) !== currentTLIdStr) {
+          if (!map[employee.id || employee.userId]) {
+            map[employee.id || employee.userId] = [];
           }
-          map[assigneeId].push({
-            ticket,
+          map[employee.id || employee.userId].push({
             project: proj
           });
         }
       });
     });
     return map;
-  }, [tickets, myProjects, users, currentUser]);
+  }, [myProjects, users, currentUser]);
 
   const handleOpenBorrowModal = (employee, tl) => {
     setSelectedEmployee(employee);
@@ -119,40 +115,47 @@ const CrossTeamSharePage = () => {
 
       setSubmitting(true);
 
-      const borrowingTLName = currentUser?.name || currentUser?.fullName || 'Another Team Lead';
-      const homeTLName = selectedTL?.name || selectedTL?.fullName || 'Home Team Lead';
-      
-      // Append cross-team sharing details to the ticket description
-      const fullDescription = `${values.description || ''}\n\n` + 
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `🔄 [CROSS-TEAM BORROWED TICKET]\n` +
-        `• Borrowing Team Lead: ${borrowingTLName}\n` +
-        `• Home Team Lead: ${homeTLName}\n` +
-        `• Status: Approved Sharing\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+      const proj = myProjects.find(p => String(p.id) === String(values.projectId));
+      if (!proj) {
+        message.error("Selected project not found");
+        return;
+      }
 
-      const ticketPayload = {
-        title: `Borrowed: ${values.title}`,
-        description: fullDescription,
-        priority: values.priority || 'Medium',
-        estimatedHours: 0,
-        startDate: values.startDate ? values.startDate.toISOString() : null,
-        dueDate: values.dueDate ? values.dueDate.toISOString() : null,
-        assignedToUserId: selectedEmployee.id || selectedEmployee.userId,
-        milestone: values.milestone || 'Cross-Team Sharing'
-      };
+      const currentIds = Array.isArray(proj.assignedEmployeeIds) ? proj.assignedEmployeeIds : [];
+      const newIds = [...new Set([...currentIds, selectedEmployee.id || selectedEmployee.userId])];
 
-      await ticketService.createTicket(values.projectId, ticketPayload);
-      
-      message.success(`Successfully borrowed ${selectedEmployee.name || selectedEmployee.fullName}! Ticket assigned.`);
+      await projectService.updateProjectStatus(proj.id, {
+        status: proj.status,
+        assignedEmployeeIds: newIds
+      });
+
+      message.success(`Successfully borrowed ${selectedEmployee.name || selectedEmployee.fullName} for ${proj.name}!`);
       setIsBorrowModalOpen(false);
       loadData();
     } catch (err) {
-      if (err?.errorFields) return; // form validation error
-      message.error('Failed to create borrow ticket');
+      if (err?.errorFields) return;
+      message.error('Failed to borrow employee');
       console.error(err);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleReleaseEmployee = async (employeeId, proj) => {
+    try {
+      const currentIds = Array.isArray(proj.assignedEmployeeIds) ? proj.assignedEmployeeIds : [];
+      const newIds = currentIds.filter(id => String(id) !== String(employeeId));
+
+      await projectService.updateProjectStatus(proj.id, {
+        status: proj.status,
+        assignedEmployeeIds: newIds
+      });
+
+      message.success('Successfully released employee back to their home team!');
+      loadData();
+    } catch (err) {
+      message.error('Failed to release employee');
+      console.error(err);
     }
   };
 
@@ -234,9 +237,20 @@ const CrossTeamSharePage = () => {
                               }}
                               actions={[
                                 borrowDetails ? (
-                                  <Tag color="green" style={{ borderRadius: 6, fontWeight: 600, margin: 0 }}>
-                                    Borrowed
-                                  </Tag>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                                    <Tag color="green" style={{ borderRadius: 6, fontWeight: 600, margin: 0 }}>
+                                      Borrowed
+                                    </Tag>
+                                    <Button 
+                                      type="link" 
+                                      size="small"
+                                      icon={<SwapOutlined />}
+                                      onClick={() => handleOpenBorrowModal(emp, teamLead)}
+                                      style={{ padding: 0, fontSize: 11 }}
+                                    >
+                                      Borrow for another
+                                    </Button>
+                                  </div>
                                 ) : (
                                   <Button 
                                     type="primary" 
@@ -263,7 +277,7 @@ const CrossTeamSharePage = () => {
                                     <Text strong style={{ fontSize: 13 }}>{emp.name || emp.fullName}</Text>
                                     {borrowDetails && (
                                       <Text type="success" style={{ fontSize: 11, fontWeight: 600 }}>
-                                        (Borrowed for: {borrowDetails[0].project.name})
+                                        (Borrowed for: {borrowDetails.map(d => d.project.name).join(', ')})
                                       </Text>
                                     )}
                                   </Space>
@@ -309,9 +323,17 @@ const CrossTeamSharePage = () => {
                   <List.Item
                     style={{ padding: '16px 24px', borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.04)' : '#f1f5f9'}` }}
                     actions={details.map(d => (
-                      <Tag color="geekblue" key={d.ticket.id} style={{ padding: '4px 10px', borderRadius: 6, fontWeight: 500 }}>
-                        Ticket: {d.ticket.title} ({d.ticket.code})
-                      </Tag>
+                      <Button 
+                        key={d.project.id}
+                        type="primary" 
+                        danger 
+                        size="small"
+                        icon={<SwapOutlined />}
+                        onClick={() => handleReleaseEmployee(emp.id || emp.userId, d.project)}
+                        style={{ borderRadius: 6, fontSize: 12 }}
+                      >
+                        Release from {d.project.name}
+                      </Button>
                     ))}
                   >
                     <List.Item.Meta
@@ -328,7 +350,7 @@ const CrossTeamSharePage = () => {
                             Home Team Lead: <strong style={{ color: isDarkMode ? '#e2e8f0' : '#475569' }}>{homeTL ? (homeTL.name || homeTL.fullName) : 'Unknown'}</strong>
                           </Text>
                           <Text type="secondary" style={{ fontSize: 12 }}>
-                            Working on Project: <strong style={{ color: '#6366f1' }}>{details[0].project.name}</strong>
+                            Working on Project: <strong style={{ color: '#6366f1' }}>{details.map(d => d.project.name).join(', ')}</strong>
                           </Text>
                         </div>
                       }
@@ -381,40 +403,6 @@ const CrossTeamSharePage = () => {
                 {myProjects.map(p => (
                   <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>
                 ))}
-              </Select>
-            </Form.Item>
-
-            <Form.Item 
-              name="title" 
-              label="Ticket Title" 
-              rules={[{ required: true, message: 'Please enter a ticket title' }]}
-            >
-              <Input placeholder="E.g., Assistance with Database Schema Migration" />
-            </Form.Item>
-
-            <Form.Item 
-              name="description" 
-              label="Description of Task" 
-              rules={[{ required: true, message: 'Please enter description of tasks' }]}
-            >
-              <Input.TextArea rows={4} placeholder="Please detail the precise tasks this employee will help you complete..." />
-            </Form.Item>
-
-            <div style={{ display: 'flex', gap: 16 }}>
-              <Form.Item name="startDate" label="Start Date" rules={[{ required: true, message: 'Start date is required' }]} style={{ flex: 1 }}>
-                <DatePicker style={{ width: '100%' }} suffixIcon={<CalendarOutlined />} />
-              </Form.Item>
-              <Form.Item name="dueDate" label="Due Date" rules={[{ required: true, message: 'Due date is required' }]} style={{ flex: 1 }}>
-                <DatePicker style={{ width: '100%' }} suffixIcon={<CalendarOutlined />} />
-              </Form.Item>
-            </div>
-
-            <Form.Item name="priority" label="Priority" initialValue="Medium">
-              <Select>
-                <Select.Option value="Low">Low</Select.Option>
-                <Select.Option value="Medium">Medium</Select.Option>
-                <Select.Option value="High">High</Select.Option>
-                <Select.Option value="Critical">Critical</Select.Option>
               </Select>
             </Form.Item>
           </Form>

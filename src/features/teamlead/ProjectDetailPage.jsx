@@ -162,7 +162,14 @@ const ProjectDetailPage = () => {
     ? users.filter(u => project.assignedEmployeeIds.includes(u.id || u.userId) && u.isActive !== false && u.status !== 'Inactive')
     : [];
   const tlId = currentUser ? (currentUser.userId || currentUser.id) : null;
-  const employeesList = users.filter(u => u.role === 'Employee' && String(u.teamLeadId) === String(tlId) && u.isActive !== false && u.status !== 'Inactive');
+  const employeesList = users.filter(u => 
+    u.isActive !== false && 
+    u.status !== 'Inactive' && 
+    (
+      (u.role === 'Employee' && String(u.teamLeadId) === String(tlId)) ||
+      (project.assignedEmployeeIds && Array.isArray(project.assignedEmployeeIds) && project.assignedEmployeeIds.map(String).includes(String(u.id || u.userId)))
+    )
+  );
 
   return (
     <div>

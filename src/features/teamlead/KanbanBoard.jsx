@@ -1073,9 +1073,13 @@ const KanbanBoard = () => {
                   const myUserId = authUser?.id || authUser?.userId;
                   let filteredUsers = users.filter(u => u.isActive !== false && u.status !== 'Inactive');
                   if (authRole === 'TeamLead' || authUser?.role === 'TeamLead') {
+                    const projectAssignedIds = project?.assignedEmployeeIds && Array.isArray(project.assignedEmployeeIds) 
+                      ? project.assignedEmployeeIds.map(String) 
+                      : [];
                     filteredUsers = filteredUsers.filter(u => 
+                      (u.role === 'TeamLead' && String(u.id || u.userId) === String(myUserId)) ||
                       (u.role === 'Employee' && String(u.teamLeadId) === String(myUserId)) ||
-                      String(u.id || u.userId) === String(myUserId)
+                      (u.role === 'Employee' && projectAssignedIds.includes(String(u.id || u.userId)))
                     );
                   }
                   return [
@@ -1510,6 +1514,7 @@ const KanbanBoard = () => {
                   if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
                   if (u.role === 'TeamLead' && u.id === projectTLId) return true;
                   if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
+                  if (project?.assignedEmployeeIds && Array.isArray(project.assignedEmployeeIds) && project.assignedEmployeeIds.map(String).includes(String(u.id || u.userId))) return true;
                   return false;
                 });
                 

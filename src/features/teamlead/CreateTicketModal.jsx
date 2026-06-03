@@ -71,6 +71,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
       if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
       if (u.role === 'TeamLead' && u.id === projectTLId) return true;
       if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
+      if (project?.assignedEmployeeIds && Array.isArray(project.assignedEmployeeIds) && project.assignedEmployeeIds.map(String).includes(String(u.id || u.userId))) return true;
       return false;
     });
   }
