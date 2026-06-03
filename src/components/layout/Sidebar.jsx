@@ -131,7 +131,6 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/employee/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/employee/report', icon: <FileTextOutlined />, label: 'Daily Report' },
         { key: '/employee/my-reports', icon: <FileTextOutlined />, label: 'My EOD Reports' },
-        { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },
         { key: '/employee/reports', icon: <BarChartOutlined />, label: 'Work Reports' },
         { key: '/employee/scrum-master', icon: <TeamOutlined />, label: 'Scrum Master' }
       );
