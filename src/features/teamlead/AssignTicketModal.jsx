@@ -27,14 +27,14 @@ const AssignTicketModal = ({ open, onClose, ticket, onSuccess }) => {
       const res = await adminService.getUsers();
       const allUsers = res.data || [];
       if (role === 'ProjectManager' || role === 'TenantAdmin') {
-        eligibleUsers = allUsers.filter(u => u.role === 'Employee' || u.role === 'TeamLead');
+        eligibleUsers = allUsers.filter(u => (u.role === 'Employee' || u.role === 'TeamLead') && u.isActive !== false && u.status !== 'Inactive');
       } else {
-        eligibleUsers = allUsers.filter(u => u.role === 'Employee' || u.role === 'TeamLead');
+        eligibleUsers = allUsers.filter(u => (u.role === 'Employee' || u.role === 'TeamLead') && u.isActive !== false && u.status !== 'Inactive');
       }
       setEmployees(eligibleUsers);
     } catch (e) {
       console.error('Failed to fetch employees');
-      eligibleUsers = mockUsers.filter(u => u.role === 'Employee');
+      eligibleUsers = mockUsers.filter(u => u.role === 'Employee' && u.isActive !== false && u.status !== 'Inactive');
       setEmployees(eligibleUsers);
     }
 

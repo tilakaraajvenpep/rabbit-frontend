@@ -159,10 +159,10 @@ const ProjectDetailPage = () => {
 
   const remainingHours = project.approvedHours - project.consumedHours;
   const projectEmployees = (project.assignedEmployeeIds && Array.isArray(project.assignedEmployeeIds))
-    ? users.filter(u => project.assignedEmployeeIds.includes(u.id || u.userId))
+    ? users.filter(u => project.assignedEmployeeIds.includes(u.id || u.userId) && u.isActive !== false && u.status !== 'Inactive')
     : [];
   const tlId = currentUser ? (currentUser.userId || currentUser.id) : null;
-  const employeesList = users.filter(u => u.role === 'Employee' && String(u.teamLeadId) === String(tlId));
+  const employeesList = users.filter(u => u.role === 'Employee' && String(u.teamLeadId) === String(tlId) && u.isActive !== false && u.status !== 'Inactive');
 
   return (
     <div>

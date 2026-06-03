@@ -193,7 +193,7 @@ const HROffboardingPage = () => {
             currentAllocations[selectedUserId] = consumedOnProject;
             
             if (remainingOnProject > 0) {
-              const currentTotal = Number(proj.totalHours || proj.approvedHours || 0);
+              const currentTotal = Number(proj.approvedHours || 0);
               const newTotal = currentTotal + remainingOnProject;
               await projectService.updateProjectStatus(proj.id, {
                 status: proj.status || 'InProgress',

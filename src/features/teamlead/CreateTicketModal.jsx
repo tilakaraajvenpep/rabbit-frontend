@@ -48,6 +48,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
   let eligibleUsers = [];
   if (authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin') {
     eligibleUsers = users.filter(u => {
+      if (u.isActive === false || u.status === 'Inactive') return false;
       if (u.role !== 'Employee' && u.role !== 'TeamLead') return false;
       if (authRole === 'ProjectManager' || authUser?.role === 'ProjectManager') {
         if (u.role === 'TeamLead') {
@@ -66,6 +67,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
     });
   } else {
     eligibleUsers = users.filter(u => {
+      if (u.isActive === false || u.status === 'Inactive') return false;
       if (!projectTLId) return u.role === 'Employee' || u.role === 'TeamLead';
       if (u.role === 'TeamLead' && u.id === projectTLId) return true;
       if (u.role === 'Employee' && u.teamLeadId === projectTLId) return true;
