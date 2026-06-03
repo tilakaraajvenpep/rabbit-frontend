@@ -953,9 +953,12 @@ const EODReportPage = () => {
         const projectObj = allProjects.find(p => String(p.id) === String(values.projectId));
         const projName = projectObj ? (projectObj.name || projectObj.projectName) : 'Project';
         
+        const ticketObj = allMyTickets.find(t => String(t.id) === String(values.ticketId));
+        const ticketName = ticketObj ? `${ticketObj.code || '#' + ticketObj.id} — ${ticketObj.title || ticketObj.ticketTitle || ''}` : 'Ticket';
+        
         await reportAccessService.createRequest({
           targetDate: targetDateStr,
-          reason: `[Project: ${projName}] ${values.reason}`
+          reason: `[Project: ${projName}] [Ticket: ${ticketName}] ${values.reason}`
         });
         
         notification.success({
@@ -1639,13 +1642,31 @@ const EODReportPage = () => {
             </Radio.Group>
           </Form.Item>
 
-          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.mode !== curr.mode}>
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.mode !== curr.mode || prev.projectId !== curr.projectId}>
             {({ getFieldValue }) => {
               const currentMode = getFieldValue('mode') || 'request';
+              const selectedProjectId = getFieldValue('projectId');
 
               if (currentMode === 'request') {
+                const projectTickets = allMyTickets.filter(t => String(t.projectId) === String(selectedProjectId));
                 return (
                   <>
+                    <Form.Item 
+                      name="ticketId" 
+                      label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>SELECT TICKET</span>}
+                      rules={[{ required: true, message: 'Please select a ticket' }]}
+                    >
+                      <Select 
+                        placeholder={selectedProjectId ? "Select ticket..." : "First select a project above"} 
+                        disabled={!selectedProjectId}
+                        style={{ width: '100%' }}
+                        options={projectTickets.map(t => ({
+                          value: t.id,
+                          label: `${t.code || '#' + t.id} — ${t.title || t.ticketTitle || ''}`
+                        }))}
+                      />
+                    </Form.Item>
+
                     <Form.Item 
                       name="targetDate" 
                       label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>TARGET DATE</span>}
