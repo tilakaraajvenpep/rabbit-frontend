@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, DatePicker, Button, Table, 
-  Typography, notification, Tag, Form, Input, Modal
+  Typography, notification, Tag, Form, Input, Modal, InputNumber
 } from 'antd';
 import { SearchOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -111,8 +111,14 @@ const MyEODReportsPage = () => {
 
   const handleOpenEditModal = (record) => {
     setEditingRecord(record);
+    const decimalHours = record.hours;
+    const h = Math.floor(decimalHours);
+    const m = Math.round((decimalHours - h) * 60);
+
     editForm.setFieldsValue({
       date: dayjs(record.date),
+      hours: h,
+      minutes: m,
       workDone: record.workDone
     });
     setIsEditModalOpen(true);
@@ -123,9 +129,14 @@ const MyEODReportsPage = () => {
     try {
       const originalDate = editingRecord.date;
       const targetDate = values.date.format('YYYY-MM-DD');
+      
+      const newHoursSpent = Number(values.hours) + (Number(values.minutes) / 60);
+      if (newHoursSpent <= 0) {
+        throw new Error("Total hours must be greater than 0");
+      }
 
       if (originalDate === targetDate) {
-        // Date is same: update description
+        // Date is same: update description & time
         const reportRes = await reportService.getReportByDate(editingRecord.userId, originalDate);
         const report = reportRes.data;
         if (!report) {
@@ -136,7 +147,7 @@ const MyEODReportsPage = () => {
           if (Number(item.ticketId) === Number(editingRecord.ticketId)) {
             return {
               ...item,
-              hoursSpent: Number(item.hoursSpent || item.hours),
+              hoursSpent: newHoursSpent,
               workDone: values.workDone
             };
           }
@@ -185,7 +196,7 @@ const MyEODReportsPage = () => {
               if (idx === existingItemIndex) {
                 return {
                   ...item,
-                  hoursSpent: (Number(item.hoursSpent || item.hours) || 0) + (Number(itemToMove.hoursSpent || itemToMove.hours) || 0),
+                  hoursSpent: (Number(item.hoursSpent || item.hours) || 0) + newHoursSpent,
                   workDone: `${item.workDone}\n${values.workDone}`
                 };
               }
@@ -198,8 +209,8 @@ const MyEODReportsPage = () => {
             targetItems = [
               ...targetReport.items.map(item => ({ ...item, hoursSpent: Number(item.hoursSpent || item.hours) })),
               {
-                ticketId: Number(itemToMove.ticketId),
-                hoursSpent: Number(itemToMove.hoursSpent || itemToMove.hours),
+                ticketId: Number(editingRecord.ticketId),
+                hoursSpent: newHoursSpent,
                 workDone: values.workDone
               }
             ];
@@ -207,8 +218,8 @@ const MyEODReportsPage = () => {
         } else {
           // No report on target date, create one
           targetItems = [{
-            ticketId: Number(itemToMove.ticketId),
-            hoursSpent: Number(itemToMove.hoursSpent || itemToMove.hours),
+            ticketId: Number(editingRecord.ticketId),
+            hoursSpent: newHoursSpent,
             workDone: values.workDone
           }];
         }
@@ -384,7 +395,7 @@ const MyEODReportsPage = () => {
               <div style={{ fontWeight: 600, color: t1, marginBottom: 8 }}>{editingRecord.projectName}</div>
               
               <div style={{ marginBottom: 4 }}><Text type="secondary" style={{ fontSize: 11 }}>TICKET</Text></div>
-              <div style={{ fontWeight: 600, color: t1, marginBottom: 8 }}>
+              <div style={{ fontWeight: 600, color: t1 }}>
                 <span style={{ 
                   fontSize: '10px', 
                   fontWeight: 700, 
@@ -397,11 +408,6 @@ const MyEODReportsPage = () => {
                   {editingRecord.ticketCode}
                 </span>
                 {editingRecord.ticketTitle}
-              </div>
-
-              <div style={{ marginBottom: 4 }}><Text type="secondary" style={{ fontSize: 11 }}>LOGGED TIME</Text></div>
-              <div style={{ fontWeight: 600, color: '#10b981' }}>
-                {Math.floor(editingRecord.hours)}h {Math.round((editingRecord.hours - Math.floor(editingRecord.hours)) * 60)}m
               </div>
             </div>
 
@@ -417,6 +423,27 @@ const MyEODReportsPage = () => {
               >
                 <DatePicker style={{ width: '100%', borderRadius: 8 }} format="YYYY-MM-DD" />
               </Form.Item>
+
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item
+                    name="hours"
+                    label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>HOURS</span>}
+                    rules={[{ required: true, message: 'Required' }]}
+                  >
+                    <InputNumber min={0} style={{ width: '100%', borderRadius: 8 }} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="minutes"
+                    label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>MINUTES</span>}
+                    rules={[{ required: true, message: 'Required' }]}
+                  >
+                    <InputNumber min={0} max={59} style={{ width: '100%', borderRadius: 8 }} />
+                  </Form.Item>
+                </Col>
+              </Row>
 
               <Form.Item
                 name="workDone"
