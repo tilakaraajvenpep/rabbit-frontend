@@ -73,7 +73,8 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/pm/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
         { key: '/pm/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Requests' },
         { key: '/pm/team', icon: <TeamOutlined />, label: 'TL & Employees' },
-        { key: '/pm/cross-team', icon: <SwapOutlined />, label: 'Cross-Team Status' }
+        { key: '/pm/cross-team', icon: <SwapOutlined />, label: 'Cross-Team Status' },
+        { key: '/pm/org-chart', icon: <NodeIndexOutlined />, label: 'Organization Chart' }
       );
     }
 

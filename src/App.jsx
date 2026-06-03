@@ -183,6 +183,7 @@ const App = () => {
                 <Route path="/pm/cross-team" element={<CrossTeamPage />} />
                 <Route path="/pm/timer-requests" element={<TimerRequestsApprovalPage />} />
                 <Route path="/pm/report-access-approvals" element={<ReportAccessApprovalPage />} />
+                <Route path="/pm/org-chart" element={<OrgChartPage />} />
               </Route>
 
 
