@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, DatePicker, Typography, Skeleton, Table, Space, Button, Select, Tag, theme, Avatar } from 'antd';
+import { Card, DatePicker, Typography, Skeleton, Table, Space, Button, Select, Tag, theme, Avatar, Modal } from 'antd';
 import { useAuthStore } from '../../store/authStore';
 import { projectService } from '../../services/projectService';
 import { ticketService } from '../../services/ticketService';
@@ -15,12 +15,17 @@ const AnalyticsPage = () => {
   const { currentUser: authUser, role: authRole } = useAuthStore();
   const { token } = theme.useToken();
   const { isDarkMode } = useThemeStore();
+  
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [scrumDate, setScrumDate] = useState(dayjs());
   const [allTickets, setAllTickets] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
+
+  // Ticket Description Modal state
+  const [descModalVisible, setDescModalVisible] = useState(false);
+  const [selectedTicketForDesc, setSelectedTicketForDesc] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -141,10 +146,10 @@ const AnalyticsPage = () => {
           </div>
         ),
         key: dateStr,
-        width: 200,
+        width: 220,
         render: (_, record) => {
           // Filter tickets for this user and date
-            const dayTickets = allTickets.filter(t => {
+          const dayTickets = allTickets.filter(t => {
             const isDateMatch = t.dueDate && dayjs(t.dueDate).format('YYYY-MM-DD') === dateStr;
             if (!isDateMatch) return false;
 
@@ -167,7 +172,7 @@ const AnalyticsPage = () => {
           }
 
           return (
-            <Space direction="vertical" style={{ width: '100%' }} size={6}>
+            <Space direction="vertical" style={{ width: '100%' }} size={8}>
               {dayTickets.map(t => {
                 let hoursLabel = '';
                 let totalH = 0;
@@ -196,26 +201,42 @@ const AnalyticsPage = () => {
                 return (
                   <div 
                     key={t.id} 
+                    onClick={() => {
+                      setSelectedTicketForDesc(t);
+                      setDescModalVisible(true);
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#4f46e5';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.1)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = isDarkMode ? '#334155' : '#e2e8f0';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.02)';
+                      e.currentTarget.style.transform = 'none';
+                    }}
                     style={{ 
-                      padding: '8px 12px', 
+                      padding: '10px 12px', 
                       background: isDarkMode ? '#1e293b' : '#ffffff', 
                       border: isDarkMode ? '1px solid #334155' : '1px solid #e2e8f0',
                       borderRadius: '8px',
                       fontSize: '12px',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
                     }}
                   >
-                    <div style={{ fontWeight: 700, color: '#2563eb', marginBottom: 2 }}>
-                      {t.ticketCode}
+                    <div style={{ fontWeight: 700, color: '#4f46e5', marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{t.ticketCode || `#${t.id}`}</span>
+                      {hoursLabel && (
+                        <span style={{ fontSize: '10px', fontWeight: 800, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '1px 6px', borderRadius: 4 }}>
+                          {hoursLabel}
+                        </span>
+                      )}
                     </div>
-                    <div style={{ color: isDarkMode ? '#cbd5e1' : '#475569', fontWeight: 500 }}>
+                    <div style={{ color: isDarkMode ? '#cbd5e1' : '#475569', fontWeight: 600, fontSize: '12px', lineHeight: '1.4' }}>
                       {t.title}
                     </div>
-                    {hoursLabel && (
-                      <Tag size="small" color="blue" style={{ marginTop: 6, marginRight: 0, fontSize: '10px', borderRadius: '4px' }}>
-                        {hoursLabel}
-                      </Tag>
-                    )}
                   </div>
                 );
               })}
@@ -227,65 +248,141 @@ const AnalyticsPage = () => {
   ];
 
   return (
-    <div style={{ paddingBottom: 40 }}>
-      <PageHeader 
-        title="Scrum Master Weekly Schedule" 
-        subTitle={`Week: ${startOfWeek.format('DD MMM YYYY')} (Monday) - ${startOfWeek.add(6, 'day').format('DD MMM YYYY')} (Sunday)`}
-        extra={
-          <Space wrap>
-            <Select
-              allowClear
-              placeholder="All Projects"
-              style={{ width: 220 }}
-              value={selectedProjectId}
-              onChange={setSelectedProjectId}
-            >
-              {projects.map(p => (
-                <Select.Option key={p.id} value={p.id}>
-                  {p.code} - {p.name}
-                </Select.Option>
-              ))}
-            </Select>
+    <div style={{ 
+      height: 'calc(100vh - 64px)', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      background: isDarkMode ? '#09090b' : '#f8fafc',
+      overflow: 'hidden',
+      padding: '0 24px 24px 24px'
+    }}>
+      <div style={{ flexShrink: 0 }}>
+        <PageHeader 
+          title="Scrum Master Weekly Schedule" 
+          subTitle={`Week: ${startOfWeek.format('DD MMM YYYY')} (Monday) - ${startOfWeek.add(6, 'day').format('DD MMM YYYY')} (Sunday)`}
+          extra={
+            <Space wrap>
+              <Select
+                allowClear
+                placeholder="All Projects"
+                style={{ width: 220 }}
+                value={selectedProjectId}
+                onChange={setSelectedProjectId}
+              >
+                {projects.map(p => (
+                  <Select.Option key={p.id} value={p.id}>
+                    {p.code} - {p.name}
+                  </Select.Option>
+                ))}
+              </Select>
 
-            <Space>
-              <Button 
-                icon={<LeftOutlined />} 
-                onClick={() => setScrumDate(prev => prev.subtract(1, 'week'))}
-              />
-              <DatePicker 
-                value={scrumDate} 
-                onChange={(date) => date && setScrumDate(date)} 
-                allowClear={false}
-                style={{ width: 180 }}
-                format="DD MMM YYYY"
-              />
-              <Button 
-                icon={<RightOutlined />} 
-                onClick={() => setScrumDate(prev => prev.add(1, 'week'))}
-              />
+              <Space>
+                <Button 
+                  icon={<LeftOutlined />} 
+                  onClick={() => setScrumDate(prev => prev.subtract(1, 'week'))}
+                />
+                <DatePicker 
+                  value={scrumDate} 
+                  onChange={(date) => date && setScrumDate(date)} 
+                  allowClear={false}
+                  style={{ width: 180 }}
+                  format="DD MMM YYYY"
+                />
+                <Button 
+                  icon={<RightOutlined />} 
+                  onClick={() => setScrumDate(prev => prev.add(1, 'week'))}
+                />
+              </Space>
             </Space>
-          </Space>
-        }
-      />
+          }
+        />
+      </div>
 
       <Card
         style={{
           borderRadius: 12,
           boxShadow: isDarkMode ? 'none' : '0 4px 20px rgba(0,0,0,0.03)',
-          border: isDarkMode ? '1px solid #3f3f46' : '1px solid #f0f0f0',
+          border: isDarkMode ? '1px solid #27272a' : '1px solid #e4e4e7',
+          background: isDarkMode ? '#18181b' : '#ffffff',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}
-        bodyStyle={{ padding: 0 }}
+        bodyStyle={{ 
+          padding: 0, 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}
       >
         <Table 
           columns={columns}
           dataSource={filteredUsers}
           rowKey="id"
           pagination={false}
-          scroll={{ x: 'max-content' }}
+          scroll={{ x: 'max-content', y: 'calc(100vh - 280px)' }}
           bordered
           locale={{ emptyText: 'No employees or team leads associated to your account.' }}
+          style={{ flex: 1 }}
         />
       </Card>
+
+      {/* Ticket Details Modal */}
+      <Modal
+        title={<span style={{ fontWeight: 700, fontSize: 16, color: isDarkMode ? '#f4f4f5' : '#18181b' }}>Ticket Details</span>}
+        open={descModalVisible}
+        onCancel={() => setDescModalVisible(false)}
+        footer={[
+          <Button key="close" type="primary" style={{ background: '#4f46e5', borderColor: '#4f46e5' }} onClick={() => setDescModalVisible(false)}>
+            Close
+          </Button>
+        ]}
+        destroyOnClose
+      >
+        {selectedTicketForDesc && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ marginBottom: 16 }}>
+              <Text type="secondary" style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4 }}>TICKET CODE</Text>
+              <span style={{ 
+                fontSize: '12px', 
+                fontWeight: 700, 
+                background: 'rgba(79, 70, 229, 0.1)', 
+                color: '#4f46e5', 
+                padding: '4px 8px', 
+                borderRadius: 4,
+                border: '1px solid rgba(79, 70, 229, 0.2)'
+              }}>
+                {selectedTicketForDesc.ticketCode || `#${selectedTicketForDesc.id}`}
+              </span>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <Text type="secondary" style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4 }}>TICKET TITLE / NAME</Text>
+              <div style={{ fontSize: 14, fontWeight: 700, color: isDarkMode ? '#f4f4f5' : '#18181b' }}>
+                {selectedTicketForDesc.title}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <Text type="secondary" style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4 }}>DESCRIPTION</Text>
+              <div style={{ 
+                fontSize: 13, 
+                whiteSpace: 'pre-wrap', 
+                background: isDarkMode ? '#09090b' : '#f8fafc',
+                padding: '12px',
+                borderRadius: '8px',
+                border: isDarkMode ? '1px solid #27272a' : '1px solid #e4e4e7',
+                color: isDarkMode ? '#cbd5e1' : '#475569',
+                lineHeight: '1.5'
+              }}>
+                {selectedTicketForDesc.description || 'No description provided for this ticket.'}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
