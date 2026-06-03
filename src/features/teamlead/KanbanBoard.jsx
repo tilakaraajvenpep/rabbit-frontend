@@ -1071,9 +1071,9 @@ const KanbanBoard = () => {
                 onChange={setSelectedAssigneeId}
                 options={(() => {
                   const myUserId = authUser?.id || authUser?.userId;
-                  let filteredUsers = users;
+                  let filteredUsers = users.filter(u => u.isActive !== false && u.status !== 'Inactive');
                   if (authRole === 'TeamLead' || authUser?.role === 'TeamLead') {
-                    filteredUsers = users.filter(u => 
+                    filteredUsers = filteredUsers.filter(u => 
                       (u.role === 'Employee' && String(u.teamLeadId) === String(myUserId)) ||
                       String(u.id || u.userId) === String(myUserId)
                     );
@@ -1489,6 +1489,7 @@ const KanbanBoard = () => {
                 const pmId = authUser?.userId || authUser?.id;
                 const pmUser = users.find(u => String(u.id || u.userId) === String(project?.assignedProjectManagerId));
                 let eligibleUsers = users.filter(u => {
+                  if (u.isActive === false || u.status === 'Inactive') return false;
                   if (authRole === 'ProjectManager' || authRole === 'TenantAdmin' || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin') {
                     if (u.role !== 'Employee' && u.role !== 'TeamLead') return false;
                     if (authRole === 'ProjectManager' || authUser?.role === 'ProjectManager') {
