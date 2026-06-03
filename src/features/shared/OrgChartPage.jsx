@@ -112,27 +112,55 @@ const OrgChartPage = () => {
     const tls  = users.filter(u => u.role === 'TeamLead');
     const emps = users.filter(u => u.role === 'Employee');
 
-    const hier = pms.map(pm => ({
-      ...pm, type: 'PM',
-      children: [
-        ...tls.filter(tl => String(tl.projectManagerId) === String(pm.id)).map(tl => ({
-          ...tl, type: 'TeamLead',
-          children: emps.filter(e => String(e.teamLeadId) === String(tl.id))
-        })),
-        ...emps.filter(e => String(e.projectManagerId) === String(pm.id) && !e.teamLeadId)
-               .map(e => ({ ...e, type: 'Employee', children: [] }))
-      ]
-    }));
+    const assignedTlIds = new Set();
+    const assignedEmpIds = new Set();
 
-    const unTls  = tls.filter(tl => !tl.projectManagerId);
-    const unEmps = emps.filter(e  => !e.teamLeadId && !e.projectManagerId);
+    const hier = pms.map(pm => {
+      const pmTls = tls.filter(tl => 
+        String(tl.projectManagerId) === String(pm.id) ||
+        emps.some(e => String(e.teamLeadId) === String(tl.id) && String(e.projectManagerId) === String(pm.id))
+      );
+
+      return {
+        ...pm, type: 'PM',
+        children: [
+          ...pmTls.map(tl => {
+            assignedTlIds.add(tl.id);
+            const tlEmps = emps.filter(e => 
+              String(e.teamLeadId) === String(tl.id) && 
+              (String(e.projectManagerId) === String(pm.id) || !e.projectManagerId)
+            );
+            tlEmps.forEach(e => assignedEmpIds.add(e.id));
+            return {
+              ...tl, type: 'TeamLead',
+              children: tlEmps.map(e => ({ ...e, type: 'Employee', children: [] }))
+            };
+          }),
+          ...emps.filter(e => String(e.projectManagerId) === String(pm.id) && !e.teamLeadId).map(e => {
+            assignedEmpIds.add(e.id);
+            return { ...e, type: 'Employee', children: [] };
+          })
+        ]
+      };
+    });
+
+    const unTls  = tls.filter(tl => !assignedTlIds.has(tl.id));
+    const unEmps = emps.filter(e  => !assignedEmpIds.has(e.id));
+
     if (unTls.length || unEmps.length) {
       hier.push({
         id: '__unassigned__', name: 'Unassigned', fullName: 'Unassigned',
         role: 'ProjectManager', type: 'PM',
         children: [
-          ...unTls.map(tl => ({ ...tl, type: 'TeamLead', children: emps.filter(e => String(e.teamLeadId) === String(tl.id)) })),
-          ...unEmps.map(e  => ({ ...e,  type: 'Employee', children: [] }))
+          ...unTls.map(tl => {
+            const tlEmps = emps.filter(e => String(e.teamLeadId) === String(tl.id) && !assignedEmpIds.has(e.id));
+            tlEmps.forEach(e => assignedEmpIds.add(e.id));
+            return {
+              ...tl, type: 'TeamLead',
+              children: tlEmps.map(e => ({ ...e, type: 'Employee', children: [] }))
+            };
+          }),
+          ...unEmps.filter(e => !assignedEmpIds.has(e.id)).map(e  => ({ ...e,  type: 'Employee', children: [] }))
         ]
       });
     }
