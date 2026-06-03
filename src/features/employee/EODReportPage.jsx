@@ -1397,7 +1397,7 @@ const EODReportPage = () => {
                         return (
                           <div key={field.id} style={{ padding: '8px 12px', background: isDarkMode ? '#1e2130' : '#f8fafc', borderRadius: 8, border: `1px solid ${border}` }}>
                             <Row gutter={[12, 8]} align="middle">
-                              <Col xs={24} md={9}>
+                              <Col xs={24} md={11}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>TICKET NAME</span>
                                   {(() => {
@@ -1426,7 +1426,7 @@ const EODReportPage = () => {
                                     const remM = Math.round((remainingHours - remH) * 60);
 
                                     return (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden', marginTop: 4 }}>
                                         <span style={{ 
                                           fontSize: '11px', 
                                           fontWeight: 700, 
@@ -1434,17 +1434,30 @@ const EODReportPage = () => {
                                           color: accent, 
                                           padding: '2px 6px', 
                                           borderRadius: 4,
-                                          border: `1px solid ${accent}30`
+                                          border: `1px solid ${accent}30`,
+                                          flexShrink: 0
                                         }}>
                                           {code}
                                         </span>
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: t1 }}>
+                                        <span 
+                                          style={{ 
+                                            fontSize: 12, 
+                                            fontWeight: 600, 
+                                            color: t1,
+                                            textOverflow: 'ellipsis',
+                                            overflow: 'hidden',
+                                            whiteSpace: 'nowrap',
+                                            maxWidth: 240,
+                                            flexShrink: 1
+                                          }}
+                                          title={title}
+                                        >
                                           {title}
                                         </span>
-                                        <span style={{ fontSize: '10px', fontWeight: 600, color: t2, marginLeft: 4 }}>
+                                        <span style={{ fontSize: '10px', fontWeight: 600, color: t2, marginLeft: 4, flexShrink: 0 }}>
                                           (Allotted: {allotH}h {allotM}m)
                                         </span>
-                                        <span style={{ fontSize: '10px', fontWeight: 700, color: remainingHours <= 0.5 ? '#ef4444' : '#10b981' }}>
+                                        <span style={{ fontSize: '10px', fontWeight: 700, color: remainingHours <= 0.5 ? '#ef4444' : '#10b981', flexShrink: 0 }}>
                                           (Remaining: {remH}h {remM}m)
                                         </span>
                                       </div>
@@ -1470,7 +1483,7 @@ const EODReportPage = () => {
                                 </div>
                               </Col>
 
-                              <Col xs={24} md={9}>
+                              <Col xs={24} md={7}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>WORK DESCRIPTION</span>
                                   <Controller control={control} name={`items.${index}.workDone`} render={({ field: f }) => (
