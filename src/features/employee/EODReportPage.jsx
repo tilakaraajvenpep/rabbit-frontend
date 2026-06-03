@@ -95,6 +95,13 @@ const EODReportPage = () => {
   const [myAccessRequests, setMyAccessRequests] = useState([]);
   const [hasAccessForDate, setHasAccessForDate] = useState(false);
 
+  // States for Manual Ticket Entry
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualForm] = Form.useForm();
+  const [manualMode, setManualMode] = useState('request');
+  const [visibleTickets, setVisibleTickets] = useState([]);
+
   // Alert Modal State
   const [alertModalOpen, setAlertModalOpen] = useState(false);
   const [alertModalIndex, setAlertModalIndex] = useState(null);
@@ -474,8 +481,28 @@ const EODReportPage = () => {
 
       const hasReport = !!res.data;
 
-      // Filter visible tickets for this EOD Page
-      const visibleTickets = ticketsList.filter(ticket => {
+      // Filter visible tickets for this EOD Page (only active tickets reportable for current date)
+      const visibleFiltered = ticketsList.filter(ticket => {
+        if (ticket.status === 'Done') return false;
+
+        const repDate = dayjs(date).startOf('day');
+        const start = ticket.startDate ? dayjs(ticket.startDate).startOf('day') : null;
+        const due = ticket.dueDate ? dayjs(ticket.dueDate).endOf('day') : null;
+        const isDateValid = !start || !due || (repDate.isAfter(start.subtract(1, 'day')) && repDate.isBefore(due.add(1, 'day')));
+        
+        let hasDatePermission = false;
+        if (!isDateValid) {
+          hasDatePermission = myTimerRequests.some(r => 
+            String(r.request?.ticketId) === String(ticket.id) && 
+            r.request?.requestType === 'DateRangeExtension' && 
+            (r.request?.status === 'Approved' || r.request?.status === 'AccountsApproved')
+          );
+        }
+        
+        if (!isDateValid && !hasDatePermission) {
+          return false;
+        }
+
         if (role === 'ProjectManager' || role === 'TeamLead' || role === 'TenantAdmin') {
           return true;
         }
@@ -483,7 +510,6 @@ const EODReportPage = () => {
         const allotted = getAllottedHoursForTicket(ticket.id);
         const totalConsumed = Number(ticket.consumedHours) || 0;
         
-        // Find if this ticket has hours logged in the database report for today
         const dbReportTodayItem = res.data?.items?.find(item => String(item.ticketId) === String(ticket.id));
         const dbTodayHours = dbReportTodayItem ? (Number(dbReportTodayItem.hoursSpent) || 0) : 0;
         const consumedOther = Math.max(0, totalConsumed - dbTodayHours);
@@ -491,6 +517,9 @@ const EODReportPage = () => {
         const hasHoursToday = dbReportTodayItem && (Number(dbReportTodayItem.hoursSpent) > 0);
         return (consumedOther < allotted) || hasHoursToday;
       });
+
+      setVisibleTickets(visibleFiltered);
+      const visibleTickets = visibleFiltered;
 
       const mappedItems = visibleTickets.map(ticket => {
         const matchingItem = res.data?.items?.find(item => String(item.ticketId) === String(ticket.id));
@@ -916,6 +945,109 @@ const EODReportPage = () => {
     }
   };
 
+  const handleManualEntrySubmit = async (values) => {
+    setManualSubmitting(true);
+    try {
+      if (values.mode === 'request') {
+        const targetDateStr = values.targetDate ? values.targetDate.format('YYYY-MM-DD') : selectedDate;
+        const projectObj = allProjects.find(p => String(p.id) === String(values.projectId));
+        const projName = projectObj ? (projectObj.name || projectObj.projectName) : 'Project';
+        
+        await reportAccessService.createRequest({
+          targetDate: targetDateStr,
+          reason: `[Project: ${projName}] ${values.reason}`
+        });
+        
+        notification.success({
+          message: 'Permission Requested',
+          description: `Access request for ${targetDateStr} sent to Team Leader.`
+        });
+        setIsManualModalOpen(false);
+        manualForm.resetFields();
+        fetchWeeklyStatus(weekDates);
+        await fetchReportForDate(selectedDate);
+      } else {
+        const hrs = Number(values.hours) || 0;
+        const mins = Number(values.minutes) || 0;
+        const loggedHours = hrs + mins / 60;
+
+        if (loggedHours <= 0) {
+          notification.error({
+            message: 'Validation Error',
+            description: 'Please enter a valid time duration (hours or minutes).'
+          });
+          setManualSubmitting(false);
+          return;
+        }
+
+        if (!values.ticketName || !values.ticketName.trim()) {
+          notification.error({
+            message: 'Validation Error',
+            description: 'Please enter a ticket title.'
+          });
+          setManualSubmitting(false);
+          return;
+        }
+
+        const payload = {
+          title: values.ticketName,
+          description: values.workDescription || 'Manual Ticket Entry',
+          priority: 'Medium',
+          estimatedHours: loggedHours,
+          assignedToUserId: currentUser.userId || currentUser.id,
+          dueDate: dayjs(selectedDate).endOf('day').toISOString()
+        };
+        
+        const ticketRes = await ticketService.createTicket(values.projectId, payload);
+        const newTicket = ticketRes.data;
+
+        const existingItems = (watchedItems || [])
+          .map(item => {
+            const h = Number(item.hoursInput) || 0;
+            const m = Number(item.minutesInput) || 0;
+            return {
+              ticketId: Number(item.ticketId),
+              hoursSpent: h + m / 60,
+              workDone: item.workDone
+            };
+          })
+          .filter(item => item.hoursSpent > 0 && item.ticketId);
+
+        const newItem = {
+          ticketId: Number(newTicket.id),
+          hoursSpent: loggedHours,
+          workDone: values.workDescription || 'Logged from Manual Entry'
+        };
+
+        const reportData = {
+          reportDate: selectedDate,
+          items: [...existingItems, newItem]
+        };
+
+        await reportService.submitDailyReport(reportData);
+
+        notification.success({
+          message: 'Ticket & EOD Submitted',
+          description: 'Successfully created ticket and logged hours.'
+        });
+
+        setIsManualModalOpen(false);
+        manualForm.resetFields();
+        await fetchProjects();
+        await fetchTickets();
+        await fetchReportForDate(selectedDate);
+        fetchWeeklyStatus(weekDates);
+      }
+    } catch (err) {
+      notification.error({
+        message: 'Manual Entry Failed',
+        description: err.response?.data?.message || err.message || 'Error occurred.'
+      });
+    } finally {
+      setManualSubmitting(false);
+    }
+  };
+
   const handleOpenRequestModal = (type, ticket) => {
     setActiveRequestDetails({ type, ticket });
     requestForm.resetFields();
@@ -1029,7 +1161,15 @@ const EODReportPage = () => {
     return hasAllocation || isAssignedEmp || isProjectTL || isProjectPM || hasAssignedTicket;
   });
 
-  const displayProjects = myAssignedProjects.length > 0 ? myAssignedProjects : allProjects;
+  const displayProjects = myAssignedProjects.filter(project => {
+    const pId = project.id || project.projectId;
+    return visibleTickets.some(t => String(t.projectId) === String(pId));
+  });
+
+  const inactiveProjects = allProjects.filter(p => {
+    const pId = p.id || p.projectId;
+    return !visibleTickets.some(t => String(t.projectId) === String(pId));
+  });
 
   return (
     <div style={{ height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', background: bg, overflow: 'hidden', fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -1222,126 +1362,128 @@ const EODReportPage = () => {
                         const item = watchedItems?.[index] || {};
 
                         return (
-                          <div key={field.id} style={{ padding: 16, background: isDarkMode ? '#1e2130' : '#f8fafc', borderRadius: 10, border: `1px solid ${border}` }}>
-                            {/* Header row containing title, alert toggle */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-                              <div style={{ flex: 1 }} />
-                              
-                              {/* Alert raise button */}
-                              {(() => {
-                                const isAlert = watch(`items.${index}.isAlertIssue`);
-                                const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-                                return (
-                                  <Button 
-                                    size="small" 
-                                    icon={<AlertOutlined />} 
-                                    danger={isAlert} 
-                                    type={isAlert ? 'primary' : 'default'}
-                                    disabled={viewOnly || isTicketDateBlocked(item.ticketId)}
-                                    style={{ fontSize: 11, borderRadius: 6 }} 
-                                    onClick={() => handleAlertButtonClick(index, ticketObj)}
-                                  >
-                                    {isAlert ? 'Alert ON' : 'Alert'}
-                                  </Button>
-                                );
-                              })()}
-                            </div>
-
-                            {/* Select Ticket and Text box to enter hours and minutes */}
-                            <Row gutter={[12, 12]} align="middle">
-                              <Col xs={24} sm={12} md={14}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                  <label style={{ fontSize: 11, fontWeight: 700, color: t2 }}>Assigned Tickets in this Project</label>
+                          <div key={field.id} style={{ padding: '10px 16px', background: isDarkMode ? '#1e2130' : '#f8fafc', borderRadius: 10, border: `1px solid ${border}` }}>
+                            <Row gutter={[12, 8]} align="middle">
+                              <Col xs={24} md={6}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>TICKET NAME</span>
                                   {(() => {
                                     const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
                                     return (
-                                      <div style={{ padding: '8px 12px', background: isDarkMode ? '#11131c' : '#ffffff', border: `1px solid ${border}`, borderRadius: 8, minHeight: 38, display: 'flex', alignItems: 'center' }}>
-                                        <span style={{ fontSize: 13, fontWeight: 700, color: t1 }}>
+                                      <div style={{ padding: '6px 10px', background: isDarkMode ? '#11131c' : '#ffffff', border: `1px solid ${border}`, borderRadius: 6, minHeight: 32, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: t1, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }} title={ticketObj ? `${ticketObj.code || '#' + ticketObj.id} — ${ticketObj.title || ticketObj.ticketTitle || ''}` : 'Ticket'}>
                                           {ticketObj ? `${ticketObj.code || '#' + ticketObj.id} — ${ticketObj.title || ticketObj.ticketTitle || ''}` : 'Ticket'}
                                         </span>
                                       </div>
                                     );
                                   })()}
                                   
-                                  {/* Allotted Hours Display */}
                                   {item.ticketId && (
                                     (() => {
                                       const allottedHours = getAllottedHoursForTicket(item.ticketId);
                                       const allotH = Math.floor(allottedHours);
                                       const allotM = Math.round((allottedHours - allotH) * 60);
                                       return (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                                          <Badge status={allottedHours > 0 ? 'processing' : 'warning'} />
-                                          <span style={{ fontSize: '11px', fontWeight: 600, color: accent }}>
-                                            Allotted: {allotH}h {allotM}m
-                                          </span>
-                                        </div>
+                                        <span style={{ fontSize: '9px', fontWeight: 600, color: accent, display: 'block', marginTop: 2 }}>
+                                          Allotted: {allotH}h {allotM}m
+                                        </span>
                                       );
                                     })()
                                   )}
                                 </div>
                               </Col>
 
-                              <Col xs={24} sm={12} md={10}>
-                                <label style={{ fontSize: 11, fontWeight: 700, color: t2, display: 'block', marginBottom: 4 }}>Time Logged</label>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
-                                    <InputNumber {...f} min={0} size="middle" style={{ width: '100%' }} disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Hrs" />
-                                  )} />
-                                  <span style={{ fontSize: 12, color: t2, fontWeight: 600 }}>hrs</span>
-                                  
-                                  <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
-                                    <InputNumber {...f} min={0} max={59} size="middle" style={{ width: '100%' }} disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Mins" />
-                                  )} />
-                                  <span style={{ fontSize: 12, color: t2, fontWeight: 600 }}>mins</span>
+                              <Col xs={24} md={5}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>TIME LOGGED</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
+                                      <InputNumber {...f} min={0} size="small" style={{ width: '100%', borderRadius: 6 }} disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Hrs" />
+                                    )} />
+                                    <span style={{ fontSize: 11, color: t2, fontWeight: 600 }}>h</span>
+                                    
+                                    <Controller control={control} name={`items.${index}.minutesInput`} render={({ field: f }) => (
+                                      <InputNumber {...f} min={0} max={59} size="small" style={{ width: '100%', borderRadius: 6 }} disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Mins" />
+                                    )} />
+                                    <span style={{ fontSize: 11, color: t2, fontWeight: 600 }}>m</span>
+                                  </div>
                                 </div>
+                              </Col>
+
+                              <Col xs={24} md={10}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>WORK DESCRIPTION</span>
+                                  <Controller control={control} name={`items.${index}.workDone`} render={({ field: f }) => (
+                                    <Input {...f} size="small" disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Describe work done..." style={{ fontSize: 12, borderRadius: 6, height: 32 }} />
+                                  )} />
+                                </div>
+                              </Col>
+
+                              <Col xs={24} md={3} style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 14 }}>
                                 {(() => {
-                                  if (!item.ticketId) return null;
-                                  const enteredHrs = Number(watch(`items.${index}.hoursInput`)) || 0;
-                                  const enteredMins = Number(watch(`items.${index}.minutesInput`)) || 0;
-                                  
-                                  if (enteredHrs < 0 || enteredMins < 0) {
-                                    return (
-                                      <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 4, fontWeight: 'bold' }}>
-                                        ⚠️ Hours and minutes cannot be negative.
-                                      </div>
-                                    );
-                                  }
-                                  if (enteredMins >= 60) {
-                                    return (
-                                      <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 4, fontWeight: 'bold' }}>
-                                        ⚠️ Minutes must be less than 60.
-                                      </div>
-                                    );
-                                  }
-                                  
-                                  const totalEnteredHours = enteredHrs + (enteredMins / 60);
-                                  const allottedHours = getAllottedHoursForTicket(item.ticketId);
-                                  if (totalEnteredHours > allottedHours) {
-                                    const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-                                    return (
-                                      <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 6, fontWeight: 'bold', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                        <span>⚠️ Entered hours ({fmtH(totalEnteredHours)}) exceeds allotted ({fmtH(allottedHours)}).</span>
-                                        {!viewOnly && (
-                                          <Button 
-                                            type="primary" 
-                                            size="small" 
-                                            danger 
-                                            style={{ fontSize: '10px', height: '22px', padding: '0 8px', borderRadius: 4, alignSelf: 'flex-start', marginTop: 2 }}
-                                            onClick={() => handleOpenRequestModal('ExceededLimit', ticketObj)}
-                                          >
-                                            Request Hours
-                                          </Button>
-                                        )}
-                                      </div>
-                                    );
-                                  }
-                                  return null;
+                                  const isAlert = watch(`items.${index}.isAlertIssue`);
+                                  const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                                  return (
+                                    <Button 
+                                      size="small" 
+                                      icon={<AlertOutlined />} 
+                                      danger={isAlert} 
+                                      type={isAlert ? 'primary' : 'default'}
+                                      disabled={viewOnly || isTicketDateBlocked(item.ticketId)}
+                                      style={{ fontSize: 11, borderRadius: 6, width: '100%', height: 32 }} 
+                                      onClick={() => handleAlertButtonClick(index, ticketObj)}
+                                    >
+                                      {isAlert ? 'Alert ON' : 'Alert'}
+                                    </Button>
+                                  );
                                 })()}
                               </Col>
                             </Row>
 
-                            {/* Ticket valid schedule checkers */}
+                            {(() => {
+                              if (!item.ticketId) return null;
+                              const enteredHrs = Number(watch(`items.${index}.hoursInput`)) || 0;
+                              const enteredMins = Number(watch(`items.${index}.minutesInput`)) || 0;
+                              
+                              if (enteredHrs < 0 || enteredMins < 0) {
+                                return (
+                                  <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 4, fontWeight: 'bold' }}>
+                                    ⚠️ Hours and minutes cannot be negative.
+                                  </div>
+                                );
+                              }
+                              if (enteredMins >= 60) {
+                                return (
+                                  <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 4, fontWeight: 'bold' }}>
+                                    ⚠️ Minutes must be less than 60.
+                                  </div>
+                                );
+                              }
+                              
+                              const totalEnteredHours = enteredHrs + (enteredMins / 60);
+                              const allottedHours = getAllottedHoursForTicket(item.ticketId);
+                              if (totalEnteredHours > allottedHours) {
+                                const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                                return (
+                                  <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 6, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <span>⚠️ Entered hours ({fmtH(totalEnteredHours)}) exceeds allotted ({fmtH(allottedHours)}).</span>
+                                    {!viewOnly && (
+                                      <Button 
+                                        type="primary" 
+                                        size="small" 
+                                        danger 
+                                        style={{ fontSize: '10px', height: '20px', padding: '0 8px', borderRadius: 4 }}
+                                        onClick={() => handleOpenRequestModal('ExceededLimit', ticketObj)}
+                                      >
+                                        Request Hours
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+
                             {(() => {
                               if (!item.ticketId) return null;
                               const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
@@ -1362,7 +1504,7 @@ const EODReportPage = () => {
 
                               if (hasDatePermission) {
                                 return (
-                                  <div style={{ color: '#10b981', fontSize: '11px', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ color: '#10b981', fontSize: '11px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <CheckCircleOutlined />
                                     <span>Date range extension approved by TL & PM.</span>
                                   </div>
@@ -1377,7 +1519,7 @@ const EODReportPage = () => {
 
                               if (pendingRequest) {
                                 return (
-                                  <div style={{ color: '#eab308', fontSize: '11px', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ color: '#eab308', fontSize: '11px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <ClockCircleOutlined />
                                     <span>Request pending Team Leader / PM approval.</span>
                                   </div>
@@ -1385,12 +1527,12 @@ const EODReportPage = () => {
                               }
 
                               return (
-                                <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <span>⚠️ Date Blocked: Selected date is outside valid ticket schedule ({start ? start.format('DD MMM YYYY') : ''} to {due ? due.format('DD MMM YYYY') : ''}).</span>
                                   <Button 
                                     type="primary" 
                                     size="small" 
-                                    style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: '10px', height: '22px', padding: '0 8px', borderRadius: 4 }}
+                                    style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: '10px', height: '20px', padding: '0 8px', borderRadius: 4 }}
                                     onClick={() => handleOpenRequestModal('DateRangeExtension', ticketObj)}
                                   >
                                     Request Permission
@@ -1399,22 +1541,13 @@ const EODReportPage = () => {
                               );
                             })()}
 
-                            {/* Message / Description */}
-                            <div style={{ marginTop: 12 }}>
-                              <label style={{ fontSize: 11, fontWeight: 700, color: t2, display: 'block', marginBottom: 4 }}>Work Done Description</label>
-                              <Controller control={control} name={`items.${index}.workDone`} render={({ field: f }) => (
-                                <TextArea {...f} rows={2} disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Describe work done for this task..." style={{ resize: 'none', fontSize: 12, borderRadius: 8 }} />
-                              )} />
-                            </div>
-
-                            {/* Alert Block Description */}
                             {(() => {
                               const isAlert = watch(`items.${index}.isAlertIssue`);
                               const alertMsg = watch(`items.${index}.alertMessage`);
                               if (isAlert && alertMsg) {
                                 return (
-                                  <div style={{ marginTop: 12, padding: '8px 12px', background: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#fef2f2', border: '1px dashed #ef4444', borderRadius: 8 }}>
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                  <div style={{ marginTop: 8, padding: '6px 12px', background: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#fef2f2', border: '1px dashed #ef4444', borderRadius: 8 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                                       <WarningOutlined style={{ color: '#ef4444' }} />
                                       <span>CRITICAL ALERT RAISED TO TEAM LEADER</span>
                                     </div>
@@ -1436,9 +1569,157 @@ const EODReportPage = () => {
             );
           })
         )}
+
+        {/* Manual Ticket Entry Button */}
+        {!viewOnly && !isSunday && !showRestrictionResult && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12, marginBottom: 20 }}>
+            <Button 
+              type="dashed" 
+              icon={<PlusOutlined />} 
+              size="large" 
+              onClick={() => {
+                manualForm.resetFields();
+                setManualMode('request');
+                setIsManualModalOpen(true);
+              }}
+              style={{ borderRadius: 8, fontWeight: 600, borderColor: accent, color: accent, display: 'flex', alignItems: 'center' }}
+            >
+              Manual Ticket Entry
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* ── MODALS ── */}
+      <Modal 
+        title={<span style={{ fontSize: 16, fontWeight: 700, color: t1 }}>Manual Ticket Entry</span>}
+        open={isManualModalOpen} 
+        onCancel={() => {
+          setIsManualModalOpen(false);
+          manualForm.resetFields();
+        }} 
+        footer={null} 
+        destroyOnClose
+        bodyStyle={{ padding: '16px 4px 4px 4px' }}
+      >
+        <Form 
+          form={manualForm} 
+          layout="vertical" 
+          onFinish={handleManualEntrySubmit}
+          initialValues={{ mode: 'request', targetDate: dayjs(selectedDate) }}
+          style={{ marginTop: 12 }}
+        >
+          <Form.Item 
+            name="projectId" 
+            label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>SELECT INACTIVE PROJECT</span>}
+            rules={[{ required: true, message: 'Please select a project' }]}
+          >
+            <Select 
+              placeholder="Select project..." 
+              style={{ width: '100%' }}
+              options={inactiveProjects.map(p => ({
+                value: p.id || p.projectId,
+                label: p.name || p.projectName
+              }))}
+            />
+          </Form.Item>
+
+          <Form.Item 
+            name="mode" 
+            label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>ACTION TO PERFORM</span>}
+            rules={[{ required: true }]}
+          >
+            <Radio.Group 
+              style={{ width: '100%' }} 
+              buttonStyle="solid" 
+              onChange={(e) => setManualMode(e.target.value)}
+            >
+              <Radio.Button value="request" style={{ width: '50%', textAlign: 'center' }}>Request Permission</Radio.Button>
+              <Radio.Button value="create" style={{ width: '50%', textAlign: 'center' }}>Create Ticket</Radio.Button>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item noStyle shouldUpdate={(prev, curr) => prev.mode !== curr.mode}>
+            {({ getFieldValue }) => {
+              const currentMode = getFieldValue('mode') || 'request';
+
+              if (currentMode === 'request') {
+                return (
+                  <>
+                    <Form.Item 
+                      name="targetDate" 
+                      label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>TARGET DATE</span>}
+                      rules={[{ required: true, message: 'Please select a date' }]}
+                    >
+                      <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+                    </Form.Item>
+                    
+                    <Form.Item 
+                      name="reason" 
+                      label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>REASON FOR PERMISSION</span>}
+                      rules={[{ required: true, message: 'Please enter reason' }]}
+                    >
+                      <TextArea rows={3} placeholder="Provide reason to request reporting access for this date..." style={{ borderRadius: 8, fontSize: 13 }} />
+                    </Form.Item>
+                  </>
+                );
+              } else {
+                return (
+                  <>
+                    <Form.Item 
+                      name="ticketName" 
+                      label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>NEW TICKET TITLE</span>}
+                      rules={[{ required: true, message: 'Please enter a ticket title' }]}
+                    >
+                      <Input placeholder="Enter ticket name..." style={{ borderRadius: 8, fontSize: 13 }} />
+                    </Form.Item>
+
+                    <Row gutter={12}>
+                      <Col span={12}>
+                        <Form.Item 
+                          name="hours" 
+                          label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>HOURS</span>}
+                          initialValue={0}
+                        >
+                          <InputNumber min={0} style={{ width: '100%', borderRadius: 8 }} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item 
+                          name="minutes" 
+                          label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>MINUTES</span>}
+                          initialValue={0}
+                        >
+                          <InputNumber min={0} max={59} style={{ width: '100%', borderRadius: 8 }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Form.Item 
+                      name="workDescription" 
+                      label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>WORK DESCRIPTION</span>}
+                      rules={[{ required: true, message: 'Please enter work description' }]}
+                    >
+                      <TextArea rows={3} placeholder="Describe work done for this ticket..." style={{ borderRadius: 8, fontSize: 13 }} />
+                    </Form.Item>
+                  </>
+                );
+              }
+            }}
+          </Form.Item>
+
+          <Button 
+            type="primary" 
+            htmlType="submit" 
+            loading={manualSubmitting} 
+            block 
+            style={{ background: accent, borderColor: accent, height: 40, borderRadius: 8, fontWeight: 600, fontSize: 14, marginTop: 12 }}
+          >
+            Submit
+          </Button>
+        </Form>
+      </Modal>
+
       <Modal title="Apply for Leave / Permission" open={isLeaveModalOpen} onCancel={() => setIsLeaveModalOpen(false)} footer={null} destroyOnClose>
         <Form form={leaveForm} layout="vertical" onFinish={handleApplyLeaveSubmit} style={{ marginTop: 16 }}>
           <Form.Item name="fromDate" label="From Date" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
