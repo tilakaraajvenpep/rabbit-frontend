@@ -98,6 +98,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/accounts/org-chart', icon: <NodeIndexOutlined />, label: 'Organization Chart' },
         { key: '/accounts/standard-cost', icon: <DollarOutlined />, label: 'Standard Cost' },
         { key: '/accounts/hours-approval', icon: <ClockCircleOutlined />, label: 'Additional Hours Approval' },
+        { key: '/accounts/reports', icon: <BarChartOutlined />, label: 'Work Reports' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' }
       );
     }

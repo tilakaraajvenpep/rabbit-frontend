@@ -205,6 +205,7 @@ const App = () => {
                 <Route path="/accounts/standard-cost" element={<StandardCostPage />} />
                 <Route path="/accounts/hours-approval" element={<AccountsHoursApprovalPage />} />
                 <Route path="/accounts/org-chart" element={<OrgChartPage />} />
+                <Route path="/accounts/reports" element={<EmployeeReportsPage />} />
               </Route>
 
               {/* TeamLead Routes */}

@@ -18,7 +18,7 @@ const { Text } = Typography;
 
 const EmployeeReportsPage = () => {
   const { currentUser, role } = useAuthStore();
-  const isManager = ['TeamLead', 'ProjectManager', 'TenantAdmin', 'HR'].includes(role);
+  const isManager = ['TeamLead', 'ProjectManager', 'TenantAdmin', 'HR', 'Accounts'].includes(role);
   const [loading, setLoading] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [rawReportData, setRawReportData] = useState([]);
@@ -47,7 +47,7 @@ const EmployeeReportsPage = () => {
       data = data.filter(r => String(r.userId) === String(selectedEmployee));
     }
 
-    if (selectedTeamLead && role === 'HR') {
+    if (selectedTeamLead && ['HR', 'Accounts', 'TenantAdmin'].includes(role)) {
       data = data.filter(r => {
         const u = allUsersCache.find(u => String(u.id || u.userId) === String(r.userId));
         if (!u) return false;
@@ -59,7 +59,7 @@ const EmployeeReportsPage = () => {
       });
     }
 
-    if (selectedPM && role === 'HR') {
+    if (selectedPM && ['HR', 'Accounts', 'TenantAdmin'].includes(role)) {
       data = data.filter(r => {
         const u = allUsersCache.find(u => String(u.id || u.userId) === String(r.userId));
         if (!u) return false;
@@ -232,8 +232,8 @@ const EmployeeReportsPage = () => {
       // Cache allUsers for filter effect
       setAllUsersCache(allUsers);
 
-      // Collect unique Team Leads and Project Managers for HR filters
-      if (role === 'HR') {
+      // Collect unique Team Leads and Project Managers for HR/Accounts/TenantAdmin filters
+      if (['HR', 'Accounts', 'TenantAdmin'].includes(role)) {
         const tlMap = new Map();
         const pmMap = new Map();
         allUsers.forEach(u => {
@@ -273,7 +273,7 @@ const EmployeeReportsPage = () => {
       render: (date) => dayjs(date).format('DD MMM YYYY')
     },
     { title: 'Employee', dataIndex: 'employeeName', key: 'employeeName', width: 150 },
-    role === 'HR' && {
+    ['HR', 'Accounts', 'TenantAdmin'].includes(role) && {
       title: 'Role',
       dataIndex: 'userRole',
       key: 'userRole',
@@ -285,7 +285,7 @@ const EmployeeReportsPage = () => {
         return <Tag color={color} style={{ fontWeight: 600, borderRadius: 4 }}>{roleVal}</Tag>;
       }
     },
-    role === 'HR' && {
+    ['HR', 'Accounts', 'TenantAdmin'].includes(role) && {
       title: 'Supervisor / Lead',
       dataIndex: 'supervisorName',
       key: 'supervisorName',
@@ -378,7 +378,7 @@ const EmployeeReportsPage = () => {
                 ))}
               </Select>
 
-              {role === 'HR' && (
+              {['HR', 'Accounts', 'TenantAdmin'].includes(role) && (
                 <>
                   <Text strong style={{ whiteSpace: 'nowrap', minWidth: 100 }}>Team Lead:</Text>
                   <Select
@@ -395,7 +395,7 @@ const EmployeeReportsPage = () => {
                       <Select.Option key={tl.id} value={tl.id}>{tl.name}</Select.Option>
                     ))}
                   </Select>
-
+ 
                   <Text strong style={{ whiteSpace: 'nowrap', minWidth: 60 }}>PM:</Text>
                   <Select
                     placeholder="All PMs"
