@@ -16,7 +16,6 @@ const OrgChartPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPmId, setSelectedPmId] = useState(null);
   const [hoveredCardId, setHoveredCardId] = useState(null);
 
   useEffect(() => {
@@ -27,13 +26,7 @@ const OrgChartPage = () => {
     setLoading(true);
     try {
       const res = await adminService.getUsers();
-      const loadedUsers = res.data || [];
-      setUsers(loadedUsers);
-
-      const pmsList = loadedUsers.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin');
-      if (pmsList.length > 0) {
-        setSelectedPmId(pmsList[0].id);
-      }
+      setUsers(res.data || []);
     } catch (err) {
       console.error('Failed to load users for org chart:', err);
     } finally {
@@ -112,10 +105,6 @@ const OrgChartPage = () => {
     );
   };
 
-  const pmColor = '#6366f1'; // Premium Indigo
-  const tlColor = '#ec4899'; // Premium Pink
-  const empColor = '#10b981'; // Premium Emerald
-
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '100px 0' }}>
@@ -126,61 +115,184 @@ const OrgChartPage = () => {
   }
 
   const hierarchy = buildHierarchy();
-  const activePmNode = hierarchy.find(p => String(p.id) === String(selectedPmId));
 
-  const renderCard = (node, borderCol) => {
+  const renderPmCard = (node) => {
     const isHovered = hoveredCardId === node.id;
     const highlighted = matchesSearch(node);
     const hasSearch = searchQuery.length > 0;
-    const isPM = node.type === 'PM' || node.role === 'ProjectManager' || node.role === 'TenantAdmin';
-    const isTL = node.type === 'TeamLead' || node.role === 'TeamLead';
-    const displayRole = isPM ? 'Project Manager' : isTL ? 'Team Lead' : 'Employee';
+    const isCPO = node.id === 'unassigned-pm' || node.role === 'TenantAdmin';
 
     return (
-      <Card
-        size="small"
+      <div
         onMouseEnter={() => setHoveredCardId(node.id)}
         onMouseLeave={() => setHoveredCardId(null)}
         style={{
-          width: 250,
-          borderRadius: 12,
-          border: highlighted 
-            ? `2px solid ${borderCol}` 
-            : `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)'}`,
-          borderLeft: `5px solid ${borderCol}`,
-          background: isDarkMode ? 'rgba(30, 30, 36, 0.75)' : 'rgba(255, 255, 255, 0.85)',
-          backdropFilter: 'blur(10px)',
-          boxShadow: isHovered 
-            ? `0 12px 24px ${borderCol}25` 
-            : (isDarkMode ? '0 4px 12px rgba(0,0,0,0.4)' : '0 4px 12px rgba(0,0,0,0.03)'),
+          width: 200,
+          height: 64,
+          background: '#1d2d3a', // Dark slate blue from image template
+          borderRadius: 6,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '8px 16px',
+          color: '#ffffff',
+          border: highlighted ? '2px solid #3b82f6' : '1px solid #14202a',
+          boxShadow: isHovered ? '0 8px 16px rgba(0,0,0,0.3)' : '0 4px 10px rgba(0,0,0,0.15)',
           transform: isHovered ? 'translateY(-2px)' : 'none',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'all 0.2s ease',
           opacity: hasSearch && !highlighted ? 0.35 : 1,
-          flexShrink: 0,
-          zIndex: 5
+          cursor: 'pointer',
+          textAlign: 'center',
+          zIndex: 10
         }}
-        bodyStyle={{ padding: 12 }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Avatar 
-            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${node.email}`} 
-            icon={<UserOutlined />} 
-            size={36}
-            style={{ border: `2px solid ${borderCol}`, flexShrink: 0, boxShadow: '0 2px 6px rgba(0,0,0,0.08)' }}
-          />
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <Text strong style={{ display: 'block', fontSize: '13.5px', fontWeight: 600, lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isDarkMode ? '#f4f4f5' : '#1e293b' }}>
-              {node.name || node.fullName}
-            </Text>
-            <Text type="secondary" style={{ display: 'block', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>
-              {node.email}
-            </Text>
-            <Tag color={isPM ? 'indigo' : isTL ? 'pink' : 'success'} style={{ fontSize: '9px', fontWeight: 700, borderRadius: 4, margin: 0, textTransform: 'uppercase' }}>
-              {displayRole}
-            </Tag>
-          </div>
+        <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '1px', opacity: 0.8, textTransform: 'uppercase', marginBottom: 2 }}>
+          {isCPO ? 'CPO' : 'Project Manager'}
         </div>
-      </Card>
+        <div style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>
+          {node.name || node.fullName}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSubCard = (node) => {
+    const isHovered = hoveredCardId === node.id;
+    const highlighted = matchesSearch(node);
+    const hasSearch = searchQuery.length > 0;
+    const isTL = node.type === 'TeamLead' || node.role === 'TeamLead';
+    const roleName = isTL ? 'Team Leader' : 'Employee';
+
+    return (
+      <div
+        onMouseEnter={() => setHoveredCardId(node.id)}
+        onMouseLeave={() => setHoveredCardId(null)}
+        style={{
+          width: 180,
+          height: 56,
+          background: '#8fa2b4', // Soft blue-grey branch card from image template
+          borderRadius: 6,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '6px 12px',
+          color: '#1d2d3a', // Dark blue slate text color
+          border: highlighted ? '2px solid #3b82f6' : '1.5px solid #778b9d',
+          boxShadow: isHovered ? '0 8px 16px rgba(0,0,0,0.15)' : '0 2px 4px rgba(0,0,0,0.05)',
+          transform: isHovered ? 'translateY(-2px)' : 'none',
+          transition: 'all 0.2s ease',
+          opacity: hasSearch && !highlighted ? 0.35 : 1,
+          textAlign: 'center',
+          zIndex: 10
+        }}
+      >
+        <div style={{ fontSize: '10px', fontWeight: 700, opacity: 0.8, marginBottom: 2 }}>
+          {roleName}
+        </div>
+        <div style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>
+          {node.name || node.fullName}
+        </div>
+      </div>
+    );
+  };
+
+  const renderPmTree = (pmNode) => {
+    const children = pmNode.children || [];
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+        {/* Top PM Card */}
+        {renderPmCard(pmNode)}
+
+        {/* Children Cascade stack */}
+        {children.length > 0 && (
+          <div style={{ 
+            position: 'relative', 
+            marginTop: 40, // Space below PM card
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: 20,
+            paddingLeft: 30 // Indentation for lines
+          }}>
+            {/* Vertical trunk line */}
+            <div style={{
+              position: 'absolute',
+              left: 10,
+              top: -40,
+              bottom: '28px', // Midpoint of last child
+              width: 2,
+              background: '#5c7080',
+              zIndex: 1
+            }} />
+
+            {children.map((childNode, childIdx) => {
+              const isTL = childNode.type === 'TeamLead';
+              const subChildren = childNode.children || [];
+
+              return (
+                <div key={childNode.id} style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', position: 'relative' }}>
+                  
+                  {/* Horizontal branch line to child */}
+                  <div style={{
+                    position: 'absolute',
+                    left: -20,
+                    top: '28px',
+                    width: 20,
+                    height: 2,
+                    background: '#5c7080',
+                    zIndex: 1
+                  }} />
+
+                  {/* Render child card */}
+                  {renderSubCard(childNode)}
+
+                  {/* Sub-children under Team Lead */}
+                  {isTL && subChildren.length > 0 && (
+                    <div style={{ 
+                      position: 'relative', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: 16,
+                      paddingLeft: 30,
+                      marginLeft: 20
+                    }}>
+                      {/* Vertical line under Team Lead */}
+                      <div style={{
+                        position: 'absolute',
+                        left: 10,
+                        top: '28px',
+                        bottom: '28px',
+                        width: 2,
+                        background: '#5c7080',
+                        zIndex: 1
+                      }} />
+
+                      {subChildren.map((empNode) => (
+                        <div key={empNode.id} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          {/* Horizontal line from TL to Employee */}
+                          <div style={{
+                            position: 'absolute',
+                            left: -20,
+                            top: '28px',
+                            width: 20,
+                            height: 2,
+                            background: '#5c7080',
+                            zIndex: 1
+                          }} />
+
+                          {renderSubCard(empNode)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -188,77 +300,38 @@ const OrgChartPage = () => {
     <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageHeader 
         title="Organization Chart"
-        subtitle="Visual reporting paths and team alignments"
+        subtitle="Reporting relationships structured top-down from Project Managers"
       />
 
-      {/* Colors Legend & Controls */}
+      {/* Control panel & search */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
         flexWrap: 'wrap', 
         gap: 16, 
-        padding: '16px 24px',
+        padding: '12px 24px',
         background: isDarkMode ? '#18181b' : '#ffffff',
         borderBottom: isDarkMode ? '1px solid #2d2d30' : '1px solid #e4e4e7',
       }}>
-        {/* PM Tabs/Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Text strong style={{ color: isDarkMode ? '#cbd5e1' : '#475569', fontSize: '13px' }}>Project Manager:</Text>
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', maxWidth: 400, paddingBottom: 4 }}>
-            {hierarchy.map(pm => {
-              const isSelected = String(pm.id) === String(selectedPmId);
-              return (
-                <div
-                  key={pm.id}
-                  onClick={() => setSelectedPmId(pm.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '6px 12px',
-                    borderRadius: 20,
-                    background: isSelected ? pmColor : (isDarkMode ? '#27272a' : '#f1f5f9'),
-                    color: isSelected ? '#ffffff' : (isDarkMode ? '#cbd5e1' : '#475569'),
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    fontSize: '12px',
-                    transition: 'all 0.2s ease',
-                    boxShadow: isSelected ? `0 4px 10px ${pmColor}30` : 'none',
-                    border: isSelected ? 'none' : `1px solid ${isDarkMode ? '#3f3f46' : '#e2e8f0'}`,
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  <Avatar size="small" src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${pm.email}`} style={{ width: 18, height: 18 }} />
-                  <span>{pm.name || pm.fullName}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Color legend */}
+        {/* Colors Legend */}
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: pmColor }} />
-            <Text strong style={{ fontSize: '12.5px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>PM</Text>
+            <div style={{ width: 14, height: 14, borderRadius: 3, background: '#1d2d3a' }} />
+            <Text strong style={{ fontSize: '13px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>Project Manager (PM / CPO)</Text>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: tlColor }} />
-            <Text strong style={{ fontSize: '12.5px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>TL</Text>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: empColor }} />
-            <Text strong style={{ fontSize: '12.5px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>Employee</Text>
+            <div style={{ width: 14, height: 14, borderRadius: 3, background: '#8fa2b4' }} />
+            <Text strong style={{ fontSize: '13px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>Team Leader & Employee</Text>
           </div>
         </div>
 
-        {/* Search & Reset */}
+        {/* Search */}
         <Space>
           <Input 
             prefix={<SearchOutlined style={{ color: '#8b5cf6' }} />} 
-            placeholder="Search name, email..." 
-            style={{ width: 180, borderRadius: 6 }}
+            placeholder="Search name, email, role..." 
+            style={{ width: 220, borderRadius: 6 }}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
@@ -275,178 +348,29 @@ const OrgChartPage = () => {
         </Space>
       </div>
 
-      {/* Horizontal Cascade Hierarchical View */}
+      {/* Main chart viewport with custom background matching the template image */}
       <div style={{ 
         flex: 1, 
-        padding: 40, 
-        overflow: 'hidden', 
-        background: isDarkMode ? '#09090b' : '#f8fafc',
+        padding: '40px 24px', 
+        overflowY: 'hidden', 
+        overflowX: 'auto', 
+        background: isDarkMode ? '#090d16' : '#d0d8e2', // Grey-blue tint background from template
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
+        alignItems: 'flex-start',
+        justifyContent: 'flex-start',
+        scrollbarWidth: 'thin'
       }}>
-        {!activePmNode ? (
-          <Empty description="Select a Project Manager to display reporting lines" />
+        {hierarchy.length === 0 ? (
+          <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+            <Empty description="No organization details found." />
+          </div>
         ) : (
-          <div 
-            style={{ 
-              display: 'flex', 
-              alignItems: 'stretch', 
-              gap: 48, 
-              position: 'relative',
-              background: isDarkMode ? '#18181b' : '#ffffff',
-              border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
-              borderRadius: 20,
-              padding: '40px 48px',
-              boxShadow: isDarkMode ? '0 10px 40px rgba(0,0,0,0.5)' : '0 10px 40px rgba(0,0,0,0.02)',
-              maxWidth: '100%',
-              maxHeight: '100%',
-              overflow: 'auto',
-              scrollbarWidth: 'thin'
-            }}
-          >
-            {/* PM Card Container */}
-            <div style={{ display: 'flex', alignItems: 'center', zIndex: 10, position: 'relative' }}>
-              {renderCard(activePmNode, pmColor)}
-              
-              {/* Horizontal line exiting PM card to vertical junction */}
-              {activePmNode.children && activePmNode.children.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  right: -48,
-                  top: '50%',
-                  width: 48,
-                  height: 2,
-                  background: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'
-                }} />
-              )}
-            </div>
-
-            {/* Team Leaders and Employees Cascade */}
-            {activePmNode.children && activePmNode.children.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24, position: 'relative' }}>
-                
-                {/* PM-to-TL vertical connector line */}
-                {activePmNode.children.length > 1 && (
-                  <div style={{
-                    position: 'absolute',
-                    left: -24,
-                    top: '12%',
-                    bottom: '12%',
-                    width: 2,
-                    background: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
-                    zIndex: 1
-                  }} />
-                )}
-
-                {activePmNode.children.map((tlNode, tlIdx) => {
-                  const isTL = tlNode.type === 'TeamLead';
-                  const childrenList = tlNode.children || [];
-                  const totalTls = activePmNode.children.length;
-                  
-                  return (
-                    <div key={tlNode.id} style={{ display: 'flex', alignItems: 'stretch', gap: 48, position: 'relative' }}>
-                      
-                      {/* Vertical line segment connecting this sibling */}
-                      {totalTls > 1 && (
-                        <div style={{
-                          position: 'absolute',
-                          left: -24,
-                          top: tlIdx === 0 ? '50%' : 0,
-                          bottom: tlIdx === totalTls - 1 ? '50%' : 0,
-                          width: 2,
-                          background: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
-                          zIndex: 1
-                        }} />
-                      )}
-
-                      {/* Horizontal Connector line to this TL/Employee card */}
-                      <div style={{
-                        position: 'absolute',
-                        left: -24,
-                        top: '50%',
-                        width: 24,
-                        height: 2,
-                        background: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
-                        zIndex: 1
-                      }} />
-
-                      {/* TL (or direct Employee) Card */}
-                      <div style={{ display: 'flex', alignItems: 'center', zIndex: 10, position: 'relative' }}>
-                        {renderCard(tlNode, isTL ? tlColor : empColor)}
-
-                        {/* Horizontal line exiting TL card to its children */}
-                        {isTL && childrenList.length > 0 && (
-                          <div style={{
-                            position: 'absolute',
-                            right: -48,
-                            top: '50%',
-                            width: 48,
-                            height: 2,
-                            background: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)'
-                          }} />
-                        )}
-                      </div>
-
-                      {/* Employees under TL Cascade */}
-                      {isTL && childrenList.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12, position: 'relative' }}>
-                          
-                          {/* TL-to-Employee vertical connector line */}
-                          {childrenList.length > 1 && (
-                            <div style={{
-                              position: 'absolute',
-                              left: -24,
-                              top: '15%',
-                              bottom: '15%',
-                              width: 2,
-                              background: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
-                              zIndex: 1
-                            }} />
-                          )}
-
-                          {childrenList.map((empNode, empIdx) => {
-                            const totalEmps = childrenList.length;
-                            return (
-                              <div key={empNode.id} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-                                
-                                {/* Vertical line segment connecting this employee sibling */}
-                                {totalEmps > 1 && (
-                                  <div style={{
-                                    position: 'absolute',
-                                    left: -24,
-                                    top: empIdx === 0 ? '50%' : 0,
-                                    bottom: empIdx === totalEmps - 1 ? '50%' : 0,
-                                    width: 2,
-                                    background: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
-                                    zIndex: 1
-                                  }} />
-                                )}
-
-                                {/* Horizontal Connector Line from TL branch to Employee */}
-                                <div style={{
-                                  position: 'absolute',
-                                  left: -24,
-                                  top: '50%',
-                                  width: 24,
-                                  height: 2,
-                                  background: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
-                                  zIndex: 1
-                                }} />
-
-                                <div style={{ zIndex: 10 }}>
-                                  {renderCard(empNode, empColor)}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+          <div style={{ display: 'flex', gap: 64, paddingBottom: 24, margin: '0 auto' }}>
+            {hierarchy.map(pmNode => (
+              <div key={pmNode.id}>
+                {renderPmTree(pmNode)}
               </div>
-            )}
+            ))}
           </div>
         )}
       </div>
