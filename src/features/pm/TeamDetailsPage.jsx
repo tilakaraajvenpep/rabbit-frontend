@@ -86,7 +86,7 @@ const TeamDetailsPage = () => {
         </Space>
       )
     },
-    {
+    !['ProjectManager', 'TeamLead', 'HR'].includes(role) && {
       title: 'Cost per Hour',
       dataIndex: 'costPerHour',
       key: 'costPerHour',
@@ -107,7 +107,7 @@ const TeamDetailsPage = () => {
         <Badge status={isActive !== false ? 'success' : 'error'} text={isActive !== false ? 'Active' : 'Inactive'} />
       )
     }
-  ];
+  ].filter(Boolean);
 
   return (
     <div>
@@ -151,7 +151,7 @@ const TeamDetailsPage = () => {
                       <Badge status={tl.isActive !== false ? 'success' : 'error'} text={tl.isActive !== false ? 'Active' : 'Inactive'} />
                     </Space>
                     <Text type="secondary" style={{ display: 'block', fontSize: '13px' }}>
-                      Team Lead | Cost per Hour: ₹ {Number(tl.costPerHour || 0).toLocaleString('en-IN')}/hr
+                      Team Lead {!['ProjectManager', 'TeamLead', 'HR'].includes(role) && `| Cost per Hour: ₹ ${Number(tl.costPerHour || 0).toLocaleString('en-IN')}/hr`}
                     </Text>
                   </div>
                 </Space>

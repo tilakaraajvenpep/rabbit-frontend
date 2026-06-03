@@ -309,13 +309,7 @@ const PMDashboardPage = () => {
         </Tag>
       )
     },
-    {
-      title: 'Sales Owner',
-      dataIndex: 'createdByUserId',
-      key: 'salesOwner',
-      width: 140,
-      render: () => <Text style={{ color: '#64748b' }}>Sales Manager</Text>
-    },
+
     {
       title: 'Project Name',
       dataIndex: 'name',
@@ -384,17 +378,7 @@ const PMDashboardPage = () => {
         );
       }
     },
-    {
-      title: 'Project Value',
-      dataIndex: 'budgetTable',
-      key: 'projectValue',
-      width: 150,
-      render: (budgetTable) => {
-        if (!Array.isArray(budgetTable)) return <Text strong>₹0</Text>;
-        const total = budgetTable.reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0);
-        return <Text strong style={{ color: '#0f766e', fontSize: '14px' }}>₹{total.toLocaleString('en-IN')}</Text>;
-      }
-    },
+
     {
       title: 'Status',
       dataIndex: 'status',
