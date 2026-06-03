@@ -144,18 +144,45 @@ const HRTaskTrackingPage = () => {
 
     const isMissing = unreportedDates.length > 0 || shortLoggedDates.length > 0;
     
-    // Find Team Leader Name (if Employee) or Project Manager Name (if Team Lead)
-    let teamLeaderName = 'N/A';
-    if (user.role === 'Employee' && user.teamLeadId) {
-      const tl = users.find(u => String(u.id || u.userId) === String(user.teamLeadId));
-      if (tl) {
-        teamLeaderName = tl.name || tl.fullName || 'Unassigned';
+    // Find Team Leader Name
+    let teamLeaderName = 'Unassigned';
+    if (user.role === 'Employee') {
+      if (user.teamLeadId) {
+        const tl = users.find(u => String(u.id || u.userId) === String(user.teamLeadId));
+        if (tl) {
+          teamLeaderName = tl.name || tl.fullName || 'Unassigned';
+        }
       }
-    } else if (user.role === 'TeamLead' && user.projectManagerId) {
-      const pm = users.find(u => String(u.id || u.userId) === String(user.projectManagerId));
-      if (pm) {
-        teamLeaderName = pm.name || pm.fullName || 'Unassigned';
+    } else {
+      teamLeaderName = 'N/A';
+    }
+
+    // Find Project Manager Name
+    let projectManagerName = 'Unassigned';
+    if (user.role === 'Employee') {
+      if (user.projectManagerId) {
+        const pm = users.find(u => String(u.id || u.userId) === String(user.projectManagerId));
+        if (pm) {
+          projectManagerName = pm.name || pm.fullName || 'Unassigned';
+        }
+      } else if (user.teamLeadId) {
+        const tl = users.find(u => String(u.id || u.userId) === String(user.teamLeadId));
+        if (tl && tl.projectManagerId) {
+          const pm = users.find(u => String(u.id || u.userId) === String(tl.projectManagerId));
+          if (pm) {
+            projectManagerName = pm.name || pm.fullName || 'Unassigned';
+          }
+        }
       }
+    } else if (user.role === 'TeamLead') {
+      if (user.projectManagerId) {
+        const pm = users.find(u => String(u.id || u.userId) === String(user.projectManagerId));
+        if (pm) {
+          projectManagerName = pm.name || pm.fullName || 'Unassigned';
+        }
+      }
+    } else {
+      projectManagerName = 'Self';
     }
 
     return {
@@ -164,6 +191,7 @@ const HRTaskTrackingPage = () => {
       name: user.name || user.fullName,
       role: user.role,
       teamLeaderName,
+      projectManagerName,
       unreportedDates,
       shortLoggedDates,
       isMissing
@@ -197,7 +225,7 @@ const HRTaskTrackingPage = () => {
       title: 'Role',
       dataIndex: 'role',
       key: 'role',
-      width: 140,
+      width: 130,
       render: (role) => {
         let color = 'blue';
         if (role === 'TeamLead') color = 'purple';
@@ -209,12 +237,24 @@ const HRTaskTrackingPage = () => {
       title: 'Team Leader',
       dataIndex: 'teamLeaderName',
       key: 'teamLeaderName',
-      width: 180,
+      width: 150,
       render: (tlName, record) => {
-        if (record.role !== 'Employee' && record.role !== 'TeamLead') {
-          return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>N/A (Management)</span>;
+        if (record.role !== 'Employee') {
+          return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>N/A</span>;
         }
         return <Text strong>{tlName}</Text>;
+      }
+    },
+    {
+      title: 'Project Manager',
+      dataIndex: 'projectManagerName',
+      key: 'projectManagerName',
+      width: 150,
+      render: (pmName, record) => {
+        if (record.role === 'ProjectManager' || record.role === 'TenantAdmin') {
+          return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>Self</span>;
+        }
+        return <Text strong style={{ color: '#1e40af' }}>{pmName}</Text>;
       }
     },
     {
@@ -312,17 +352,15 @@ const HRTaskTrackingPage = () => {
             <Space direction="vertical" style={{ width: '100%' }}>
               <span style={{ fontWeight: 600, fontSize: '13px' }}>Project Manager Filter:</span>
               <Select
-                value={selectedPmId}
+                allowClear
+                value={selectedPmId === 'all' ? null : selectedPmId}
                 onChange={(val) => {
-                  setSelectedPmId(val);
+                  setSelectedPmId(val || 'all');
                   setSelectedTlId('all'); // Reset TL when PM changes
                 }}
                 style={{ width: '100%', height: 40 }}
-                placeholder="Select Project Manager"
-                options={[
-                  { label: 'All PMs', value: 'all' },
-                  ...pmsList.map(pm => ({ label: pm.name || pm.fullName, value: pm.id || pm.userId }))
-                ]}
+                placeholder="All PMs"
+                options={pmsList.map(pm => ({ label: pm.name || pm.fullName, value: pm.id || pm.userId }))}
               />
             </Space>
           </Col>
@@ -330,14 +368,12 @@ const HRTaskTrackingPage = () => {
             <Space direction="vertical" style={{ width: '100%' }}>
               <span style={{ fontWeight: 600, fontSize: '13px' }}>Team Leader Filter:</span>
               <Select
-                value={selectedTlId}
-                onChange={setSelectedTlId}
+                allowClear
+                value={selectedTlId === 'all' ? null : selectedTlId}
+                onChange={(val) => setSelectedTlId(val || 'all')}
                 style={{ width: '100%', height: 40 }}
-                placeholder="Select Team Leader"
-                options={[
-                  { label: 'All Team Leads', value: 'all' },
-                  ...tlsList.map(tl => ({ label: tl.name || tl.fullName, value: tl.id || tl.userId }))
-                ]}
+                placeholder="All Team Leads"
+                options={tlsList.map(tl => ({ label: tl.name || tl.fullName, value: tl.id || tl.userId }))}
               />
             </Space>
           </Col>
@@ -358,11 +394,12 @@ const HRTaskTrackingPage = () => {
             <Space direction="vertical" style={{ width: '100%' }}>
               <span style={{ fontWeight: 600, fontSize: '13px' }}>Filter by Role:</span>
               <Select
-                value={roleFilter}
-                onChange={setRoleFilter}
+                allowClear
+                value={roleFilter === 'all' ? null : roleFilter}
+                onChange={(val) => setRoleFilter(val || 'all')}
                 style={{ width: '100%', height: 40 }}
+                placeholder="All Roles (Employee, TL, PM)"
                 options={[
-                  { label: 'All Roles (Employee, TL, PM)', value: 'all' },
                   { label: 'Employee Only', value: 'Employee' },
                   { label: 'Team Lead Only', value: 'TeamLead' },
                   { label: 'Project Manager Only', value: 'ProjectManager' },
@@ -373,13 +410,13 @@ const HRTaskTrackingPage = () => {
           <Col xs={24} md={6} style={{ display: 'flex', alignItems: 'flex-end', height: '100%', paddingTop: 20 }}>
             <Button 
               block
-              type="dashed"
+              type="primary"
               danger
               icon={<ClearOutlined />} 
               onClick={resetFilters}
-              style={{ height: 40, borderRadius: 8 }}
+              style={{ height: 40, borderRadius: 8, fontWeight: 600 }}
             >
-              Reset Filters
+              Cancel Filters
             </Button>
           </Col>
         </Row>
