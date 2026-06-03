@@ -4,119 +4,160 @@ import { SearchOutlined } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { useThemeStore } from '../../store/themeStore';
 
-/* ─────────────────────────── Layout Constants ─────────────────────────── */
-// Compact node: just a dot + label
-const NODE_R    = 7;    // circle radius
-const H_GAP     = 52;   // horizontal gap between sibling nodes
-const V_GAP     = 64;   // vertical gap between levels
-const LABEL_H   = 28;   // space reserved below node for text label
-const NODE_SLOT = NODE_R * 2 + H_GAP; // total width per node slot
+/* ── Dimensions ── */
+const CW   = 160; // child card width
+const CH   = 58;  // child card height
+const IW   = 44;  // icon section width inside card
+const PW   = 140; // PM card width
+const PH   = 72;  // PM card height
+const PIW  = 48;  // PM icon section width
 
-/* Role color palette */
-const ROLE_COLORS = {
-  PM:       { dot: '#3b82f6', text: '#60a5fa', glow: '#1d4ed8', label: 'Project Manager' },
-  TL:       { dot: '#22c55e', text: '#4ade80', glow: '#15803d', label: 'Team Leader'     },
-  Employee: { dot: '#a78bfa', text: '#c4b5fd', glow: '#6d28d9', label: 'Employee'        },
+const VGAP        = 8;   // gap between child cards
+const BRANCH      = 22;  // horizontal branch length trunk→card
+const CHILD_TOP   = 20;  // gap between PM card bottom and first child
+const EMP_INDENT  = 18;  // extra right-indent for employees under a TL
+const COL_SEP     = 50;  // gap between PM columns
+const TOP_PAD     = 28;
+const LEFT_PAD    = 36;
+
+/* ── Card colours ── */
+const C = {
+  PM:  { icon: '#1565c0', bg: '#dbeafe', border: '#1d4ed8', txt: '#1e3a8a', dot: '#3b82f6', label: 'Project Manager' },
+  TL:  { icon: '#c2410c', bg: '#fff3e0', border: '#ea580c', txt: '#7c2d12', dot: '#f97316', label: 'Team Leader'     },
+  Emp: { icon: '#15803d', bg: '#f0fdf4', border: '#16a34a', txt: '#14532d', dot: '#22c55e', label: 'Employee'        },
 };
 
-/* ─────────────────── Tree layout (returns x/y for each node) ─────────────────── */
-function calcLayout(pmNodes) {
+/* ── SVG person silhouette (head + shoulders) ── */
+function Person({ x, y, w, h, fill }) {
+  const cx  = x + w / 2;
+  const hcy = y + h * 0.34;
+  const hr  = h * 0.18;
+  const by  = hcy + hr + 1;
+  const bh  = h * 0.30;
+  const bw  = w * 0.62;
+  return (
+    <g>
+      <circle cx={cx} cy={hcy} r={hr} fill={fill} opacity={0.92} />
+      <path
+        d={`M ${cx - bw / 2} ${by + bh} Q ${cx - bw / 2} ${by} ${cx} ${by - 1} Q ${cx + bw / 2} ${by} ${cx + bw / 2} ${by + bh}`}
+        fill={fill} opacity={0.88}
+      />
+    </g>
+  );
+}
+
+/* ── One org-chart card ── */
+function Card({ x, y, role, name, email, highlight, dim }) {
+  const ispm = role === 'PM';
+  const col  = ispm ? C.PM : role === 'TL' ? C.TL : C.Emp;
+  const w    = ispm ? PW   : CW;
+  const h    = ispm ? PH   : CH;
+  const iw   = ispm ? PIW  : IW;
+
+  return (
+    <g opacity={dim ? 0.13 : 1}>
+      {/* highlight ring */}
+      {highlight && (
+        <rect x={x - 3} y={y - 3} width={w + 6} height={h + 6} rx={9}
+          fill="none" stroke={col.dot} strokeWidth={2}
+          style={{ filter: `drop-shadow(0 0 6px ${col.dot})` }}
+        />
+      )}
+      {/* card background */}
+      <rect x={x} y={y} width={w} height={h} rx={6}
+        fill={col.bg} stroke={col.border} strokeWidth={1.2} />
+      {/* icon section */}
+      <rect x={x} y={y} width={iw} height={h} rx={6} fill={col.icon} />
+      <rect x={x + iw - 6} y={y} width={6} height={h} fill={col.icon} />
+      {/* person icon */}
+      <Person x={x + 2} y={y + 4} w={iw - 4} h={h - 8} fill="rgba(255,255,255,0.92)" />
+      {/* role label */}
+      <text x={x + iw + 8} y={y + (ispm ? 18 : 16)}
+        fontSize={ispm ? 8 : 7.5} fontWeight={700} fill={col.txt} opacity={0.75}
+        style={{ fontFamily: 'Inter,system-ui,sans-serif', textTransform: 'uppercase', letterSpacing: '0.6px' }}
+      >{col.label}</text>
+      {/* name */}
+      <text x={x + iw + 8} y={y + (ispm ? 34 : 30)}
+        fontSize={ispm ? 11 : 10} fontWeight={700} fill={col.txt}
+        style={{ fontFamily: 'Inter,system-ui,sans-serif' }}
+      >{(name || '').length > 16 ? name.slice(0, 15) + '…' : name}</text>
+      {/* email / second line */}
+      {email && (
+        <text x={x + iw + 8} y={y + (ispm ? 50 : 44)}
+          fontSize={ispm ? 8.5 : 8} fill={col.txt} opacity={0.65}
+          style={{ fontFamily: 'Inter,system-ui,sans-serif' }}
+        >{email.length > 20 ? email.slice(0, 19) + '…' : email}</text>
+      )}
+    </g>
+  );
+}
+
+/* ── Build flat list of positioned nodes + edges per PM section ── */
+function buildSection(pm, sectionX, searchQuery) {
   const nodes = [];
   const edges = [];
-  let cursorX  = NODE_R + 10;
 
-  pmNodes.forEach(pm => {
-    const tls        = pm.children.filter(c => c.type === 'TeamLead');
-    const directEmps = pm.children.filter(c => c.type !== 'TeamLead');
+  /* PM card */
+  const pmCx = sectionX + PW / 2;
+  const pmY  = TOP_PAD;
+  nodes.push({ id: pm.id, role: 'PM', name: pm.name || pm.fullName, email: pm.email, x: sectionX, y: pmY });
 
-    /* Width of each TL's subtree */
-    const tlWidths = tls.map(tl => {
-      const ec = (tl.children || []).length;
-      return Math.max(1, ec) * NODE_SLOT - H_GAP;
-    });
+  /* trunk x: center of PM card */
+  const trunkX = pmCx;
 
-    const directEmpWidth = directEmps.length > 0
-      ? directEmps.length * NODE_SLOT - H_GAP
-      : 0;
-
-    const totalChildWidth = [
-      ...tlWidths,
-      ...(directEmpWidth > 0 ? [directEmpWidth] : [])
-    ].reduce((s, w, i, a) => s + w + (i < a.length - 1 ? H_GAP : 0), 0);
-
-    const pmWidth = Math.max(NODE_SLOT, totalChildWidth);
-    const pmX     = cursorX + (pmWidth - NODE_R * 2) / 2;
-    const pmY     = NODE_R + 10;
-
-    nodes.push({ id: pm.id, x: pmX, y: pmY, role: 'PM', name: pm.name || pm.fullName });
-
-    let childCursorX = cursorX;
-
-    /* TL subtrees */
-    tls.forEach((tl, i) => {
-      const tlSubW = tlWidths[i];
-      const tlX    = childCursorX + (tlSubW - NODE_R * 2) / 2;
-      const tlY    = pmY + V_GAP;
-
-      nodes.push({ id: tl.id, x: tlX, y: tlY, role: 'TL', name: tl.name || tl.fullName });
-
-      edges.push({ x1: pmX, y1: pmY + NODE_R, x2: tlX, y2: tlY - NODE_R });
-
-      const tlEmps    = tl.children || [];
-      const empStartX = childCursorX;
-
-      tlEmps.forEach((emp, ei) => {
-        const empX = empStartX + ei * NODE_SLOT + NODE_R;
-        const empY = tlY + V_GAP;
-        nodes.push({ id: emp.id, x: empX, y: empY, role: 'Employee', name: emp.name || emp.fullName });
-        edges.push({ x1: tlX, y1: tlY + NODE_R, x2: empX, y2: empY - NODE_R });
-      });
-
-      childCursorX += tlSubW + H_GAP;
-    });
-
-    /* Direct employees under PM */
-    if (directEmps.length > 0) {
-      directEmps.forEach((emp, di) => {
-        const empX = childCursorX + di * NODE_SLOT + NODE_R;
-        const empY = pmY + V_GAP;
-        nodes.push({ id: emp.id, x: empX, y: empY, role: 'Employee', name: emp.name || emp.fullName });
-        edges.push({ x1: pmX, y1: pmY + NODE_R, x2: empX, y2: empY - NODE_R });
-      });
+  /* collect children in display order: TL then its Employees, then direct Emps */
+  const rows = [];
+  (pm.children || []).forEach(child => {
+    if (child.type === 'TeamLead') {
+      rows.push({ ...child, role: 'TL', indent: 0 });
+      (child.children || []).forEach(emp => rows.push({ ...emp, role: 'Emp', indent: EMP_INDENT }));
+    } else {
+      rows.push({ ...child, role: 'Emp', indent: 0 });
     }
-
-    cursorX += pmWidth + H_GAP * 3;
   });
 
-  return { nodes, edges };
-}
+  /* card left edge (right of trunk + branch) */
+  const cardLeft = trunkX - CW / 2;
 
-/* ─────────────────── Utility: wrap long names into ≤2 lines ─────────────────── */
-function splitName(name, maxChars = 12) {
-  if (!name) return [''];
-  const words = name.split(' ');
-  const lines = [];
-  let current = '';
-  for (const w of words) {
-    if ((current + (current ? ' ' : '') + w).length <= maxChars) {
-      current += (current ? ' ' : '') + w;
-    } else {
-      if (current) lines.push(current);
-      current = w.length > maxChars ? w.slice(0, maxChars - 1) + '…' : w;
-    }
-    if (lines.length === 1 && current) {
-      lines.push(current);
-      current = '';
-      break;
-    }
+  let curY = pmY + PH + CHILD_TOP;
+  const childTrunkPoints = []; // y centres for trunk
+
+  rows.forEach(row => {
+    const cx = cardLeft + row.indent;
+    const cy = curY;
+    nodes.push({ id: row.id, role: row.role, name: row.name || row.fullName, email: row.email, x: cx, y: cy });
+
+    /* horizontal branch: from trunk to card left edge */
+    const centerY = cy + CH / 2;
+    childTrunkPoints.push(centerY);
+    edges.push({ x1: trunkX, y1: centerY, x2: cx, y2: centerY, type: 'branch' });
+
+    curY += CH + VGAP;
+  });
+
+  /* vertical trunk: from PM card bottom to last child center */
+  if (childTrunkPoints.length > 0) {
+    edges.push({
+      x1: trunkX, y1: pmY + PH,
+      x2: trunkX, y2: childTrunkPoints[childTrunkPoints.length - 1],
+      type: 'trunk'
+    });
   }
-  if (current) lines.push(current);
-  return lines.slice(0, 2);
+
+  /* section width = max right edge */
+  const maxRight = nodes.reduce((m, n) => {
+    const w = n.role === 'PM' ? PW : CW + n.indent;
+    return Math.max(m, n.x + w);
+  }, 0);
+  const sectionW = maxRight - sectionX;
+  const bottomY  = curY - VGAP;
+
+  return { nodes, edges, sectionW, bottomY };
 }
 
-/* ─────────────────── Main Component ─────────────────── */
+/* ── Main Component ── */
 const OrgChartPage = () => {
-  const { isDarkMode } = useThemeStore();
+  const { isDarkMode }                = useThemeStore();
   const [users,       setUsers]       = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,118 +166,95 @@ const OrgChartPage = () => {
 
   const fetchUsers = async () => {
     setLoading(true);
-    try {
-      const res = await adminService.getUsers();
-      setUsers(res.data || []);
-    } catch { /* silent */ } finally { setLoading(false); }
+    try { const r = await adminService.getUsers(); setUsers(r.data || []); }
+    catch { /* silent */ } finally { setLoading(false); }
   };
 
-  /* Build hierarchy */
   const buildHierarchy = useCallback(() => {
-    const pms       = users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin');
-    const tls       = users.filter(u => u.role === 'TeamLead');
-    const employees = users.filter(u => u.role === 'Employee');
+    const pms  = users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin');
+    const tls  = users.filter(u => u.role === 'TeamLead');
+    const emps = users.filter(u => u.role === 'Employee');
 
-    const hierarchy = pms.map(pm => {
-      const pmTls      = tls.filter(tl => String(tl.projectManagerId) === String(pm.id));
-      const directEmps = employees.filter(e => String(e.projectManagerId) === String(pm.id) && !e.teamLeadId);
-      const tlNodes    = pmTls.map(tl => ({
-        ...tl, type: 'TeamLead',
-        children: employees.filter(e => String(e.teamLeadId) === String(tl.id))
-      }));
-      return { ...pm, type: 'PM', children: [...tlNodes, ...directEmps.map(e => ({ ...e, type: 'Employee', children: [] }))] };
-    });
+    const hier = pms.map(pm => ({
+      ...pm, type: 'PM',
+      children: [
+        ...tls.filter(tl => String(tl.projectManagerId) === String(pm.id)).map(tl => ({
+          ...tl, type: 'TeamLead',
+          children: emps.filter(e => String(e.teamLeadId) === String(tl.id))
+        })),
+        ...emps.filter(e => String(e.projectManagerId) === String(pm.id) && !e.teamLeadId)
+              .map(e => ({ ...e, type: 'Employee', children: [] }))
+      ]
+    }));
 
-    const unassignedTls  = tls.filter(tl => !tl.projectManagerId);
-    const unassignedEmps = employees.filter(e => !e.teamLeadId && !e.projectManagerId);
-    const extras = [
-      ...unassignedTls.map(tl => ({ ...tl, type: 'TeamLead', children: employees.filter(e => String(e.teamLeadId) === String(tl.id)) })),
-      ...unassignedEmps.map(e  => ({ ...e,  type: 'Employee', children: [] }))
-    ];
-    if (extras.length > 0) {
-      hierarchy.push({ id: 'unassigned', name: 'Unassigned', fullName: 'Unassigned', email: '', role: 'PM', type: 'PM', children: extras });
+    const unTls  = tls.filter(tl => !tl.projectManagerId);
+    const unEmps = emps.filter(e  => !e.teamLeadId && !e.projectManagerId);
+    if (unTls.length || unEmps.length) {
+      hier.push({
+        id: '__unassigned__', name: 'Unassigned', fullName: 'Unassigned', email: '', role: 'ProjectManager', type: 'PM',
+        children: [
+          ...unTls.map(tl => ({ ...tl, type: 'TeamLead', children: emps.filter(e => String(e.teamLeadId) === String(tl.id)) })),
+          ...unEmps.map(e  => ({ ...e,  type: 'Employee', children: [] }))
+        ]
+      });
     }
-
-    return hierarchy;
+    return hier;
   }, [users]);
 
-  const matchesSearch = useCallback((name) => {
-    if (!searchQuery) return false;
-    return (name || '').toLowerCase().includes(searchQuery.toLowerCase());
-  }, [searchQuery]);
-
-  if (loading) {
-    return (
-      <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: isDarkMode ? '#0a0e1a' : '#f0f4f8' }}>
-        <Spin size="large" />
-        <div style={{ marginTop: 16, color: isDarkMode ? '#94a3b8' : '#64748b', fontWeight: 500 }}>Building Organization Chart…</div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: isDarkMode ? '#0a0e1a' : '#f0f4f8' }}>
+      <Spin size="large" />
+      <div style={{ marginTop: 16, color: '#64748b', fontWeight: 500 }}>Building Organization Chart…</div>
+    </div>
+  );
 
   const hierarchy = buildHierarchy();
-  const { nodes, edges } = calcLayout(hierarchy);
+  const q = searchQuery.toLowerCase();
 
-  /* Canvas bounds */
-  const padX = 30;
-  const padY = 30;
-  const canvasW = nodes.reduce((m, n) => Math.max(m, n.x + NODE_R), 0) + padX;
-  const canvasH = nodes.reduce((m, n) => Math.max(m, n.y + NODE_R + LABEL_H), 0) + padY;
-  const viewBox = `0 0 ${canvasW} ${canvasH}`;
+  /* layout all sections */
+  let cursorX = LEFT_PAD;
+  const allNodes = [];
+  const allEdges = [];
 
-  const bg = isDarkMode ? '#080c18' : '#eef2f7';
+  hierarchy.forEach(pm => {
+    const { nodes, edges, sectionW, bottomY } = buildSection(pm, cursorX, q);
+    allNodes.push(...nodes);
+    allEdges.push(...edges);
+    cursorX += sectionW + COL_SEP;
+  });
 
-  const TOOLBAR_H = 52; // px
-  const LEGEND_H  = 32; // px
+  const canvasW = cursorX - COL_SEP + LEFT_PAD;
+  const canvasH = allNodes.reduce((m, n) => Math.max(m, n.y + (n.role === 'PM' ? PH : CH)), 0) + TOP_PAD + 20;
+
+  const bg = isDarkMode ? '#0d1117' : '#f0f4f8';
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 64,
-        left: 240,
-        right: 0,
-        bottom: 0,
-        overflow: 'hidden',
-        background: bg,
-        display: 'flex',
-        flexDirection: 'column',
-        userSelect: 'none',
-      }}
-    >
-      {/* ── Top toolbar ── */}
+    <div style={{
+      position: 'fixed', top: 64, left: 240, right: 0, bottom: 0,
+      overflow: 'hidden', background: bg,
+      display: 'flex', flexDirection: 'column', userSelect: 'none'
+    }}>
+      {/* ── Toolbar ── */}
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '8px 20px',
-        background: isDarkMode ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '8px 20px', flexShrink: 0, gap: 16, flexWrap: 'wrap',
+        background: isDarkMode ? 'rgba(15,23,42,0.96)' : 'rgba(255,255,255,0.96)',
         backdropFilter: 'blur(8px)',
         borderBottom: isDarkMode ? '1px solid #1e293b' : '1px solid #e2e8f0',
-        flexShrink: 0,
-        gap: 16,
-        flexWrap: 'wrap',
-        height: TOOLBAR_H,
         zIndex: 10,
       }}>
-        <div style={{ fontWeight: 800, fontSize: 17, color: isDarkMode ? '#f1f5f9' : '#0f172a', letterSpacing: '-0.5px' }}>
+        <div style={{ fontWeight: 800, fontSize: 17, color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
           🏢 Organization Chart
         </div>
-
         {/* Legend */}
-        <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
-          {Object.entries(ROLE_COLORS).map(([key, c]) => (
+        <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
+          {Object.entries(C).map(([key, col]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <div style={{
-                width: 13, height: 13, borderRadius: '50%',
-                background: c.dot,
-                boxShadow: `0 0 8px ${c.dot}88`,
-              }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#475569' }}>{c.label}</span>
+              <div style={{ width: 14, height: 14, borderRadius: 3, background: col.icon, boxShadow: `0 0 6px ${col.dot}66` }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#475569' }}>{col.label}</span>
             </div>
           ))}
         </div>
-
         {/* Search */}
         <Input
           prefix={<SearchOutlined style={{ color: '#6366f1' }} />}
@@ -248,99 +266,59 @@ const OrgChartPage = () => {
         />
       </div>
 
-      {/* ── SVG Chart — fills the remaining space, auto-fit ── */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {nodes.length === 0 ? (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-            <Empty description="No organization data found." />
-          </div>
-        ) : (
-          <svg
-            width="100%"
-            height="100%"
-            viewBox={viewBox}
-            preserveAspectRatio="xMidYMid meet"
+      {/* ── Chart ── */}
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        {allNodes.length === 0
+          ? <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Empty /></div>
+          : (
+          <svg width="100%" height="100%"
+            viewBox={`0 0 ${canvasW} ${canvasH}`}
+            preserveAspectRatio="xMidYMin meet"
             style={{ display: 'block' }}
           >
             <defs>
-              {/* Subtle dot-grid background */}
-              <pattern id="dotgrid" width="24" height="24" patternUnits="userSpaceOnUse">
-                <circle cx="1" cy="1" r="0.8" fill={isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'} />
+              <pattern id="dotg" width="20" height="20" patternUnits="userSpaceOnUse">
+                <circle cx="1" cy="1" r="0.7" fill={isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)'} />
               </pattern>
-
-              {/* Glow filter for highlighted nodes */}
-              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
-                <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
-              </filter>
             </defs>
+            <rect width={canvasW} height={canvasH} fill="url(#dotg)" />
 
-            {/* Background */}
-            <rect width={canvasW} height={canvasH} fill="url(#dotgrid)" />
+            {/* Edges */}
+            {allEdges.map((e, i) => (
+              <line key={i}
+                x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+                stroke={isDarkMode ? '#334155' : '#93c5fd'}
+                strokeWidth={e.type === 'trunk' ? 1.6 : 1.3}
+                strokeDasharray={e.type === 'branch' ? '4 3' : 'none'}
+                opacity={q ? 0.15 : 0.85}
+              />
+            ))}
 
-            {/* ── Edges ── */}
-            {edges.map((e, i) => {
-              const midY = (e.y1 + e.y2) / 2;
+            {/* Arrow heads on branches */}
+            {allEdges.filter(e => e.type === 'branch').map((e, i) => {
+              const ax = e.x2, ay = e.y2;
               return (
-                <path
-                  key={i}
-                  d={`M ${e.x1} ${e.y1} C ${e.x1} ${midY}, ${e.x2} ${midY}, ${e.x2} ${e.y2}`}
-                  fill="none"
-                  stroke={isDarkMode ? '#2563eb44' : '#93c5fd88'}
-                  strokeWidth="1.2"
-                  opacity={searchQuery ? 0.15 : 0.9}
+                <polygon key={`a${i}`}
+                  points={`${ax},${ay} ${ax - 6},${ay - 4} ${ax - 6},${ay + 4}`}
+                  fill={isDarkMode ? '#475569' : '#60a5fa'}
+                  opacity={q ? 0.15 : 0.8}
                 />
               );
             })}
 
-            {/* ── Nodes ── */}
-            {nodes.map(node => {
-              const c           = ROLE_COLORS[node.role];
-              const highlighted = matchesSearch(node.name);
-              const dimmed      = searchQuery && !highlighted;
-              const nameLines   = splitName(node.name, node.role === 'PM' ? 14 : 11);
-
+            {/* Cards */}
+            {allNodes.map(node => {
+              const highlighted = q && (node.name || '').toLowerCase().includes(q);
+              const dimmed      = !!q && !highlighted;
               return (
-                <g key={node.id} opacity={dimmed ? 0.12 : 1}>
-                  {/* Glow ring on search highlight */}
-                  {highlighted && (
-                    <circle
-                      cx={node.x} cy={node.y}
-                      r={NODE_R + 5}
-                      fill="none"
-                      stroke={c.dot}
-                      strokeWidth="1.5"
-                      filter="url(#glow)"
-                      opacity={0.85}
-                    />
-                  )}
-
-                  {/* Role dot */}
-                  <circle
-                    cx={node.x} cy={node.y}
-                    r={node.role === 'PM' ? NODE_R + 2 : node.role === 'TL' ? NODE_R + 1 : NODE_R}
-                    fill={c.dot}
-                    stroke={isDarkMode ? '#0f172a' : '#ffffff'}
-                    strokeWidth={node.role === 'PM' ? 2.5 : 1.8}
-                    style={{ filter: `drop-shadow(0 2px 6px ${c.glow}88)` }}
-                  />
-
-                  {/* Name label lines below the dot */}
-                  {nameLines.map((line, li) => (
-                    <text
-                      key={li}
-                      x={node.x}
-                      y={node.y + (node.role === 'PM' ? NODE_R + 3 : node.role === 'TL' ? NODE_R + 2 : NODE_R + 1) + 10 + li * 11}
-                      textAnchor="middle"
-                      fontSize={node.role === 'PM' ? 8.5 : node.role === 'TL' ? 7.5 : 6.8}
-                      fontWeight={node.role === 'PM' ? 700 : node.role === 'TL' ? 600 : 500}
-                      fill={highlighted ? c.dot : (isDarkMode ? c.text : (node.role === 'PM' ? '#1e3a5f' : node.role === 'TL' ? '#14532d' : '#4c1d95'))}
-                      style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-                    >
-                      {line}
-                    </text>
-                  ))}
-                </g>
+                <Card key={node.id}
+                  x={node.x} y={node.y}
+                  role={node.role}
+                  name={node.name}
+                  email={node.email}
+                  highlight={highlighted}
+                  dim={dimmed}
+                />
               );
             })}
           </svg>
