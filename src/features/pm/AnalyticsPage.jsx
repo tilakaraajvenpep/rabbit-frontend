@@ -261,12 +261,8 @@ const AnalyticsPage = () => {
                       fontWeight: 600, 
                       fontSize: '11px', 
                       lineHeight: '1.3',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      wordBreak: 'break-word'
+                      wordBreak: 'break-word',
+                      overflowWrap: 'break-word'
                     }}>
                       {t.title}
                     </div>
