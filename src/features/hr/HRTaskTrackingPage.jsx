@@ -10,6 +10,7 @@ import {
 import dayjs from 'dayjs';
 import { adminService } from '../../services/adminService';
 import { reportService } from '../../services/reportService';
+import { leaveService } from '../../services/leaveService';
 import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
 
@@ -20,6 +21,7 @@ const HRTaskTrackingPage = () => {
   const { isDarkMode } = useThemeStore();
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
+  const [leaves, setLeaves] = useState([]);
   const [dateRange, setDateRange] = useState([dayjs().subtract(6, 'days'), dayjs()]);
   const [loading, setLoading] = useState(true);
   
@@ -39,12 +41,14 @@ const HRTaskTrackingPage = () => {
       const [start, end] = dateRange;
       const startStr = start.format('YYYY-MM-DD');
       const endStr = end.format('YYYY-MM-DD');
-      const [usersRes, reportsRes] = await Promise.all([
+      const [usersRes, reportsRes, leavesRes] = await Promise.all([
         adminService.getUsers(),
-        reportService.getAllReportsByRange(startStr, endStr)
+        reportService.getAllReportsByRange(startStr, endStr),
+        leaveService.getAllLeaves()
       ]);
       setUsers(usersRes.data || []);
       setReports(reportsRes.data || []);
+      setLeaves(leavesRes.data || []);
     } catch (error) {
       console.error('Failed to fetch missing tasks data:', error);
     } finally {
@@ -118,6 +122,47 @@ const HRTaskTrackingPage = () => {
     const shortLoggedDates = [];
 
     datesInRange.forEach(dateStr => {
+      // Find all approved leaves for this user on this date
+      const userApprovedLeavesForDate = leaves.filter(l => {
+        const lUserId = l.userId || l.user?.id;
+        const lDate = dayjs(l.leaveDate || l.date).format('YYYY-MM-DD');
+        return String(lUserId) === String(user.id || user.userId) && lDate === dateStr && l.status === 'Approved';
+      });
+
+      let requiredMinutes = 510; // default 8h 30m (510 minutes)
+      let isFullDayLeave = false;
+      let isHalfDayLeave = false;
+      let permissionDurationLabel = '';
+
+      userApprovedLeavesForDate.forEach(l => {
+        if (l.type === 'FullDay') {
+          isFullDayLeave = true;
+        } else if (l.type === 'HalfDay') {
+          isHalfDayLeave = true;
+        } else if (l.type === 'Permission') {
+          const duration = l.permissionDuration || '';
+          let durMins = 120; // default 2 hours (120 minutes)
+          if (duration.includes('hr')) {
+            durMins = Math.round((parseFloat(duration) || 0) * 60);
+          } else if (duration.includes('min')) {
+            durMins = Math.round(parseFloat(duration) || 0);
+          }
+          requiredMinutes -= durMins;
+          permissionDurationLabel = duration || '2 hrs';
+        }
+      });
+
+      if (isFullDayLeave) {
+        requiredMinutes = 0;
+      } else if (isHalfDayLeave) {
+        requiredMinutes = 255; // 4 hours 15 minutes
+      }
+
+      // If requiredMinutes is 0 or less, they don't need to report
+      if (requiredMinutes <= 0) {
+        return;
+      }
+
       // Check if user has a daily report for this date
       const reportForDate = userReports.find(r => {
         const rDate = r.reportDate || r.date;
@@ -125,7 +170,7 @@ const HRTaskTrackingPage = () => {
       });
 
       if (!reportForDate) {
-        unreportedDates.push({ date: dateStr });
+        unreportedDates.push({ date: dateStr, requiredMinutes });
       } else {
         // Sum total logged minutes for this date
         let totalMinutes = 0;
@@ -136,8 +181,14 @@ const HRTaskTrackingPage = () => {
             totalMinutes += Math.round(decimalHrs * 60) + minsVal;
           });
         }
-        if (totalMinutes < 510) {
-          shortLoggedDates.push({ date: dateStr, minutes: totalMinutes });
+        if (totalMinutes < requiredMinutes) {
+          shortLoggedDates.push({ 
+            date: dateStr, 
+            minutes: totalMinutes, 
+            requiredMinutes,
+            isHalfDayLeave,
+            permissionDurationLabel
+          });
         }
       }
     });
@@ -267,11 +318,20 @@ const HRTaskTrackingPage = () => {
         return (
           <Space wrap size={[4, 8]}>
             {record.unreportedDates.map(item => {
-              const dateStr = item.date;
+              const reqH = Math.floor(item.requiredMinutes / 60);
+              const reqM = item.requiredMinutes % 60;
+              let typeLabel = '';
+              if (item.requiredMinutes === 255) {
+                typeLabel = ' (Half Day)';
+              } else if (item.requiredMinutes < 510) {
+                typeLabel = ` (Permission: -${510 - item.requiredMinutes}m)`;
+              }
               return (
-                <Tag key={dateStr} color="error" style={{ borderRadius: 6, fontWeight: 600 }}>
-                  {dayjs(dateStr).format('DD MMM')}
-                </Tag>
+                <Tooltip key={item.date} title={`Required: ${reqH}h ${reqM}m${typeLabel}`}>
+                  <Tag color="error" style={{ borderRadius: 6, fontWeight: 600, cursor: 'help' }}>
+                    {dayjs(item.date).format('DD MMM')}
+                  </Tag>
+                </Tooltip>
               );
             })}
           </Space>
@@ -290,10 +350,20 @@ const HRTaskTrackingPage = () => {
             {record.shortLoggedDates.map(item => {
               const h = Math.floor(item.minutes / 60);
               const m = item.minutes % 60;
+              const reqH = Math.floor(item.requiredMinutes / 60);
+              const reqM = item.requiredMinutes % 60;
+              
+              let typeLabel = '';
+              if (item.requiredMinutes === 255) {
+                typeLabel = ' (Half Day)';
+              } else if (item.requiredMinutes < 510) {
+                typeLabel = ` (Permission: -${510 - item.requiredMinutes}m)`;
+              }
+
               return (
-                <Tooltip key={item.date} title={`Logged: ${h}h ${m}m (Requirement: 8h 30m)`}>
+                <Tooltip key={item.date} title={`Logged: ${h}h ${m}m (Requirement: ${reqH}h ${reqM}m${typeLabel})`}>
                   <Tag color="warning" style={{ borderRadius: 6, fontWeight: 600, cursor: 'help' }}>
-                    {dayjs(item.date).format('DD MMM')} ({h}h {m}m)
+                    {dayjs(item.date).format('DD MMM')} ({h}h {m}m / {reqH}h {reqM}m)
                   </Tag>
                 </Tooltip>
               );
