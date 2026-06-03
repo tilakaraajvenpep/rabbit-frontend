@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Form, Input, InputNumber, Select, Button, Space, Typography,
-  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Badge, DatePicker, Grid
+  Row, Col, Progress, Alert, notification, Tag, Result, Modal, Radio, theme, Badge, DatePicker, Grid, Tooltip
 } from 'antd';
 const { useBreakpoint } = Grid;
 import {
@@ -1439,21 +1439,23 @@ const EODReportPage = () => {
                                         }}>
                                           {code}
                                         </span>
-                                        <span 
-                                          style={{ 
-                                            fontSize: 12, 
-                                            fontWeight: 600, 
-                                            color: t1,
-                                            textOverflow: 'ellipsis',
-                                            overflow: 'hidden',
-                                            whiteSpace: 'nowrap',
-                                            maxWidth: 240,
-                                            flexShrink: 1
-                                          }}
-                                          title={title}
-                                        >
-                                          {title}
-                                        </span>
+                                        <Tooltip title={title}>
+                                          <span 
+                                            style={{ 
+                                              fontSize: 12, 
+                                              fontWeight: 600, 
+                                              color: t1,
+                                              textOverflow: 'ellipsis',
+                                              overflow: 'hidden',
+                                              whiteSpace: 'nowrap',
+                                              maxWidth: 240,
+                                              flexShrink: 1,
+                                              cursor: 'pointer'
+                                            }}
+                                          >
+                                            {title}
+                                          </span>
+                                        </Tooltip>
                                         <span style={{ fontSize: '10px', fontWeight: 600, color: t2, marginLeft: 4, flexShrink: 0 }}>
                                           (Allotted: {allotH}h {allotM}m)
                                         </span>
