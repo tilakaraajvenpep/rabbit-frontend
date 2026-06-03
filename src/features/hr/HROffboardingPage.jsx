@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Row, Col, Card, Typography, Select, Table, Button, 
-  Statistic, Space, Avatar, Badge, Popconfirm, notification, Spin, Empty, Tag
+  Statistic, Space, Avatar, Badge, Popconfirm, notification, Spin, Empty, Tag, Alert
 } from 'antd';
 import { 
   UserOutlined, ClockCircleOutlined, SwapOutlined, 
@@ -20,9 +20,10 @@ const HROffboardingPage = () => {
   
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
-  const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState(null);
+  const [userTickets, setUserTickets] = useState([]);
+  const [loadingTickets, setLoadingTickets] = useState(false);
   const [transferring, setTransferring] = useState(false);
 
   useEffect(() => {
@@ -32,16 +33,14 @@ const HROffboardingPage = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [usersRes, projectsRes, ticketsRes] = await Promise.all([
+      const [usersRes, projectsRes] = await Promise.all([
         adminService.getUsers(),
-        projectService.getProjects(),
-        ticketService.getTickets()
+        projectService.getProjects()
       ]);
       // Load all active employees and team leads who can have tickets assigned
       const activeStaff = (usersRes.data || []).filter(u => u.isActive !== false && u.role !== 'SuperAdmin');
       setUsers(activeStaff);
       setProjects(projectsRes.data || []);
-      setTickets(ticketsRes.data || []);
     } catch (e) {
       notification.error({
         message: 'Error',
@@ -52,46 +51,45 @@ const HROffboardingPage = () => {
     }
   };
 
+  useEffect(() => {
+    if (selectedUserId) {
+      fetchUserTickets(selectedUserId);
+    } else {
+      setUserTickets([]);
+    }
+  }, [selectedUserId]);
+
+  const fetchUserTickets = async (userId) => {
+    setLoadingTickets(true);
+    try {
+      const ticketsRes = await ticketService.getTickets();
+      const allTickets = ticketsRes.data || [];
+      const filtered = allTickets.filter(t => String(t.assignedToUserId || t.assignedTo) === String(userId));
+      setUserTickets(filtered);
+    } catch (e) {
+      notification.error({
+        message: 'Error',
+        description: 'Failed to fetch tickets for the selected employee.'
+      });
+    } finally {
+      setLoadingTickets(false);
+    }
+  };
+
   const selectedUser = users.find(u => u.id === selectedUserId);
 
-  // Tickets assigned to this user that are not Completed / Done
-  const userActiveTickets = tickets.filter(t => {
-    const isAssigned = String(t.assignedToUserId || t.assignedTo) === String(selectedUserId);
-    const isNotDone = t.status !== 'Done';
-    return isAssigned && isNotDone;
-  });
+  // Compute ticket-level hours
+  const totalEstimatedHours = userTickets.reduce((sum, t) => sum + Number(t.estimatedHours || 0), 0);
+  const totalConsumedHours = userTickets.reduce((sum, t) => sum + Number(t.consumedHours || 0), 0);
+  const totalRemainingHours = userTickets.reduce((sum, t) => sum + Math.max(0, Number(t.estimatedHours || 0) - Number(t.consumedHours || 0)), 0);
+  const hasUtilized = totalConsumedHours > 0;
 
-  // Calculate remaining hours per project for the exiting employee
-  const projectBalances = selectedUserId ? projects.map(proj => {
-    const allocated = Number(proj.employeeAllocatedHours?.[selectedUserId] || 0);
-    // Find all tickets for this project assigned to this user
-    const userTicketsOnProj = tickets.filter(t => 
-      String(t.projectId) === String(proj.id) && 
-      String(t.assignedToUserId || t.assignedTo) === String(selectedUserId)
-    );
-    const consumed = userTicketsOnProj.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
-    const remaining = Math.max(0, allocated - consumed);
-    return {
-      key: proj.id,
-      projectId: proj.id,
-      projectName: proj.name,
-      projectCode: proj.code,
-      project: proj,
-      allocated,
-      consumed,
-      remaining
-    };
-  }).filter(pb => pb.allocated > 0 || pb.remaining > 0) : [];
-
-  // Total remaining hours across all projects to be credited back
-  const totalRemainingHours = projectBalances.reduce((acc, pb) => acc + pb.remaining, 0);
-
-  const columns = [
+  const ticketColumns = [
     {
       title: 'Ticket Code',
       dataIndex: 'code',
       key: 'code',
-      width: 130,
+      width: 120,
       render: (code) => <Tag color="blue" style={{ fontFamily: 'monospace', fontWeight: 600 }}>{code}</Tag>
     },
     {
@@ -111,48 +109,42 @@ const HROffboardingPage = () => {
       }
     },
     {
+      title: 'Estimated Hours',
+      dataIndex: 'estimatedHours',
+      key: 'estimatedHours',
+      width: 130,
+      render: (hours) => <Text>{Number(hours || 0).toFixed(2)} hrs</Text>
+    },
+    {
       title: 'Consumed Hours',
       dataIndex: 'consumedHours',
       key: 'consumedHours',
-      width: 140,
+      width: 130,
       render: (hours) => <Text type="secondary">{Number(hours || 0).toFixed(2)} hrs</Text>
-    }
-  ];
-
-  const balanceColumns = [
+    },
     {
-      title: 'Project Code',
-      dataIndex: 'projectCode',
-      key: 'projectCode',
+      title: 'Remaining Hours',
+      key: 'remainingHours',
+      width: 130,
+      render: (_, record) => {
+        const est = Number(record.estimatedHours || 0);
+        const cons = Number(record.consumedHours || 0);
+        const rem = Math.max(0, est - cons);
+        return <Text type={rem > 0 ? 'success' : 'secondary'} strong={rem > 0}>{rem.toFixed(2)} hrs</Text>;
+      }
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
       width: 120,
-      render: (code) => <Tag color="cyan" style={{ fontWeight: 600 }}>{code}</Tag>
-    },
-    {
-      title: 'Project Name',
-      dataIndex: 'projectName',
-      key: 'projectName',
-      render: (name) => <div style={{ minWidth: 200, whiteSpace: 'normal', wordBreak: 'keep-all' }}><Text strong>{name}</Text></div>
-    },
-    {
-      title: 'Allocated Hours',
-      dataIndex: 'allocated',
-      key: 'allocated',
-      width: 120,
-      render: (h) => <Text>{h.toFixed(2)} hrs</Text>
-    },
-    {
-      title: 'Consumed Hours',
-      dataIndex: 'consumed',
-      key: 'consumed',
-      width: 120,
-      render: (h) => <Text type="secondary">{h.toFixed(2)} hrs</Text>
-    },
-    {
-      title: 'Hours to Credit Back',
-      dataIndex: 'remaining',
-      key: 'remaining',
-      width: 150,
-      render: (h) => <Text type={h > 0 ? 'success' : 'secondary'} strong={h > 0}>{h.toFixed(2)} hrs</Text>
+      render: (status) => {
+        let color = 'default';
+        if (status === 'Done') color = 'success';
+        if (status === 'InProgress') color = 'processing';
+        if (status === 'ToDo') color = 'default';
+        return <Tag color={color}>{status}</Tag>;
+      }
     }
   ];
 
@@ -160,33 +152,61 @@ const HROffboardingPage = () => {
     if (!selectedUserId) return;
     setTransferring(true);
     try {
-      // 1. Transfer hours to each project's totalHours and update allocations
-      for (const pb of projectBalances) {
-        const currentAllocations = { ...(pb.project?.employeeAllocatedHours || {}) };
-        
-        // Subtract/release the remaining hours by setting the offboarded user's allocation to their consumed hours
-        currentAllocations[selectedUserId] = pb.consumed;
-        
-        if (pb.remaining > 0) {
-          const currentTotal = Number(pb.project?.totalHours || pb.project?.approvedHours || 0);
-          const newTotal = currentTotal + pb.remaining;
+      // 1. Update project allocations and credit back remaining hours if they utilized hours
+      const projectHoursUpdate = {};
+      userTickets.forEach(t => {
+        const est = Number(t.estimatedHours || 0);
+        const cons = Number(t.consumedHours || 0);
+        const rem = Math.max(0, est - cons);
+        if (!projectHoursUpdate[t.projectId]) {
+          projectHoursUpdate[t.projectId] = { consumed: 0, remaining: 0 };
+        }
+        projectHoursUpdate[t.projectId].consumed += cons;
+        projectHoursUpdate[t.projectId].remaining += rem;
+      });
+
+      // Update projects' totalHours and employeeAllocatedHours
+      for (const proj of projects) {
+        const hasAllocation = proj.employeeAllocatedHours && proj.employeeAllocatedHours[selectedUserId] !== undefined;
+        const hasTickets = projectHoursUpdate[proj.id] !== undefined;
+
+        if (hasAllocation || hasTickets) {
+          const currentAllocations = { ...(proj.employeeAllocatedHours || {}) };
           
-          await projectService.updateProjectStatus(pb.projectId, {
-            status: pb.project?.status || 'InProgress',
-            totalHours: String(newTotal.toFixed(2)),
-            employeeAllocatedHours: currentAllocations
-          });
-        } else {
-          // If no remaining hours to credit back, still update the project's allocations to match their consumed hours
-          await projectService.updateProjectStatus(pb.projectId, {
-            status: pb.project?.status || 'InProgress',
-            employeeAllocatedHours: currentAllocations
-          });
+          if (!hasUtilized) {
+            // Case 1: Not utilized. Set allocation to 0, no hours credited back.
+            currentAllocations[selectedUserId] = 0;
+            await projectService.updateProjectStatus(proj.id, {
+              status: proj.status || 'InProgress',
+              employeeAllocatedHours: currentAllocations
+            });
+          } else {
+            // Case 2: Utilized. Set allocation to consumed hours, credit remaining back.
+            const consumedOnProject = hasTickets ? projectHoursUpdate[proj.id].consumed : 0;
+            const remainingOnProject = hasTickets ? projectHoursUpdate[proj.id].remaining : 0;
+            
+            currentAllocations[selectedUserId] = consumedOnProject;
+            
+            if (remainingOnProject > 0) {
+              const currentTotal = Number(proj.totalHours || proj.approvedHours || 0);
+              const newTotal = currentTotal + remainingOnProject;
+              await projectService.updateProjectStatus(proj.id, {
+                status: proj.status || 'InProgress',
+                totalHours: String(newTotal.toFixed(2)),
+                employeeAllocatedHours: currentAllocations
+              });
+            } else {
+              await projectService.updateProjectStatus(proj.id, {
+                status: proj.status || 'InProgress',
+                employeeAllocatedHours: currentAllocations
+              });
+            }
+          }
         }
       }
 
       // 2. Unassign tickets from employee
-      for (const ticket of userActiveTickets) {
+      for (const ticket of userTickets) {
         await ticketService.assignTicket(ticket.id, null);
       }
 
@@ -195,15 +215,18 @@ const HROffboardingPage = () => {
 
       notification.success({
         message: 'Offboarding Successfully Completed',
-        description: `Successfully deactivated employee "${selectedUser?.name || selectedUser?.fullName}". Transferred ${totalRemainingHours.toFixed(2)} hours back to the respective projects and unassigned ${userActiveTickets.length} active tasks.`
+        description: hasUtilized 
+          ? `Successfully deactivated employee "${selectedUser?.name || selectedUser?.fullName}". Credited back ${totalRemainingHours.toFixed(2)} remaining hours to projects and unassigned ${userTickets.length} tasks.`
+          : `Successfully deactivated employee "${selectedUser?.name || selectedUser?.fullName}" and unassigned ${userTickets.length} tasks. (No hours utilized, so no hours were credited back).`
       });
 
       setSelectedUserId(null);
+      setUserTickets([]);
       await loadData();
     } catch (error) {
       notification.error({
         message: 'Offboarding Failed',
-        description: 'An error occurred during the offboarding and hours transfer process.'
+        description: 'An error occurred during the offboarding process.'
       });
     } finally {
       setTransferring(false);
@@ -222,7 +245,7 @@ const HROffboardingPage = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <PageHeader 
         title="Employee Offboarding & Hours Transfer" 
-        subTitle="Deactivate departing employees, retrieve their remaining budget hours, and credit them back to the active projects."
+        subTitle="Deactivate departing employees, retrieve their remaining ticket hours, and credit them back to the active projects."
       />
 
       <Row gutter={[24, 24]}>
@@ -320,33 +343,59 @@ const HROffboardingPage = () => {
             </Card>
           ) : (
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              {/* Stats and Transfer trigger */}
+              {/* Stats / Overall Hours Display */}
               <Row gutter={[16, 16]}>
-                <Col xs={24} sm={12}>
+                <Col xs={24} sm={8}>
                   <Card style={{ borderRadius: 12, border: isDarkMode ? '1px solid #3f3f46' : '1px solid #f0f0f0' }}>
                     <Statistic 
-                      title="Pending Tasks to Release" 
-                      value={userActiveTickets.length} 
+                      title="Total Estimated Hours" 
+                      value={totalEstimatedHours} 
+                      precision={2}
                       prefix={<BookOutlined style={{ color: '#1890ff' }} />} 
+                      suffix="hrs"
                     />
                   </Card>
                 </Col>
-                <Col xs={24} sm={12}>
+                <Col xs={24} sm={8}>
                   <Card style={{ borderRadius: 12, border: isDarkMode ? '1px solid #3f3f46' : '1px solid #f0f0f0' }}>
                     <Statistic 
-                      title="Total Hours to Credit back" 
-                      value={totalRemainingHours} 
+                      title="Total Consumed Hours" 
+                      value={totalConsumedHours} 
                       precision={2}
                       prefix={<ClockCircleOutlined style={{ color: '#ef4444' }} />} 
                       suffix="hrs"
                     />
                   </Card>
                 </Col>
+                <Col xs={24} sm={8}>
+                  <Card style={{ borderRadius: 12, border: isDarkMode ? '1px solid #3f3f46' : '1px solid #f0f0f0' }}>
+                    <Statistic 
+                      title="Overall Remaining Hours" 
+                      value={totalRemainingHours} 
+                      precision={2}
+                      prefix={<SwapOutlined style={{ color: '#52c41a' }} />} 
+                      suffix="hrs"
+                    />
+                  </Card>
+                </Col>
               </Row>
 
-              {/* Project Balances Table Card */}
+              {/* Status Alert */}
+              <Alert 
+                message={hasUtilized ? "Hours Utilized on Tickets" : "No Hours Utilized"}
+                description={
+                  hasUtilized 
+                    ? `This employee has utilized hours on their tasks. Completing offboarding will deactivate the user, unassign their tickets, and credit back their remaining ticket hours (${totalRemainingHours.toFixed(2)} hrs) individually to the respective projects' total hours.`
+                    : "This employee has not utilized any hours on their tasks. Completing offboarding will just deactivate the user and unassign their tickets. No hours will be credited back to any projects."
+                }
+                type={hasUtilized ? "warning" : "info"}
+                showIcon
+                style={{ borderRadius: 12 }}
+              />
+
+              {/* Tickets Table Card */}
               <Card 
-                title="Project Hour Balances & Credit Summary"
+                title="Assigned Tickets & Hours Breakdown"
                 style={{ 
                   borderRadius: 16,
                   boxShadow: isDarkMode ? 'none' : '0 4px 12px rgba(0,0,0,0.03)',
@@ -355,7 +404,11 @@ const HROffboardingPage = () => {
                 extra={
                   <Popconfirm
                     title="Confirm Offboarding"
-                    description={`Are you sure you want to transfer ${totalRemainingHours.toFixed(2)} hours, unassign ${userActiveTickets.length} tasks, and deactivate this employee?`}
+                    description={
+                      hasUtilized
+                        ? `Are you sure you want to deactivate this employee and transfer ${totalRemainingHours.toFixed(2)} remaining hours back to the projects?`
+                        : "Are you sure you want to deactivate this employee? (No hours were utilized)."
+                    }
                     onConfirm={handleOffboarding}
                     okText="Yes, Offboard"
                     cancelText="Cancel"
@@ -368,37 +421,19 @@ const HROffboardingPage = () => {
                       loading={transferring}
                       disabled={transferring}
                     >
-                      Complete Offboarding & Transfer Hours
+                      {hasUtilized ? "Complete Offboarding & Transfer Hours" : "Complete Offboarding"}
                     </Button>
                   </Popconfirm>
                 }
               >
                 <Table 
-                  dataSource={projectBalances}
-                  columns={balanceColumns}
-                  rowKey="projectId"
+                  dataSource={userTickets}
+                  columns={ticketColumns}
+                  rowKey="id"
+                  loading={loadingTickets}
                   pagination={{ pageSize: 5 }}
                   scroll={{ x: 750 }}
-                  locale={{ emptyText: 'No project allocations found for this employee.' }}
-                />
-              </Card>
-
-              {/* Active Assigned Tickets Table Card */}
-              <Card 
-                title="Active Assigned Tickets to Release"
-                style={{ 
-                  borderRadius: 16,
-                  boxShadow: isDarkMode ? 'none' : '0 4px 12px rgba(0,0,0,0.03)',
-                  border: isDarkMode ? '1px solid #3f3f46' : '1px solid #e8e8e8'
-                }}
-              >
-                <Table 
-                  dataSource={userActiveTickets}
-                  columns={columns}
-                  rowKey="id"
-                  pagination={{ pageSize: 5 }}
-                  scroll={{ x: 600 }}
-                  locale={{ emptyText: 'This employee has no active/incomplete tickets to release.' }}
+                  locale={{ emptyText: 'No tickets assigned to this employee.' }}
                 />
               </Card>
             </Space>
