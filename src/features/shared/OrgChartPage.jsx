@@ -27,17 +27,20 @@ const MAX_NAME   = 24;   // chars before truncation
 
 const FONT_FAMILY = 'Inter,system-ui,sans-serif';
 
-function truncate(s) { return s && s.length > MAX_NAME ? s.slice(0, MAX_NAME - 1) + '…' : (s || ''); }
+function truncate(s, max) { return s && s.length > max ? s.slice(0, max - 1) + '…' : (s || ''); }
+
+/* split a name into ≤2 lines at a word boundary */
+function splitName(name, maxChars = 15) {
+  if (!name || name.length <= maxChars) return [name || ''];
+  const mid = name.lastIndexOf(' ', maxChars);
+  if (mid > 2) return [name.slice(0, mid), name.slice(mid + 1)];
+  return [name.slice(0, maxChars), name.slice(maxChars)];
+}
 
 /* ── Build positions for one PM section ── */
 function buildSection(pm, secX) {
   const nodes = [];
   const edges = [];
-
-  const pmR = DOT.PM;
-  const pmX = secX;
-  const pmY = TOP_PAD + pmR;
-  nodes.push({ id: pm.id, role: 'PM', name: truncate(pm.name || pm.fullName), x: pmX, y: pmY, r: pmR });
 
   /* flatten: TL → its Emps → direct Emps */
   const rows = [];
@@ -50,16 +53,30 @@ function buildSection(pm, secX) {
     }
   });
 
-  const trunkX   = pmX;
+  /* section width = driven by children (PM label goes below dot, not sideways) */
+  const childMaxW = rows.length
+    ? Math.max(...rows.map(r => truncate(r.name || r.fullName, MAX_NAME).length * 7 + BRANCH + r.indent + 30))
+    : 0;
+  const pmNameW   = splitName(pm.name || pm.fullName || '').reduce((m, l) => Math.max(m, l.length * 8.5), 0);
+  const sectionW  = Math.max(childMaxW, pmNameW, BRANCH + 90);
+
+  /* center PM dot within section */
+  const pmR = DOT.PM;
+  const pmX = secX + sectionW / 2;
+  const pmY = TOP_PAD + pmR;
+  nodes.push({ id: pm.id, role: 'PM', name: pm.name || pm.fullName || '', x: pmX, y: pmY, r: pmR, labelBelow: true });
+
+  const trunkX     = pmX;
   const childBaseX = pmX + BRANCH;
-  let   curY     = pmY + pmR + CHILD_TOP;
-  const branchYs = [];
+  /* children start below PM dot + name label (2 lines * line-height + gap) */
+  let   curY       = pmY + pmR + CHILD_TOP + 16; /* extra 16 for label row */
+  const branchYs   = [];
 
   rows.forEach(row => {
     const r  = DOT[row.role];
     const cx = childBaseX + row.indent;
     const cy = curY + r;
-    nodes.push({ id: row.id, role: row.role, name: truncate(row.name || row.fullName), x: cx, y: cy, r });
+    nodes.push({ id: row.id, role: row.role, name: truncate(row.name || row.fullName, MAX_NAME), x: cx, y: cy, r, labelBelow: false });
     branchYs.push({ cx, cy });
     curY += r * 2 + VGAP;
   });
@@ -72,14 +89,7 @@ function buildSection(pm, secX) {
     });
   }
 
-  /* estimate max text width for section width */
-  const maxW = Math.max(
-    (pm.name || '').length * 7.5 + BRANCH + 20,
-    ...rows.map(r => r.name.length * 6.5 + BRANCH + r.indent + 20)
-  );
-  const sectionW = Math.max(maxW, BRANCH + 110);
-  const bottomY  = curY;
-  return { nodes, edges, sectionW, bottomY };
+  return { nodes, edges, sectionW, bottomY: curY };
 }
 
 /* ── Main Component ── */
@@ -229,49 +239,52 @@ const OrgChartPage = () => {
               const hit  = q && node.name.toLowerCase().includes(q);
               const dim  = !!q && !hit;
               const fs   = FONT[node.role];
-              const nameW = Math.min(node.name.length * (fs * 0.62) + PILL_PAD * 2, 200);
-              const pillX = node.x + node.r + 10;
-              const pillY = node.y - PILL_H / 2;
 
+              if (node.labelBelow) {
+                /* PM: name centered below the dot, up to 2 lines */
+                const lines = splitName(node.name, 16);
+                const lineH = fs + 3;
+                return (
+                  <g key={node.id} opacity={dim ? 0.08 : 1}>
+                    {hit && <circle cx={node.x} cy={node.y} r={node.r + 6} fill="none" stroke={col.dot} strokeWidth={2} style={{ filter: `drop-shadow(0 0 7px ${col.dot})` }} />}
+                    <circle cx={node.x} cy={node.y} r={node.r}
+                      fill={col.dot} stroke={isDarkMode ? bg : '#fff'} strokeWidth={2.5}
+                      style={{ filter: `drop-shadow(0 2px 6px ${col.glow}99)` }}
+                    />
+                    {lines.map((line, li) => (
+                      <text key={li}
+                        x={node.x} y={node.y + node.r + 14 + li * lineH}
+                        textAnchor="middle"
+                        fontSize={fs} fontWeight={700}
+                        fill={hit ? col.dot : (isDarkMode ? '#93c5fd' : col.pillTxt)}
+                        style={{ fontFamily: FONT_FAMILY }}
+                      >{line}</text>
+                    ))}
+                  </g>
+                );
+              }
+
+              /* TL / Employee: pill to the right of the dot */
+              const nameW = Math.min(node.name.length * (fs * 0.6) + PILL_PAD * 2, 220);
+              const pillX = node.x + node.r + 8;
+              const pillY = node.y - PILL_H / 2;
               return (
                 <g key={node.id} opacity={dim ? 0.08 : 1}>
-                  {/* highlight glow */}
-                  {hit && (
-                    <circle cx={node.x} cy={node.y} r={node.r + 6}
-                      fill="none" stroke={col.dot} strokeWidth={2}
-                      style={{ filter: `drop-shadow(0 0 7px ${col.dot})` }}
-                    />
-                  )}
-
-                  {/* dot */}
+                  {hit && <circle cx={node.x} cy={node.y} r={node.r + 6} fill="none" stroke={col.dot} strokeWidth={2} style={{ filter: `drop-shadow(0 0 7px ${col.dot})` }} />}
                   <circle cx={node.x} cy={node.y} r={node.r}
-                    fill={col.dot}
-                    stroke={isDarkMode ? bg : '#fff'}
-                    strokeWidth={node.role === 'PM' ? 2.5 : 2}
+                    fill={col.dot} stroke={isDarkMode ? bg : '#fff'} strokeWidth={2}
                     style={{ filter: `drop-shadow(0 2px 6px ${col.glow}99)` }}
                   />
-
-                  {/* pill label background */}
-                  <rect
-                    x={pillX} y={pillY}
-                    width={nameW} height={PILL_H}
-                    rx={PILL_H / 2}
+                  <rect x={pillX} y={pillY} width={nameW} height={PILL_H} rx={PILL_H / 2}
                     fill={hit ? col.dot : (isDarkMode ? 'rgba(30,41,59,0.85)' : col.pill)}
-                    stroke={isDarkMode ? col.dot + '44' : col.dot + '55'}
-                    strokeWidth={0.8}
+                    stroke={isDarkMode ? col.dot + '44' : col.dot + '55'} strokeWidth={0.8}
                   />
-
-                  {/* name text */}
-                  <text
-                    x={pillX + nameW / 2} y={node.y + fs * 0.36}
-                    textAnchor="middle"
-                    fontSize={fs}
-                    fontWeight={node.role === 'PM' ? 700 : node.role === 'TL' ? 600 : 500}
+                  <text x={pillX + nameW / 2} y={node.y + fs * 0.36}
+                    textAnchor="middle" fontSize={fs}
+                    fontWeight={node.role === 'TL' ? 600 : 500}
                     fill={hit ? '#fff' : (isDarkMode ? '#e2e8f0' : col.pillTxt)}
                     style={{ fontFamily: FONT_FAMILY }}
-                  >
-                    {node.name}
-                  </text>
+                  >{node.name}</text>
                 </g>
               );
             })}
