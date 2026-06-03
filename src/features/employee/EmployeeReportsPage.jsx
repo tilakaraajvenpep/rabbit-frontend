@@ -292,20 +292,16 @@ const EmployeeReportsPage = () => {
     downloadCSV(filteredData, `Work_Report_${dayjs().format('YYYY-MM-DD')}`);
   };
 
-  // Group filteredData by Project + Employee
+  // Group filteredData by Project Name
   const getGroupedData = () => {
     const groups = {};
     filteredData.forEach(item => {
-      const key = `${item.projectId}_${item.userId}`;
+      const key = item.projectId;
       if (!groups[key]) {
         groups[key] = {
           key: key,
           projectId: item.projectId,
           projectName: item.projectName,
-          userId: item.userId,
-          employeeName: item.employeeName,
-          userRole: item.userRole,
-          supervisorName: item.supervisorName,
           totalHours: 0,
           entries: []
         };
@@ -321,7 +317,7 @@ const EmployeeReportsPage = () => {
     setIsDetailsModalOpen(true);
   };
 
-  // Columns for the Grouped Project-Employee summary table
+  // Columns for the Grouped Project summary table
   const columns = [
     { 
       title: 'Project Name', 
@@ -336,12 +332,6 @@ const EmployeeReportsPage = () => {
           {name}
         </Button>
       )
-    },
-    { 
-      title: 'Employee Name', 
-      dataIndex: 'employeeName', 
-      key: 'employeeName', 
-      render: (name) => <span style={{ fontWeight: 600, color: t1 }}>{name}</span>
     },
     { 
       title: 'Total Hours Worked', 
@@ -362,6 +352,13 @@ const EmployeeReportsPage = () => {
 
   // Columns inside details modal
   const detailsColumns = [
+    { 
+      title: 'Employee Name', 
+      dataIndex: 'employeeName', 
+      key: 'employeeName', 
+      width: 160,
+      render: (name) => <span style={{ fontWeight: 600, color: t1 }}>{name}</span>
+    },
     { 
       title: 'Date', 
       dataIndex: 'date', 
@@ -546,7 +543,7 @@ const EmployeeReportsPage = () => {
               pageData.forEach(({ totalHours }) => { total += totalHours; });
               return (
                 <Table.Summary.Row style={{ background: isDarkMode ? '#1e2130' : '#f8fafc' }}>
-                  <Table.Summary.Cell index={0} colSpan={2}>
+                  <Table.Summary.Cell index={0} colSpan={1}>
                     <Text strong style={{ color: t1 }}>Total Hours in Current View</Text>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={1} align="left">
@@ -576,33 +573,29 @@ const EmployeeReportsPage = () => {
         {selectedGroup && (
           <div style={{ marginTop: 12 }}>
             {/* Meta summary card */}
-            <div style={{ 
-              marginBottom: 20, 
-              background: isDarkMode ? '#11131c' : '#f8fafc', 
-              padding: '16px 20px', 
-              borderRadius: 8, 
-              border: `1px solid ${border}`,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 12
-            }}>
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: t2, textTransform: 'uppercase', marginBottom: 4 }}>PROJECT</div>
-                <div style={{ fontWeight: 800, color: t1, fontSize: '15px' }}>{selectedGroup.projectName}</div>
+              <div style={{ 
+                marginBottom: 20, 
+                background: isDarkMode ? '#11131c' : '#f8fafc', 
+                padding: '16px 20px', 
+                borderRadius: 8, 
+                border: `1px solid ${border}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12
+              }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: t2, textTransform: 'uppercase', marginBottom: 4 }}>PROJECT</div>
+                  <div style={{ fontWeight: 800, color: t1, fontSize: '15px' }}>{selectedGroup.projectName}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: t2, textTransform: 'uppercase', marginBottom: 4 }}>TOTAL WORKED TIME</div>
+                  <Tag color="success" style={{ fontWeight: 700, fontSize: '14px', padding: '4px 10px', borderRadius: 4 }}>
+                    {Math.floor(selectedGroup.totalHours)}h {Math.round((selectedGroup.totalHours - Math.floor(selectedGroup.totalHours)) * 60)}m
+                  </Tag>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: t2, textTransform: 'uppercase', marginBottom: 4 }}>EMPLOYEE</div>
-                <div style={{ fontWeight: 800, color: t1, fontSize: '15px' }}>{selectedGroup.employeeName}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: t2, textTransform: 'uppercase', marginBottom: 4 }}>TOTAL WORKED TIME</div>
-                <Tag color="success" style={{ fontWeight: 700, fontSize: '14px', padding: '4px 10px', borderRadius: 4 }}>
-                  {Math.floor(selectedGroup.totalHours)}h {Math.round((selectedGroup.totalHours - Math.floor(selectedGroup.totalHours)) * 60)}m
-                </Tag>
-              </div>
-            </div>
 
             {/* Detailed Ticket Items Table */}
             <Table
