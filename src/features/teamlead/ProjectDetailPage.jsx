@@ -35,7 +35,7 @@ const ProjectDetailPage = () => {
   const [isManageTeamModalOpen, setIsManageTeamModalOpen] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [savingTeam, setSavingTeam] = useState(false);
-  const [requestingHRHours, setRequestingHRHours] = useState(false);
+  const [requestingAccountsHours, setRequestingAccountsHours] = useState(false);
 
   useEffect(() => {
     if (project) {
@@ -64,21 +64,21 @@ const ProjectDetailPage = () => {
     }
   };
 
-  const handleRequestHRHours = async () => {
-    setRequestingHRHours(true);
+  const handleRequestAccountsHours = async () => {
+    setRequestingAccountsHours(true);
     try {
       await projectService.updateProjectStatus(id, {
         status: project.status,
-        note: 'Requested HR to allocate hours for assigned employees.'
+        note: 'Requested Accounts to allocate extra hours for this project.'
       });
       notification.success({ 
         message: 'Request Sent', 
-        description: 'HR has been notified to allocate hours for this project.' 
+        description: 'Accounts has been notified to allocate extra hours for this project.' 
       });
     } catch (error) {
-      notification.error({ message: 'Error', description: 'Failed to request hours from HR.' });
+      notification.error({ message: 'Error', description: 'Failed to request extra hours from Accounts.' });
     } finally {
-      setRequestingHRHours(false);
+      setRequestingAccountsHours(false);
     }
   };
 
@@ -177,13 +177,13 @@ const ProjectDetailPage = () => {
         title={project.name}
         extra={[
           <Button 
-            key="request-hr" 
+            key="request-accounts" 
             icon={<ClockCircleOutlined />} 
-            onClick={handleRequestHRHours}
-            loading={requestingHRHours}
+            onClick={handleRequestAccountsHours}
+            loading={requestingAccountsHours}
             style={{ color: '#eb2f96', borderColor: '#ffadd2' }}
           >
-            Request HR for Hours
+            Request access from accounts for extra hours
           </Button>,
           <Button 
             key="download" 
