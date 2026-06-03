@@ -638,6 +638,8 @@ const EODReportPage = () => {
       fromDate: dayjs(date),
       toDate: null,
       type: 'FullDay',
+      permissionHours: 0,
+      permissionMinutes: 0,
       reason: ''
     });
     setIsLeaveModalOpen(true);
@@ -650,8 +652,14 @@ const EODReportPage = () => {
       const toStr = values.toDate ? values.toDate.format('YYYY-MM-DD') : fromStr;
       
       let leaveReason = values.reason || '';
+      let typeLabel = values.type === 'FullDay' ? 'Full Day Leave' : values.type === 'HalfDay' ? 'Half Day Leave' : 'Permission';
+      
       if (values.type === 'Permission') {
-        leaveReason = `[Permission Duration: ${values.permissionDuration}] - ${leaveReason}`;
+        const hrs = values.permissionHours || 0;
+        const mins = values.permissionMinutes || 0;
+        const durationStr = `${hrs}h ${mins}m`;
+        leaveReason = `[Permission Duration: ${durationStr}] - ${leaveReason}`;
+        typeLabel = `Permission (${durationStr})`;
       }
 
       await leaveService.applyLeave({
@@ -660,7 +668,6 @@ const EODReportPage = () => {
         type: values.type,
         reason: leaveReason || `Applied from EOD Weekly Work Report Page (${values.type})`
       });
-      const typeLabel = values.type === 'FullDay' ? 'Full Day Leave' : values.type === 'HalfDay' ? 'Half Day Leave' : `Permission (${values.permissionDuration})`;
       notification.success({
         message: 'Leave Request Submitted',
         description: `Your ${typeLabel} request has been submitted and is pending HR approval.`
@@ -682,21 +689,41 @@ const EODReportPage = () => {
     setEditingLeave(leave);
     editLeaveForm.resetFields();
     
-    let permissionDuration = '2hrs'; // default
+    let permissionHours = 0;
+    let permissionMinutes = 0;
     let cleanReason = leave.reason || '';
     
     if (leave.type === 'Permission' && cleanReason.startsWith('[Permission Duration:')) {
       const match = cleanReason.match(/^\[Permission Duration:\s*([^\]]+)\]\s*-\s*(.*)$/);
       if (match) {
-        permissionDuration = match[1];
+        const durationStr = match[1];
         cleanReason = match[2];
+        
+        const hMatch = durationStr.match(/(\d+)\s*(?:h|hr|hour)/i);
+        if (hMatch) {
+          permissionHours = parseInt(hMatch[1]) || 0;
+        } else if (durationStr.includes('hrs')) {
+          const hrsNum = parseInt(durationStr);
+          if (!isNaN(hrsNum)) permissionHours = hrsNum;
+        }
+        
+        const mMatch = durationStr.match(/(\d+)\s*(?:m|min|minute)/i);
+        if (mMatch) {
+          permissionMinutes = parseInt(mMatch[1]) || 0;
+        } else if (durationStr.includes('mins')) {
+          if (permissionHours === 0) {
+            const minsNum = parseInt(durationStr);
+            if (!isNaN(minsNum)) permissionMinutes = minsNum;
+          }
+        }
       }
     }
     
     editLeaveForm.setFieldsValue({
       fromDate: dayjs(leave.leaveDate),
       type: leave.type,
-      permissionDuration,
+      permissionHours,
+      permissionMinutes,
       reason: cleanReason
     });
     setIsEditLeaveModalOpen(true);
@@ -709,7 +736,10 @@ const EODReportPage = () => {
       
       let leaveReason = values.reason || '';
       if (values.type === 'Permission') {
-        leaveReason = `[Permission Duration: ${values.permissionDuration}] - ${leaveReason}`;
+        const hrs = values.permissionHours || 0;
+        const mins = values.permissionMinutes || 0;
+        const durationStr = `${hrs}h ${mins}m`;
+        leaveReason = `[Permission Duration: ${durationStr}] - ${leaveReason}`;
       }
 
       await leaveService.updateLeave(editingLeave.leaveId, {
@@ -1800,16 +1830,32 @@ const EODReportPage = () => {
               const type = getFieldValue('type');
               if (type === 'Permission') {
                 return (
-                  <Form.Item name="permissionDuration" label="Permission Duration" rules={[{ required: true, message: 'Please select duration' }]}>
-                    <Radio.Group optionType="button" buttonStyle="solid" style={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      <Radio.Button value="2hrs" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>2 hrs</Radio.Button>
-                      <Radio.Button value="1hrs" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>1 hrs</Radio.Button>
-                      <Radio.Button value="50mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>50 mins</Radio.Button>
-                      <Radio.Button value="30mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>30 mins</Radio.Button>
-                      <Radio.Button value="15mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>15 mins</Radio.Button>
-                      <Radio.Button value="10mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>10 mins</Radio.Button>
-                    </Radio.Group>
-                  </Form.Item>
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Item 
+                        name="permissionHours" 
+                        label="Permission Hours" 
+                        rules={[{ required: true, message: 'Select hours' }]}
+                        initialValue={0}
+                      >
+                        <Select style={{ width: '100%' }}>
+                          <Select.Option value={0}>0</Select.Option>
+                          <Select.Option value={1}>1</Select.Option>
+                          <Select.Option value={2}>2</Select.Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item 
+                        name="permissionMinutes" 
+                        label="Permission Minutes" 
+                        rules={[{ required: true, message: 'Enter minutes' }]}
+                        initialValue={0}
+                      >
+                        <InputNumber min={0} max={59} style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
                 );
               }
               return null;
@@ -1881,16 +1927,32 @@ const EODReportPage = () => {
               const type = getFieldValue('type');
               if (type === 'Permission') {
                 return (
-                  <Form.Item name="permissionDuration" label="Permission Duration" rules={[{ required: true, message: 'Please select duration' }]}>
-                    <Radio.Group optionType="button" buttonStyle="solid" style={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      <Radio.Button value="2hrs" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>2 hrs</Radio.Button>
-                      <Radio.Button value="1hrs" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>1 hrs</Radio.Button>
-                      <Radio.Button value="50mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>50 mins</Radio.Button>
-                      <Radio.Button value="30mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>30 mins</Radio.Button>
-                      <Radio.Button value="15mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>15 mins</Radio.Button>
-                      <Radio.Button value="10mins" style={{ flex: '1 1 28%', textAlign: 'center', borderRadius: 4 }}>10 mins</Radio.Button>
-                    </Radio.Group>
-                  </Form.Item>
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Item 
+                        name="permissionHours" 
+                        label="Permission Hours" 
+                        rules={[{ required: true, message: 'Select hours' }]}
+                        initialValue={0}
+                      >
+                        <Select style={{ width: '100%' }}>
+                          <Select.Option value={0}>0</Select.Option>
+                          <Select.Option value={1}>1</Select.Option>
+                          <Select.Option value={2}>2</Select.Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item 
+                        name="permissionMinutes" 
+                        label="Permission Minutes" 
+                        rules={[{ required: true, message: 'Enter minutes' }]}
+                        initialValue={0}
+                      >
+                        <InputNumber min={0} max={59} style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                  </Row>
                 );
               }
               return null;
