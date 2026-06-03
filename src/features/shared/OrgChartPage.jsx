@@ -12,18 +12,18 @@ const C = {
 };
 
 /* ── Layout ── */
-const DOT   = { PM: 12, TL: 9, Emp: 7 };
-const FONT  = { PM: 14, TL: 12, Emp: 11 };
-const PILL_H     = 22;   // label pill height
-const PILL_PAD   = 10;   // horizontal padding inside pill
-const VGAP       = 46;   // vertical gap between child nodes
-const HGAP       = 140;  // gap between PM columns
-const BRANCH     = 40;   // horizontal branch length
-const CHILD_TOP  = 50;   // gap from PM dot to first child
-const EMP_INDENT = 20;   // extra right-indent for employees under TL
+const DOT   = { PM: 14, TL: 11, Emp: 9 };
+const FONT  = { PM: 17, TL: 15, Emp: 13 };
+const PILL_H     = 26;   // label pill height
+const PILL_PAD   = 12;   // horizontal padding inside pill
+const VGAP       = 24;   // vertical gap between child nodes (tighter)
+const HGAP       = 180;  // gap between PM columns
+const BRANCH     = 44;   // horizontal branch length
+const CHILD_TOP  = 48;   // gap from PM dot to first child
+const EMP_INDENT = 22;   // extra right-indent for employees under TL
 const TOP_PAD    = 40;
 const LEFT_PAD   = 50;
-const MAX_NAME   = 22;   // chars before truncation
+const MAX_NAME   = 24;   // chars before truncation
 
 const FONT_FAMILY = 'Inter,system-ui,sans-serif';
 
@@ -195,15 +195,13 @@ const OrgChartPage = () => {
         />
       </div>
 
-      {/* ── Chart ── */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      {/* ── Chart (scrollable) ── */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
         {allNodes.length === 0
           ? <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Empty /></div>
           : (
-          <svg width="100%" height="100%"
-            viewBox={`0 0 ${VB_W} ${VB_H}`}
-            preserveAspectRatio="xMidYMin meet"
-            style={{ display: 'block' }}
+          <svg width={VB_W} height={VB_H}
+            style={{ display: 'block', minWidth: VB_W }}
           >
             <defs>
               <pattern id="dotbg" width="24" height="24" patternUnits="userSpaceOnUse">
