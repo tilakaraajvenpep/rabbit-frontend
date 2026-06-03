@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Space, Typography, Tag, Input, Spin, Empty, Button, Avatar } from 'antd';
+import { Card, Space, Typography, Tag, Input, Spin, Empty, Button, Avatar, Select } from 'antd';
 import { 
   SearchOutlined, 
   UserOutlined,
@@ -16,6 +16,7 @@ const OrgChartPage = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPmId, setSelectedPmId] = useState(null);
 
   useEffect(() => {
     fetchUsers();
@@ -25,7 +26,14 @@ const OrgChartPage = () => {
     setLoading(true);
     try {
       const res = await adminService.getUsers();
-      setUsers(res.data || []);
+      const loadedUsers = res.data || [];
+      setUsers(loadedUsers);
+
+      // Default to first PM or TenantAdmin
+      const pmsList = loadedUsers.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin');
+      if (pmsList.length > 0) {
+        setSelectedPmId(pmsList[0].id);
+      }
     } catch (err) {
       console.error('Failed to load users for org chart:', err);
     } finally {
@@ -120,6 +128,20 @@ const OrgChartPage = () => {
   }
 
   const hierarchy = buildHierarchy();
+  const pmsList = users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin');
+
+  // Add the fallback PM to select list if present in hierarchy
+  const hasFallback = hierarchy.some(h => h.id === 'unassigned-pm');
+  const dropdownPms = [...pmsList];
+  if (hasFallback) {
+    dropdownPms.push({
+      id: 'unassigned-pm',
+      name: 'Independent & General Support',
+      fullName: 'Independent & General Support'
+    });
+  }
+
+  const activePmNode = hierarchy.find(p => String(p.id) === String(selectedPmId));
 
   const renderCard = (node, borderCol) => {
     const highlighted = matchesSearch(node);
@@ -131,7 +153,7 @@ const OrgChartPage = () => {
       <Card
         size="small"
         style={{
-          width: 250,
+          width: 240,
           borderRadius: 8,
           border: highlighted ? `2px solid ${borderCol}` : `1px solid ${isDarkMode ? '#2d2d30' : '#e4e4e7'}`,
           borderLeft: `4px solid ${borderCol}`,
@@ -186,18 +208,30 @@ const OrgChartPage = () => {
         background: isDarkMode ? '#1c1c1f' : '#ffffff',
         borderBottom: isDarkMode ? '1px solid #2d2d30' : '1px solid #e4e4e7',
       }}>
+        {/* PM Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Text strong style={{ color: isDarkMode ? '#cbd5e1' : '#475569' }}>Project Manager:</Text>
+          <Select
+            value={selectedPmId}
+            onChange={value => setSelectedPmId(value)}
+            style={{ width: 240 }}
+            placeholder="Select a PM"
+            options={dropdownPms.map(pm => ({ label: pm.name || pm.fullName, value: pm.id }))}
+          />
+        </div>
+
         {/* Color legend */}
         <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 14, height: 14, borderRadius: '50%', background: pmColor }} />
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: pmColor }} />
             <Text strong style={{ fontSize: '13px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>Project Manager (PM)</Text>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 14, height: 14, borderRadius: '50%', background: tlColor }} />
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: tlColor }} />
             <Text strong style={{ fontSize: '13px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>Team Leader (TL)</Text>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 14, height: 14, borderRadius: '50%', background: empColor }} />
+            <div style={{ width: 12, height: 12, borderRadius: '50%', background: empColor }} />
             <Text strong style={{ fontSize: '13px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>Employee</Text>
           </div>
         </div>
@@ -207,7 +241,7 @@ const OrgChartPage = () => {
           <Input 
             prefix={<SearchOutlined style={{ color: '#8b5cf6' }} />} 
             placeholder="Search name, email, role..." 
-            style={{ width: 220, borderRadius: 6 }}
+            style={{ width: 200, borderRadius: 6 }}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
@@ -224,115 +258,121 @@ const OrgChartPage = () => {
         </Space>
       </div>
 
-      {/* Horizontal Cascade Hierarchical View */}
-      <div style={{ flex: 1, padding: 24, overflowY: 'auto', overflowX: 'auto', background: isDarkMode ? '#131316' : '#f9fafb' }}>
-        {hierarchy.length === 0 ? (
-          <Empty description="No users found" />
+      {/* Horizontal Cascade Hierarchical View (Strictly fixed viewport height, no outer scrolling) */}
+      <div style={{ 
+        flex: 1, 
+        padding: 24, 
+        overflow: 'hidden', 
+        background: isDarkMode ? '#131316' : '#f9fafb',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        {!activePmNode ? (
+          <Empty description="Please select a Project Manager to view details" />
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 40, minWidth: 900 }}>
-            {hierarchy.map(pmNode => (
-              <div 
-                key={pmNode.id} 
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'stretch', 
-                  gap: 48, 
-                  position: 'relative',
-                  background: isDarkMode ? '#1c1c21' : '#ffffff',
-                  border: `1px solid ${isDarkMode ? '#2d2d35' : '#e4e4e7'}`,
-                  borderRadius: 16,
-                  padding: 24,
-                  boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.02)'
-                }}
-              >
-                {/* PM Card Container */}
-                <div style={{ display: 'flex', alignItems: 'center', zIndex: 10 }}>
-                  {renderCard(pmNode, pmColor)}
-                </div>
+          <div 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'stretch', 
+              gap: 48, 
+              position: 'relative',
+              background: isDarkMode ? '#1c1c21' : '#ffffff',
+              border: `1px solid ${isDarkMode ? '#2d2d35' : '#e4e4e7'}`,
+              borderRadius: 16,
+              padding: 28,
+              boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(0,0,0,0.02)',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              overflow: 'auto'
+            }}
+          >
+            {/* PM Card Container */}
+            <div style={{ display: 'flex', alignItems: 'center', zIndex: 10 }}>
+              {renderCard(activePmNode, pmColor)}
+            </div>
 
-                {/* Team Leaders and Employees Cascade */}
-                {pmNode.children && pmNode.children.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24, position: 'relative' }}>
-                    {/* PM to TL Vertical Connection Line */}
-                    {pmNode.children.length > 1 && (
+            {/* Team Leaders and Employees Cascade */}
+            {activePmNode.children && activePmNode.children.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24, position: 'relative' }}>
+                {/* PM to TL Vertical Connection Line */}
+                {activePmNode.children.length > 1 && (
+                  <div style={{
+                    position: 'absolute',
+                    left: -24,
+                    top: 'calc(10% + 20px)',
+                    bottom: 'calc(10% + 20px)',
+                    width: 2,
+                    background: isDarkMode ? '#3f3f46' : '#cbd5e1',
+                    zIndex: 1
+                  }} />
+                )}
+
+                {activePmNode.children.map((tlNode) => {
+                  const isTL = tlNode.type === 'TeamLead';
+                  const childrenList = tlNode.children || [];
+                  
+                  return (
+                    <div key={tlNode.id} style={{ display: 'flex', alignItems: 'stretch', gap: 48, position: 'relative' }}>
+                      {/* Horizontal Connector Line from PM main branch to TL */}
                       <div style={{
                         position: 'absolute',
                         left: -24,
-                        top: 'calc(10% + 20px)',
-                        bottom: 'calc(10% + 20px)',
-                        width: 2,
+                        top: '50%',
+                        width: 24,
+                        height: 2,
                         background: isDarkMode ? '#3f3f46' : '#cbd5e1',
                         zIndex: 1
                       }} />
-                    )}
 
-                    {pmNode.children.map((tlNode) => {
-                      const isTL = tlNode.type === 'TeamLead';
-                      const childrenList = tlNode.children || [];
-                      
-                      return (
-                        <div key={tlNode.id} style={{ display: 'flex', alignItems: 'stretch', gap: 48, position: 'relative' }}>
-                          {/* Horizontal Connector Line from PM main branch to TL */}
-                          <div style={{
-                            position: 'absolute',
-                            left: -24,
-                            top: '50%',
-                            width: 24,
-                            height: 2,
-                            background: isDarkMode ? '#3f3f46' : '#cbd5e1',
-                            zIndex: 1
-                          }} />
+                      {/* TL (or direct Employee) Card */}
+                      <div style={{ display: 'flex', alignItems: 'center', zIndex: 10 }}>
+                        {renderCard(tlNode, isTL ? tlColor : empColor)}
+                      </div>
 
-                          {/* TL (or direct Employee) Card */}
-                          <div style={{ display: 'flex', alignItems: 'center', zIndex: 10 }}>
-                            {renderCard(tlNode, isTL ? tlColor : empColor)}
-                          </div>
+                      {/* Employees under TL Cascade */}
+                      {isTL && childrenList.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12, position: 'relative' }}>
+                          {/* TL to Employee Vertical Connection Line */}
+                          {childrenList.length > 1 && (
+                            <div style={{
+                              position: 'absolute',
+                              left: -24,
+                              top: 'calc(15% + 15px)',
+                              bottom: 'calc(15% + 15px)',
+                              width: 2,
+                              background: isDarkMode ? '#3f3f46' : '#cbd5e1',
+                              zIndex: 1
+                            }} />
+                          )}
 
-                          {/* Employees under TL Cascade */}
-                          {isTL && childrenList.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12, position: 'relative' }}>
-                              {/* TL to Employee Vertical Connection Line */}
-                              {childrenList.length > 1 && (
-                                <div style={{
-                                  position: 'absolute',
+                          {childrenList.map((empNode) => (
+                            <div key={empNode.id} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                              {/* Horizontal Connector Line from TL branch to Employee */}
+                              <div style={{
+                                position: 'absolute',
                                   left: -24,
-                                  top: 'calc(15% + 15px)',
-                                  bottom: 'calc(15% + 15px)',
-                                  width: 2,
+                                  top: '50%',
+                                  width: 24,
+                                  height: 2,
                                   background: isDarkMode ? '#3f3f46' : '#cbd5e1',
                                   zIndex: 1
                                 }} />
-                              )}
 
-                              {childrenList.map((empNode) => (
-                                <div key={empNode.id} style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-                                  {/* Horizontal Connector Line from TL branch to Employee */}
-                                  <div style={{
-                                    position: 'absolute',
-                                    left: -24,
-                                    top: '50%',
-                                    width: 24,
-                                    height: 2,
-                                    background: isDarkMode ? '#3f3f46' : '#cbd5e1',
-                                    zIndex: 1
-                                  }} />
-
-                                  <div style={{ zIndex: 10 }}>
-                                    {renderCard(empNode, empColor)}
-                                  </div>
+                                <div style={{ zIndex: 10 }}>
+                                  {renderCard(empNode, empColor)}
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
       </div>
     </div>
   );
