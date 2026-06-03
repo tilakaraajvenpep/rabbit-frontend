@@ -4,35 +4,42 @@ import { SearchOutlined } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { useThemeStore } from '../../store/themeStore';
 
-/* ── Role colours ── */
+/* ── Role palette ── */
 const C = {
-  PM:  { dot: '#2563eb', glow: '#1d4ed8', text: '#1e40af', label: 'Project Manager' },
-  TL:  { dot: '#ea580c', glow: '#c2410c', text: '#9a3412', label: 'Team Leader'     },
-  Emp: { dot: '#16a34a', glow: '#15803d', text: '#14532d', label: 'Employee'        },
+  PM:  { dot: '#3b82f6', glow: '#1d4ed8', pill: '#dbeafe', pillTxt: '#1e40af', label: 'Project Manager' },
+  TL:  { dot: '#f97316', glow: '#ea580c', pill: '#ffedd5', pillTxt: '#9a3412', label: 'Team Leader'     },
+  Emp: { dot: '#22c55e', glow: '#15803d', pill: '#dcfce7', pillTxt: '#14532d', label: 'Employee'        },
 };
 
-/* ── Layout constants ── */
-const DOT_PM  = 9;   // PM dot radius
-const DOT_TL  = 7;   // TL dot radius
-const DOT_EMP = 6;   // Employee dot radius
-const VGAP    = 38;  // vertical gap between child nodes
-const HGAP    = 80;  // horizontal gap between PM columns
-const CHILD_DX = 70; // horizontal offset: PM center → child column
-const CHILD_TOP_GAP = 48; // PM dot bottom → first child dot
-const TOP_PAD  = 30;
-const LEFT_PAD = 40;
-const EMP_INDENT = 18; // extra indent for employees under a TL
+/* ── Layout ── */
+const DOT   = { PM: 12, TL: 9, Emp: 7 };
+const FONT  = { PM: 14, TL: 12, Emp: 11 };
+const PILL_H     = 22;   // label pill height
+const PILL_PAD   = 10;   // horizontal padding inside pill
+const VGAP       = 46;   // vertical gap between child nodes
+const HGAP       = 140;  // gap between PM columns
+const BRANCH     = 40;   // horizontal branch length
+const CHILD_TOP  = 50;   // gap from PM dot to first child
+const EMP_INDENT = 20;   // extra right-indent for employees under TL
+const TOP_PAD    = 40;
+const LEFT_PAD   = 50;
+const MAX_NAME   = 22;   // chars before truncation
 
-/* ── Build positioned node + edge lists ── */
+const FONT_FAMILY = 'Inter,system-ui,sans-serif';
+
+function truncate(s) { return s && s.length > MAX_NAME ? s.slice(0, MAX_NAME - 1) + '…' : (s || ''); }
+
+/* ── Build positions for one PM section ── */
 function buildSection(pm, secX) {
   const nodes = [];
   const edges = [];
 
+  const pmR = DOT.PM;
   const pmX = secX;
-  const pmY = TOP_PAD + DOT_PM;
-  nodes.push({ id: pm.id, role: 'PM', name: pm.name || pm.fullName, x: pmX, y: pmY, r: DOT_PM });
+  const pmY = TOP_PAD + pmR;
+  nodes.push({ id: pm.id, role: 'PM', name: truncate(pm.name || pm.fullName), x: pmX, y: pmY, r: pmR });
 
-  /* flatten children: TL then its Employees, then direct Emps */
+  /* flatten: TL → its Emps → direct Emps */
   const rows = [];
   (pm.children || []).forEach(ch => {
     if (ch.type === 'TeamLead') {
@@ -43,41 +50,44 @@ function buildSection(pm, secX) {
     }
   });
 
-  const childX   = pmX + CHILD_DX;
-  let   curY     = pmY + CHILD_TOP_GAP;
+  const trunkX   = pmX;
+  const childBaseX = pmX + BRANCH;
+  let   curY     = pmY + pmR + CHILD_TOP;
   const branchYs = [];
 
   rows.forEach(row => {
-    const r  = row.role === 'TL' ? DOT_TL : DOT_EMP;
-    const cx = childX + row.indent;
+    const r  = DOT[row.role];
+    const cx = childBaseX + row.indent;
     const cy = curY + r;
-    nodes.push({ id: row.id, role: row.role, name: row.name || row.fullName, x: cx, y: cy, r });
-    branchYs.push({ cx, cy, r });
-    curY += (r * 2) + VGAP;
+    nodes.push({ id: row.id, role: row.role, name: truncate(row.name || row.fullName), x: cx, y: cy, r });
+    branchYs.push({ cx, cy });
+    curY += r * 2 + VGAP;
   });
 
-  /* vertical trunk from PM dot bottom to last child */
-  if (branchYs.length > 0) {
-    const trunkX = pmX;
-    edges.push({ x1: trunkX, y1: pmY + DOT_PM, x2: trunkX, y2: branchYs[branchYs.length - 1].cy, type: 'trunk' });
+  /* vertical trunk + horizontal branches */
+  if (branchYs.length) {
+    edges.push({ x1: trunkX, y1: pmY + pmR, x2: trunkX, y2: branchYs[branchYs.length - 1].cy, type: 'trunk' });
     branchYs.forEach(({ cx, cy }) => {
-      edges.push({ x1: trunkX, y1: cy, x2: cx - DOT_TL - 2, y2: cy, type: 'branch' });
+      edges.push({ x1: trunkX, y1: cy, x2: cx - 4, y2: cy, type: 'branch' });
     });
   }
 
-  const sectionW = rows.length
-    ? CHILD_DX + EMP_INDENT + DOT_EMP * 2 + 100 /* name label space */
-    : DOT_PM * 2 + 100;
+  /* estimate max text width for section width */
+  const maxW = Math.max(
+    pm.name ? pm.name.length * 8.5 + BRANCH + 30 : 0,
+    ...rows.map(r => r.name.length * 7.5 + BRANCH + r.indent + 30)
+  );
+  const sectionW = Math.max(maxW, BRANCH + 160);
   const bottomY  = curY;
   return { nodes, edges, sectionW, bottomY };
 }
 
 /* ── Main Component ── */
 const OrgChartPage = () => {
-  const { isDarkMode }            = useThemeStore();
-  const [users,    setUsers]      = useState([]);
-  const [loading,  setLoading]    = useState(true);
-  const [search,   setSearch]     = useState('');
+  const { isDarkMode }         = useThemeStore();
+  const [users,   setUsers]    = useState([]);
+  const [loading, setLoading]  = useState(true);
+  const [search,  setSearch]   = useState('');
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -122,7 +132,7 @@ const OrgChartPage = () => {
   if (loading) return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: isDarkMode ? '#0a0e1a' : '#f0f4f8' }}>
       <Spin size="large" />
-      <div style={{ marginTop: 16, color: '#64748b', fontWeight: 500 }}>Building Organization Chart…</div>
+      <div style={{ marginTop: 16, color: '#64748b', fontWeight: 500, fontFamily: FONT_FAMILY }}>Building Organization Chart…</div>
     </div>
   );
 
@@ -140,11 +150,10 @@ const OrgChartPage = () => {
     cursorX += sectionW + HGAP;
   });
 
-  const VB_W = cursorX - HGAP + LEFT_PAD;
-  const VB_H = allNodes.reduce((m, n) => Math.max(m, n.y + n.r + 20), 100);
-  const bg   = isDarkMode ? '#0d1117' : '#f0f4f8';
-  const lineC = isDarkMode ? '#334155' : '#94a3b8';
-  const FONT  = 'Inter,system-ui,sans-serif';
+  const VB_W  = cursorX - HGAP + LEFT_PAD;
+  const VB_H  = allNodes.reduce((m, n) => Math.max(m, n.y + n.r + PILL_H + 10), 120);
+  const bg    = isDarkMode ? '#0d1117' : '#f1f5f9';
+  const lineC = isDarkMode ? '#475569' : '#94a3b8';
 
   return (
     <div style={{
@@ -155,22 +164,22 @@ const OrgChartPage = () => {
       {/* ── Toolbar ── */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '8px 20px', flexShrink: 0, gap: 16, flexWrap: 'wrap',
-        background: isDarkMode ? 'rgba(15,23,42,0.96)' : 'rgba(255,255,255,0.96)',
-        backdropFilter: 'blur(8px)',
+        padding: '10px 24px', flexShrink: 0, gap: 16, flexWrap: 'wrap',
+        background: isDarkMode ? 'rgba(15,23,42,0.97)' : 'rgba(255,255,255,0.97)',
+        backdropFilter: 'blur(10px)',
         borderBottom: isDarkMode ? '1px solid #1e293b' : '1px solid #e2e8f0',
         zIndex: 10,
       }}>
-        <div style={{ fontWeight: 800, fontSize: 17, color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>
+        <div style={{ fontWeight: 800, fontSize: 18, color: isDarkMode ? '#f1f5f9' : '#0f172a', fontFamily: FONT_FAMILY, letterSpacing: '-0.3px' }}>
           🏢 Organization Chart
         </div>
 
         {/* Legend */}
-        <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 22, alignItems: 'center' }}>
           {Object.entries(C).map(([key, col]) => (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <div style={{ width: 12, height: 12, borderRadius: '50%', background: col.dot, boxShadow: `0 0 7px ${col.dot}` }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#475569' }}>{col.label}</span>
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 13, height: 13, borderRadius: '50%', background: col.dot, boxShadow: `0 0 8px ${col.dot}` }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#475569', fontFamily: FONT_FAMILY }}>{col.label}</span>
             </div>
           ))}
         </div>
@@ -182,7 +191,7 @@ const OrgChartPage = () => {
           value={search}
           onChange={e => setSearch(e.target.value)}
           allowClear
-          style={{ width: 200, borderRadius: 8, background: isDarkMode ? '#1e293b' : '#f8fafc' }}
+          style={{ width: 210, borderRadius: 8, background: isDarkMode ? '#1e293b' : '#f8fafc', fontFamily: FONT_FAMILY }}
         />
       </div>
 
@@ -197,56 +206,71 @@ const OrgChartPage = () => {
             style={{ display: 'block' }}
           >
             <defs>
-              <pattern id="dotbg" width="22" height="22" patternUnits="userSpaceOnUse">
-                <circle cx="1" cy="1" r="0.7" fill={isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'} />
+              <pattern id="dotbg" width="24" height="24" patternUnits="userSpaceOnUse">
+                <circle cx="1" cy="1" r="0.8" fill={isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.055)'} />
               </pattern>
             </defs>
             <rect width={VB_W} height={VB_H} fill="url(#dotbg)" />
 
-            {/* Lines */}
+            {/* ── Connector lines ── */}
             {allEdges.map((e, i) => (
               <line key={i}
                 x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
                 stroke={lineC}
-                strokeWidth={e.type === 'trunk' ? 1.5 : 1.2}
-                strokeDasharray={e.type === 'branch' ? '5 3' : 'none'}
-                opacity={q ? 0.12 : 0.75}
+                strokeWidth={e.type === 'trunk' ? 1.6 : 1.3}
+                strokeDasharray={e.type === 'branch' ? '5 4' : 'none'}
+                opacity={q ? 0.1 : 0.7}
               />
             ))}
 
-            {/* Nodes */}
+            {/* ── Nodes ── */}
             {allNodes.map(node => {
               const col  = C[node.role];
-              const hit  = q && (node.name || '').toLowerCase().includes(q);
+              const hit  = q && node.name.toLowerCase().includes(q);
               const dim  = !!q && !hit;
-              const name = (node.name || '');
-              const labelX = node.x + node.r + 6;
+              const fs   = FONT[node.role];
+              const nameW = Math.min(node.name.length * (fs * 0.62) + PILL_PAD * 2, 200);
+              const pillX = node.x + node.r + 10;
+              const pillY = node.y - PILL_H / 2;
 
               return (
-                <g key={node.id} opacity={dim ? 0.1 : 1}>
-                  {/* glow ring on highlight */}
+                <g key={node.id} opacity={dim ? 0.08 : 1}>
+                  {/* highlight glow */}
                   {hit && (
-                    <circle cx={node.x} cy={node.y} r={node.r + 5}
-                      fill="none" stroke={col.dot} strokeWidth={1.8}
-                      style={{ filter: `drop-shadow(0 0 5px ${col.dot})` }}
+                    <circle cx={node.x} cy={node.y} r={node.r + 6}
+                      fill="none" stroke={col.dot} strokeWidth={2}
+                      style={{ filter: `drop-shadow(0 0 7px ${col.dot})` }}
                     />
                   )}
+
                   {/* dot */}
                   <circle cx={node.x} cy={node.y} r={node.r}
                     fill={col.dot}
-                    stroke={isDarkMode ? '#0d1117' : '#ffffff'}
-                    strokeWidth={node.role === 'PM' ? 2.2 : 1.6}
-                    style={{ filter: `drop-shadow(0 2px 5px ${col.glow}88)` }}
+                    stroke={isDarkMode ? bg : '#fff'}
+                    strokeWidth={node.role === 'PM' ? 2.5 : 2}
+                    style={{ filter: `drop-shadow(0 2px 6px ${col.glow}99)` }}
                   />
-                  {/* name label */}
+
+                  {/* pill label background */}
+                  <rect
+                    x={pillX} y={pillY}
+                    width={nameW} height={PILL_H}
+                    rx={PILL_H / 2}
+                    fill={hit ? col.dot : (isDarkMode ? 'rgba(30,41,59,0.85)' : col.pill)}
+                    stroke={isDarkMode ? col.dot + '44' : col.dot + '55'}
+                    strokeWidth={0.8}
+                  />
+
+                  {/* name text */}
                   <text
-                    x={labelX} y={node.y + node.r * 0.4}
-                    fontSize={node.role === 'PM' ? 10 : node.role === 'TL' ? 9 : 8}
+                    x={pillX + nameW / 2} y={node.y + fs * 0.36}
+                    textAnchor="middle"
+                    fontSize={fs}
                     fontWeight={node.role === 'PM' ? 700 : node.role === 'TL' ? 600 : 500}
-                    fill={hit ? col.dot : (isDarkMode ? (node.role === 'PM' ? '#93c5fd' : node.role === 'TL' ? '#fdba74' : '#86efac') : col.text)}
-                    style={{ fontFamily: FONT }}
+                    fill={hit ? '#fff' : (isDarkMode ? '#e2e8f0' : col.pillTxt)}
+                    style={{ fontFamily: FONT_FAMILY }}
                   >
-                    {name.length > 20 ? name.slice(0, 19) + '…' : name}
+                    {node.name}
                   </text>
                 </g>
               );
