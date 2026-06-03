@@ -1,21 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Table, Tag, Space, Typography, notification, Spin, 
-  Row, Col, Statistic, Button, Tabs, Tooltip, Popconfirm, Avatar,
-  DatePicker, Select, Input
+  Row, Col, Statistic, Button, Tabs, Tooltip, Popconfirm, Avatar
 } from 'antd';
 import { 
   HourglassOutlined, UserOutlined, CheckOutlined, CloseOutlined,
-  CalendarOutlined, SearchOutlined, ClearOutlined
+  CalendarOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { leaveService } from '../../services/leaveService';
-import { adminService } from '../../services/adminService';
 import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
 
 const { Text } = Typography;
-const { RangePicker } = DatePicker;
 
 const combineContinuousLeaves = (leavesList) => {
   if (!leavesList || leavesList.length === 0) return [];
@@ -80,44 +77,30 @@ const combineContinuousLeaves = (leavesList) => {
 
 const HRApproveLeavesPermissionsPage = () => {
   const [leaves, setLeaves] = useState([]);
-  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [selectedPermissionKeys, setSelectedPermissionKeys] = useState([]);
   const [bulkLoading, setBulkLoading] = useState(false);
   const { isDarkMode } = useThemeStore();
 
-  // Search & Filter state
-  const [dateRange, setDateRange] = useState([dayjs().subtract(1, 'month'), dayjs().add(1, 'month')]);
-  const [searchText, setSearchText] = useState('');
-  const [roleFilter, setRoleFilter] = useState('all');
-  const [selectedPmId, setSelectedPmId] = useState('all');
-  const [selectedTlId, setSelectedTlId] = useState('all');
-
   useEffect(() => {
-    fetchData();
+    fetchLeaves();
   }, []);
 
-  const fetchData = async () => {
+  const fetchLeaves = async () => {
     setLoading(true);
     try {
-      const [leavesRes, usersRes] = await Promise.all([
-        leaveService.getAllLeaves(),
-        adminService.getUsers()
-      ]);
-      setLeaves(leavesRes.data || []);
-      setUsers(usersRes.data || []);
+      const res = await leaveService.getAllLeaves();
+      setLeaves(res.data || []);
     } catch (e) {
       notification.error({
         message: 'Error',
-        description: 'Failed to fetch data.'
+        description: 'Failed to fetch pending requests.'
       });
     } finally {
       setLoading(false);
     }
   };
-
-  const fetchLeaves = fetchData;
 
   const handleStatusChange = async (ids, newStatus) => {
     try {
@@ -210,71 +193,8 @@ const HRApproveLeavesPermissionsPage = () => {
     }
   };
 
-  // List of PMs and TLs for filter dropdowns
-  const pmsList = users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin');
-  
-  // Filter TL options based on selected PM (if any)
-  const tlsList = users.filter(u => {
-    if (u.role !== 'TeamLead') return false;
-    if (selectedPmId !== 'all') {
-      return String(u.projectManagerId) === String(selectedPmId);
-    }
-    return true;
-  });
-
-  const filteredLeavesRaw = leaves.filter(l => {
-    const u = users.find(usr => String(usr.id || usr.userId) === String(l.userId || l.user?.id));
-    const uName = u ? (u.name || u.fullName || '') : (l.user?.fullName || '');
-    const uEmail = u ? (u.email || '') : (l.user?.email || '');
-    const matchesSearch = uName.toLowerCase().includes(searchText.toLowerCase()) || uEmail.toLowerCase().includes(searchText.toLowerCase());
-
-    const uRole = u ? u.role : (l.user?.role || 'Employee');
-    const matchesRole = roleFilter === 'all' || uRole === roleFilter;
-
-    let matchesPm = true;
-    if (selectedPmId !== 'all') {
-      const pmIdStr = String(selectedPmId);
-      const uPmId = u ? u.projectManagerId : null;
-      const uTlId = u ? u.teamLeadId : null;
-      const userTl = uTlId ? users.find(t => String(t.id || t.userId) === String(uTlId)) : null;
-
-      const isSelfPm = u && String(u.id || u.userId) === pmIdStr;
-      const reportsDirectly = uPmId && String(uPmId) === pmIdStr;
-      const isTlReporting = u && u.role === 'TeamLead' && String(u.projectManagerId) === pmIdStr;
-      const reportsIndirectly = userTl && String(userTl.projectManagerId) === pmIdStr;
-
-      matchesPm = isSelfPm || reportsDirectly || isTlReporting || reportsIndirectly;
-    }
-
-    let matchesTl = true;
-    if (selectedTlId !== 'all') {
-      const tlIdStr = String(selectedTlId);
-      const isSelfTl = u && String(u.id || u.userId) === tlIdStr;
-      const reportsToTl = u && u.role === 'Employee' && String(u.teamLeadId) === tlIdStr;
-      matchesTl = isSelfTl || reportsToTl;
-    }
-
-    let matchesDate = true;
-    if (dateRange && dateRange[0] && dateRange[1]) {
-      const [start, end] = dateRange;
-      const lDate = dayjs(l.leaveDate || l.date);
-      matchesDate = (lDate.isAfter(start, 'day') || lDate.isSame(start, 'day')) &&
-                    (lDate.isBefore(end, 'day') || lDate.isSame(end, 'day'));
-    }
-
-    return matchesSearch && matchesRole && matchesPm && matchesTl && matchesDate;
-  });
-
-  const leavesOnly = filteredLeavesRaw.filter(l => l.type !== 'Permission');
-  const permissionsOnly = filteredLeavesRaw.filter(l => l.type === 'Permission');
-
-  const resetFilters = () => {
-    setSearchText('');
-    setRoleFilter('all');
-    setSelectedPmId('all');
-    setSelectedTlId('all');
-    setDateRange([dayjs().subtract(1, 'month'), dayjs().add(1, 'month')]);
-  };
+  const leavesOnly = leaves.filter(l => l.type !== 'Permission');
+  const permissionsOnly = leaves.filter(l => l.type === 'Permission');
 
   const combinedLeaves = combineContinuousLeaves(leavesOnly);
 
@@ -474,102 +394,6 @@ const HRApproveLeavesPermissionsPage = () => {
             </Card>
           </Col>
         </Row>
-
-        {/* Date & Filter Toolbar */}
-        <Card 
-          style={{ 
-            borderRadius: 12, 
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)',
-            background: isDarkMode ? '#1f2937' : '#ffffff',
-            border: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb'
-          }}
-        >
-          <Row gutter={[16, 16]} align="middle">
-            <Col xs={24} md={6}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <span style={{ fontWeight: 600, fontSize: '13px' }}>Select Date Range:</span>
-                <RangePicker 
-                  value={dateRange} 
-                  onChange={(dates) => dates && setDateRange(dates)} 
-                  format="YYYY-MM-DD"
-                  allowClear={false}
-                  style={{ width: '100%', height: 40, borderRadius: 8 }}
-                />
-              </Space>
-            </Col>
-            <Col xs={24} md={6}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <span style={{ fontWeight: 600, fontSize: '13px' }}>Project Manager Filter:</span>
-                <Select
-                  allowClear
-                  value={selectedPmId === 'all' ? null : selectedPmId}
-                  onChange={(val) => {
-                    setSelectedPmId(val || 'all');
-                    setSelectedTlId('all'); // Reset TL when PM changes
-                  }}
-                  style={{ width: '100%', height: 40 }}
-                  placeholder="All PMs"
-                  options={pmsList.map(pm => ({ label: pm.name || pm.fullName, value: pm.id || pm.userId }))}
-                />
-              </Space>
-            </Col>
-            <Col xs={24} md={6}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <span style={{ fontWeight: 600, fontSize: '13px' }}>Team Leader Filter:</span>
-                <Select
-                  allowClear
-                  value={selectedTlId === 'all' ? null : selectedTlId}
-                  onChange={(val) => setSelectedTlId(val || 'all')}
-                  style={{ width: '100%', height: 40 }}
-                  placeholder="All Team Leads"
-                  options={tlsList.map(tl => ({ label: tl.name || tl.fullName, value: tl.id || tl.userId }))}
-                />
-              </Space>
-            </Col>
-            <Col xs={24} md={6}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <span style={{ fontWeight: 600, fontSize: '13px' }}>Search Team Member:</span>
-                <Input 
-                  placeholder="Search by name/email..." 
-                  value={searchText} 
-                  onChange={e => setSearchText(e.target.value)}
-                  prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
-                  allowClear
-                  style={{ height: 40, borderRadius: 8 }}
-                />
-              </Space>
-            </Col>
-            <Col xs={24} md={18}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <span style={{ fontWeight: 600, fontSize: '13px' }}>Filter by Role:</span>
-                <Select
-                  allowClear
-                  value={roleFilter === 'all' ? null : roleFilter}
-                  onChange={(val) => setRoleFilter(val || 'all')}
-                  style={{ width: '100%', height: 40 }}
-                  placeholder="All Roles (Employee, TL, PM)"
-                  options={[
-                    { label: 'Employee Only', value: 'Employee' },
-                    { label: 'Team Lead Only', value: 'TeamLead' },
-                    { label: 'Project Manager Only', value: 'ProjectManager' },
-                  ]}
-                />
-              </Space>
-            </Col>
-            <Col xs={24} md={6} style={{ display: 'flex', alignItems: 'flex-end', height: '100%', paddingTop: 20 }}>
-              <Button 
-                block
-                type="primary"
-                danger
-                icon={<ClearOutlined />} 
-                onClick={resetFilters}
-                style={{ height: 40, borderRadius: 8, fontWeight: 600 }}
-              >
-                Cancel Filters
-              </Button>
-            </Col>
-          </Row>
-        </Card>
 
         <Card 
           style={{ 
