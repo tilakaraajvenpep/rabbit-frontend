@@ -101,8 +101,7 @@ const AnalyticsPage = () => {
     {
       title: 'Resource',
       key: 'employee',
-      width: 260,
-      fixed: 'left',
+      width: '16%',
       render: (_, record) => {
         const tl = allUsers.find(u => String(u.id) === String(record.teamLeadId));
         return (
@@ -146,7 +145,7 @@ const AnalyticsPage = () => {
           </div>
         ),
         key: dateStr,
-        width: 220,
+        width: '12%',
         render: (_, record) => {
           // Filter tickets for this user and date
           const dayTickets = allTickets.filter(t => {
@@ -322,7 +321,7 @@ const AnalyticsPage = () => {
           dataSource={filteredUsers}
           rowKey="id"
           pagination={false}
-          scroll={{ x: 'max-content', y: 'calc(100vh - 280px)' }}
+          scroll={{ y: 'calc(100vh - 280px)' }}
           bordered
           locale={{ emptyText: 'No employees or team leads associated to your account.' }}
           style={{ flex: 1 }}
