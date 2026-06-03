@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, DatePicker, Typography, Skeleton, Table, Space, Button, Select, Tag, theme, Avatar, Modal } from 'antd';
+import { Card, DatePicker, Typography, Skeleton, Table, Space, Button, Select, Tag, theme, Avatar, Modal, Tooltip } from 'antd';
 import { useAuthStore } from '../../store/authStore';
 import { projectService } from '../../services/projectService';
 import { ticketService } from '../../services/ticketService';
@@ -205,69 +205,58 @@ const AnalyticsPage = () => {
                 }
 
                 return (
-                  <div 
-                    key={t.id} 
-                    onClick={() => {
-                      setSelectedTicketForDesc(t);
-                      setDescModalVisible(true);
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#4f46e5';
-                      e.currentTarget.style.boxShadow = '0 4px 10px rgba(99, 102, 241, 0.08)';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = isDarkMode ? '#3f3f46' : '#e4e4e7';
-                      e.currentTarget.style.boxShadow = 'none';
-                      e.currentTarget.style.transform = 'none';
-                    }}
-                    style={{ 
-                      padding: '6px 8px', 
-                      background: isDarkMode ? '#27272a' : '#ffffff', 
-                      border: isDarkMode ? '1px solid #3f3f46' : '1px solid #e4e4e7',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <div style={{ 
-                      fontWeight: 700, 
-                      color: '#4f46e5', 
-                      fontSize: '12px',
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      gap: 4,
-                      flexWrap: 'wrap',
-                      marginBottom: 4
-                    }}>
-                      <span style={{ whiteSpace: 'nowrap' }}>{t.ticketCode || `#${t.id}`}</span>
-                      {hoursLabel && (
-                        <span style={{ 
-                          fontSize: '11px', 
-                          fontWeight: 800, 
-                          background: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)', 
-                          color: '#10b981', 
-                          padding: '1px 4px', 
-                          borderRadius: 3,
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {hoursLabel}
-                        </span>
-                      )}
+                  <Tooltip title={t.title} key={t.id}>
+                    <div 
+                      onClick={() => {
+                        setSelectedTicketForDesc(t);
+                        setDescModalVisible(true);
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#4f46e5';
+                        e.currentTarget.style.boxShadow = '0 4px 10px rgba(99, 102, 241, 0.08)';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = isDarkMode ? '#3f3f46' : '#e4e4e7';
+                        e.currentTarget.style.boxShadow = 'none';
+                        e.currentTarget.style.transform = 'none';
+                      }}
+                      style={{ 
+                        padding: '6px 8px', 
+                        background: isDarkMode ? '#27272a' : '#ffffff', 
+                        border: isDarkMode ? '1px solid #3f3f46' : '1px solid #e4e4e7',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ 
+                        fontWeight: 700, 
+                        color: '#4f46e5', 
+                        fontSize: '12px',
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        gap: 4,
+                        flexWrap: 'wrap'
+                      }}>
+                        <span style={{ whiteSpace: 'nowrap' }}>{t.ticketCode || `#${t.id}`}</span>
+                        {hoursLabel && (
+                          <span style={{ 
+                            fontSize: '11px', 
+                            fontWeight: 800, 
+                            background: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)', 
+                            color: '#10b981', 
+                            padding: '1px 4px', 
+                            borderRadius: 3,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {hoursLabel}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ 
-                      color: isDarkMode ? '#cbd5e1' : '#475569', 
-                      fontWeight: 600, 
-                      fontSize: '12px', 
-                      lineHeight: '1.3',
-                      whiteSpace: 'normal',
-                      wordBreak: 'normal',
-                      overflowWrap: 'break-word'
-                    }}>
-                      {t.title}
-                    </div>
-                  </div>
+                  </Tooltip>
                 );
               })}
             </div>
