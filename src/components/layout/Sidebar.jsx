@@ -141,7 +141,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       items.push(
         { key: '/hr/board', icon: <CheckSquareOutlined />, label: 'Project Board' },
         { key: '/hr/team', icon: <TeamOutlined />, label: 'Team Details' },
-        { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Leave Requests' },
+        { key: '/hr/leaves', icon: <CalendarOutlined />, label: 'Leaves & Permissions' },
         { key: '/hr/report-access-approvals', icon: <CalendarOutlined />, label: 'Report Access Approvals' },
         { key: '/hr/projects', icon: <ProjectOutlined />, label: 'Project Allocations' },
         { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },

@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, Table, Avatar, Badge, Spin, Typography, Space, 
-  DatePicker, Select, Input, Tag, Tooltip, Empty, Alert
+  DatePicker, Select, Input, Tag, Tooltip, Empty, Alert, Button
 } from 'antd';
 import { 
   UserOutlined, SearchOutlined, CalendarOutlined, 
-  WarningOutlined, CloseCircleOutlined, CheckCircleOutlined 
+  WarningOutlined, CloseCircleOutlined, CheckCircleOutlined, ClearOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { adminService } from '../../services/adminService';
 import { reportService } from '../../services/reportService';
-import { leaveService } from '../../services/leaveService';
 import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
 
@@ -21,13 +20,14 @@ const HRTaskTrackingPage = () => {
   const { isDarkMode } = useThemeStore();
   const [users, setUsers] = useState([]);
   const [reports, setReports] = useState([]);
-  const [leaves, setLeaves] = useState([]);
   const [dateRange, setDateRange] = useState([dayjs().subtract(6, 'days'), dayjs()]);
   const [loading, setLoading] = useState(true);
   
   // Search & Filter state
   const [searchText, setSearchText] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [selectedPmId, setSelectedPmId] = useState('all');
+  const [selectedTlId, setSelectedTlId] = useState('all');
 
   useEffect(() => {
     fetchData();
@@ -39,14 +39,12 @@ const HRTaskTrackingPage = () => {
       const [start, end] = dateRange;
       const startStr = start.format('YYYY-MM-DD');
       const endStr = end.format('YYYY-MM-DD');
-      const [usersRes, reportsRes, leavesRes] = await Promise.all([
+      const [usersRes, reportsRes] = await Promise.all([
         adminService.getUsers(),
-        reportService.getAllReportsByRange(startStr, endStr),
-        leaveService.getAllLeaves()
+        reportService.getAllReportsByRange(startStr, endStr)
       ]);
       setUsers(usersRes.data || []);
       setReports(reportsRes.data || []);
-      setLeaves(leavesRes.data || []);
     } catch (error) {
       console.error('Failed to fetch missing tasks data:', error);
     } finally {
@@ -54,10 +52,51 @@ const HRTaskTrackingPage = () => {
     }
   };
 
-  // 1. Filter out only Employee, TeamLead, and ProjectManager
-  const trackableUsers = users.filter(u => 
+  // List of PMs and TLs for filter dropdowns
+  const pmsList = users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin');
+  
+  // Filter TL options based on selected PM (if any)
+  const tlsList = users.filter(u => {
+    if (u.role !== 'TeamLead') return false;
+    if (selectedPmId !== 'all') {
+      return String(u.projectManagerId) === String(selectedPmId);
+    }
+    return true;
+  });
+
+  // Trackable users filtered by PM and TL selections
+  let trackableUsers = users.filter(u => 
     u.role === 'Employee' || u.role === 'TeamLead' || u.role === 'ProjectManager'
   );
+
+  // Apply Project Manager filter
+  if (selectedPmId !== 'all') {
+    trackableUsers = trackableUsers.filter(u => {
+      // PM themselves
+      if (String(u.id || u.userId) === String(selectedPmId)) return true;
+      // TL reporting to PM
+      if (u.role === 'TeamLead' && String(u.projectManagerId) === String(selectedPmId)) return true;
+      // Employee reporting to PM directly
+      if (u.role === 'Employee' && String(u.projectManagerId) === String(selectedPmId)) return true;
+      // Employee reporting to TL who reports to PM
+      if (u.role === 'Employee' && u.teamLeadId) {
+        const userTl = users.find(t => String(t.id || t.userId) === String(u.teamLeadId));
+        if (userTl && String(userTl.projectManagerId) === String(selectedPmId)) return true;
+      }
+      return false;
+    });
+  }
+
+  // Apply Team Leader filter
+  if (selectedTlId !== 'all') {
+    trackableUsers = trackableUsers.filter(u => {
+      // TL themselves
+      if (String(u.id || u.userId) === String(selectedTlId)) return true;
+      // Employee reporting to TL
+      if (u.role === 'Employee' && String(u.teamLeadId) === String(selectedTlId)) return true;
+      return false;
+    });
+  }
 
   // Generate weekday dates in the selected range
   const [start, end] = dateRange;
@@ -71,7 +110,7 @@ const HRTaskTrackingPage = () => {
     current = current.add(1, 'day');
   }
 
-  // 2. Identify missing / short-reported dates for each user
+  // Identify missing / short-reported dates for each user
   const missingTasksData = trackableUsers.map(user => {
     const userReports = reports.filter(r => String(r.userId || r.user?.id) === String(user.id || user.userId));
     
@@ -79,14 +118,6 @@ const HRTaskTrackingPage = () => {
     const shortLoggedDates = [];
 
     datesInRange.forEach(dateStr => {
-      // Find if they applied for leave or permission for that day
-      const userLeaves = leaves.filter(l => 
-        String(l.userId || l.user?.id) === String(user.id || user.userId) &&
-        dayjs(l.leaveDate).format('YYYY-MM-DD') === dateStr &&
-        l.status !== 'Rejected'
-      );
-      const matchedLeave = userLeaves.find(l => l.status === 'Approved') || userLeaves.find(l => l.status === 'Pending') || null;
-
       // Check if user has a daily report for this date
       const reportForDate = userReports.find(r => {
         const rDate = r.reportDate || r.date;
@@ -94,7 +125,7 @@ const HRTaskTrackingPage = () => {
       });
 
       if (!reportForDate) {
-        unreportedDates.push({ date: dateStr, leave: matchedLeave });
+        unreportedDates.push({ date: dateStr });
       } else {
         // Sum total logged minutes for this date
         let totalMinutes = 0;
@@ -106,7 +137,7 @@ const HRTaskTrackingPage = () => {
           });
         }
         if (totalMinutes < 510) {
-          shortLoggedDates.push({ date: dateStr, minutes: totalMinutes, leave: matchedLeave });
+          shortLoggedDates.push({ date: dateStr, minutes: totalMinutes });
         }
       }
     });
@@ -197,22 +228,6 @@ const HRTaskTrackingPage = () => {
           <Space wrap size={[4, 8]}>
             {record.unreportedDates.map(item => {
               const dateStr = item.date;
-              const leave = item.leave;
-              
-              if (leave) {
-                const leaveTypeLabel = leave.type === 'Permission' ? 'Permission' : leave.type === 'HalfDay' ? 'Half Day' : 'Leave';
-                const leaveColor = leave.type === 'Permission' ? 'cyan' : 'purple';
-                const tooltipText = `Applied: ${leaveTypeLabel} (${leave.status})${leave.reason ? ` - "${leave.reason}"` : ''}`;
-                
-                return (
-                  <Tooltip key={dateStr} title={tooltipText}>
-                    <Tag color={leaveColor} style={{ borderRadius: 6, fontWeight: 600, cursor: 'help' }}>
-                      {dayjs(dateStr).format('DD MMM')} ({leaveTypeLabel} - {leave.status})
-                    </Tag>
-                  </Tooltip>
-                );
-              }
-
               return (
                 <Tag key={dateStr} color="error" style={{ borderRadius: 6, fontWeight: 600 }}>
                   {dayjs(dateStr).format('DD MMM')}
@@ -235,22 +250,6 @@ const HRTaskTrackingPage = () => {
             {record.shortLoggedDates.map(item => {
               const h = Math.floor(item.minutes / 60);
               const m = item.minutes % 60;
-              const leave = item.leave;
-              
-              if (leave) {
-                const leaveTypeLabel = leave.type === 'Permission' ? 'Permission' : leave.type === 'HalfDay' ? 'Half Day' : 'Leave';
-                const leaveColor = leave.type === 'Permission' ? 'cyan' : 'purple';
-                const tooltipText = `Logged: ${h}h ${m}m. Applied: ${leaveTypeLabel} (${leave.status})${leave.reason ? ` - "${leave.reason}"` : ''}`;
-                
-                return (
-                  <Tooltip key={item.date} title={tooltipText}>
-                    <Tag color={leaveColor} style={{ borderRadius: 6, fontWeight: 600, cursor: 'help' }}>
-                      {dayjs(item.date).format('DD MMM')} ({h}h {m}m) ({leaveTypeLabel} - {leave.status})
-                    </Tag>
-                  </Tooltip>
-                );
-              }
-
               return (
                 <Tooltip key={item.date} title={`Logged: ${h}h ${m}m (Requirement: 8h 30m)`}>
                   <Tag color="warning" style={{ borderRadius: 6, fontWeight: 600, cursor: 'help' }}>
@@ -264,6 +263,13 @@ const HRTaskTrackingPage = () => {
       }
     }
   ];
+
+  const resetFilters = () => {
+    setSearchText('');
+    setRoleFilter('all');
+    setSelectedPmId('all');
+    setSelectedTlId('all');
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -290,7 +296,7 @@ const HRTaskTrackingPage = () => {
         }}
       >
         <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={8}>
+          <Col xs={24} md={6}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <span style={{ fontWeight: 600, fontSize: '13px' }}>Select Date Range:</span>
               <RangePicker 
@@ -302,11 +308,44 @@ const HRTaskTrackingPage = () => {
               />
             </Space>
           </Col>
-          <Col xs={24} md={8}>
+          <Col xs={24} md={6}>
             <Space direction="vertical" style={{ width: '100%' }}>
-              <span style={{ fontWeight: 600, fontSize: '13px' }}>Search by Name or Email:</span>
+              <span style={{ fontWeight: 600, fontSize: '13px' }}>Project Manager Filter:</span>
+              <Select
+                value={selectedPmId}
+                onChange={(val) => {
+                  setSelectedPmId(val);
+                  setSelectedTlId('all'); // Reset TL when PM changes
+                }}
+                style={{ width: '100%', height: 40 }}
+                placeholder="Select Project Manager"
+                options={[
+                  { label: 'All PMs', value: 'all' },
+                  ...pmsList.map(pm => ({ label: pm.name || pm.fullName, value: pm.id || pm.userId }))
+                ]}
+              />
+            </Space>
+          </Col>
+          <Col xs={24} md={6}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <span style={{ fontWeight: 600, fontSize: '13px' }}>Team Leader Filter:</span>
+              <Select
+                value={selectedTlId}
+                onChange={setSelectedTlId}
+                style={{ width: '100%', height: 40 }}
+                placeholder="Select Team Leader"
+                options={[
+                  { label: 'All Team Leads', value: 'all' },
+                  ...tlsList.map(tl => ({ label: tl.name || tl.fullName, value: tl.id || tl.userId }))
+                ]}
+              />
+            </Space>
+          </Col>
+          <Col xs={24} md={6}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <span style={{ fontWeight: 600, fontSize: '13px' }}>Search Team Member:</span>
               <Input 
-                placeholder="Search team member..." 
+                placeholder="Search by name/email..." 
                 value={searchText} 
                 onChange={e => setSearchText(e.target.value)}
                 prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
@@ -315,7 +354,7 @@ const HRTaskTrackingPage = () => {
               />
             </Space>
           </Col>
-          <Col xs={24} md={8}>
+          <Col xs={24} md={18}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <span style={{ fontWeight: 600, fontSize: '13px' }}>Filter by Role:</span>
               <Select
@@ -330,6 +369,18 @@ const HRTaskTrackingPage = () => {
                 ]}
               />
             </Space>
+          </Col>
+          <Col xs={24} md={6} style={{ display: 'flex', alignItems: 'flex-end', height: '100%', paddingTop: 20 }}>
+            <Button 
+              block
+              type="dashed"
+              danger
+              icon={<ClearOutlined />} 
+              onClick={resetFilters}
+              style={{ height: 40, borderRadius: 8 }}
+            >
+              Reset Filters
+            </Button>
           </Col>
         </Row>
       </Card>
