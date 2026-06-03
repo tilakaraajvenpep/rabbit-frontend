@@ -81,7 +81,81 @@ const CrossTeamPage = () => {
   /* ── Derive cross-team assignments ── */
   const crossTeamRows = useMemo(() => {
     const rows = [];
+    const seenKeys = new Set();
 
+    // 1. Process from projects' assignedEmployeeIds
+    projects.forEach(project => {
+      const workingTL = users.find(u =>
+        String(u.id || u.userId) === String(project.assignedTeamLeadId)
+      );
+      if (!workingTL) return;
+
+      const isWorkingTeamId = String(workingTL.id || workingTL.userId);
+      const empIds = Array.isArray(project.assignedEmployeeIds) ? project.assignedEmployeeIds : [];
+
+      empIds.forEach(empId => {
+        const employee = users.find(u => String(u.id || u.userId) === String(empId));
+        if (!employee || employee.role !== 'Employee') return;
+
+        const homeTL = users.find(u => String(u.id || u.userId) === String(employee.teamLeadId));
+        if (!homeTL) return;
+
+        const isHomeTeamId = String(homeTL.id || homeTL.userId);
+        if (isHomeTeamId === isWorkingTeamId) return;
+
+        // Find tickets in this project assigned to this employee
+        const empTickets = tickets.filter(t =>
+          String(t.projectId) === String(project.id || project.projectId) &&
+          String(t.assignedToUserId) === String(empId)
+        );
+
+        const activeTickets = empTickets.filter(t => t.status !== 'Done');
+
+        if (activeTickets.length > 0) {
+          activeTickets.forEach(ticket => {
+            const key = `${project.id || project.projectId}-${empId}-${ticket.ticketId || ticket.id}`;
+            seenKeys.add(key);
+            rows.push({
+              key,
+              employeeName: employee.name || employee.fullName,
+              employeeId: employee.id || employee.userId,
+              employeeEmail: employee.email,
+              homeTeam: homeTL.name || homeTL.fullName,
+              homeTeamId: isHomeTeamId,
+              workingTeam: workingTL.name || workingTL.fullName,
+              workingTeamId: isWorkingTeamId,
+              projectName: project.name || project.projectName,
+              projectStatus: project.status,
+              ticketCode: ticket.ticketCode || ticket.code,
+              ticketTitle: ticket.title,
+              ticketStatus: ticket.status,
+              estimatedHours: ticket.estimatedHours || 0,
+            });
+          });
+        } else {
+          const key = `${project.id || project.projectId}-${empId}-no-ticket`;
+          seenKeys.add(key);
+          rows.push({
+            key,
+            employeeName: employee.name || employee.fullName,
+            employeeId: employee.id || employee.userId,
+            employeeEmail: employee.email,
+            homeTeam: homeTL.name || homeTL.fullName,
+            homeTeamId: isHomeTeamId,
+            workingTeam: workingTL.name || workingTL.fullName,
+            workingTeamId: isWorkingTeamId,
+            projectName: project.name || project.projectName,
+            projectStatus: project.status,
+            ticketCode: '—',
+            ticketTitle: 'No active tickets',
+            ticketStatus: '—',
+            estimatedHours: 0,
+          });
+        }
+      });
+    });
+
+    // 2. Fallback: scan tickets to ensure nothing is missed
     tickets.forEach(ticket => {
       if (!ticket.assignedToUserId || ticket.status === 'Done') return;
 
@@ -95,39 +169,39 @@ const CrossTeamPage = () => {
       );
       if (!project) return;
 
-      // Home team lead of the employee
       const homeTL = users.find(u =>
         String(u.id || u.userId) === String(employee.teamLeadId)
       );
-
-      // The team lead the employee is currently working under (project's TL)
       const workingTL = users.find(u =>
         String(u.id || u.userId) === String(project.assignedTeamLeadId)
       );
 
       if (!homeTL || !workingTL) return;
 
-      // Cross-team = home TL ≠ project TL
       const isHomeTeamId = String(homeTL.id || homeTL.userId);
       const isWorkingTeamId = String(workingTL.id || workingTL.userId);
 
       if (isHomeTeamId !== isWorkingTeamId) {
-        rows.push({
-          key: `${ticket.ticketId || ticket.id}`,
-          employeeName: employee.name || employee.fullName,
-          employeeId: employee.id || employee.userId,
-          employeeEmail: employee.email,
-          homeTeam: homeTL.name || homeTL.fullName,
-          homeTeamId: isHomeTeamId,
-          workingTeam: workingTL.name || workingTL.fullName,
-          workingTeamId: isWorkingTeamId,
-          projectName: project.name || project.projectName,
-          projectStatus: project.status,
-          ticketCode: ticket.ticketCode || ticket.code,
-          ticketTitle: ticket.title,
-          ticketStatus: ticket.status,
-          estimatedHours: ticket.estimatedHours || 0,
-        });
+        const key = `${project.id || project.projectId}-${employee.id || employee.userId}-${ticket.ticketId || ticket.id}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          rows.push({
+            key,
+            employeeName: employee.name || employee.fullName,
+            employeeId: employee.id || employee.userId,
+            employeeEmail: employee.email,
+            homeTeam: homeTL.name || homeTL.fullName,
+            homeTeamId: isHomeTeamId,
+            workingTeam: workingTL.name || workingTL.fullName,
+            workingTeamId: isWorkingTeamId,
+            projectName: project.name || project.projectName,
+            projectStatus: project.status,
+            ticketCode: ticket.ticketCode || ticket.code,
+            ticketTitle: ticket.title,
+            ticketStatus: ticket.status,
+            estimatedHours: ticket.estimatedHours || 0,
+          });
+        }
       }
     });
 
