@@ -77,6 +77,8 @@ const ProfilePage = React.lazy(() => import('./features/profile/ProfilePage'));
 // HR
 const HRTeamPage = React.lazy(() => import('./features/hr/HRTeamPage'));
 const HRApprovedLeavesPage = React.lazy(() => import('./features/hr/HRApprovedLeavesPage'));
+const HRApproveLeavesPermissionsPage = React.lazy(() => import('./features/hr/HRApproveLeavesPermissionsPage'));
+const HRViewLeavesPermissionsPage = React.lazy(() => import('./features/hr/HRViewLeavesPermissionsPage'));
 const HRTaskTrackingPage = React.lazy(() => import('./features/hr/HRTaskTrackingPage'));
 const HROffboardingPage = React.lazy(() => import('./features/hr/HROffboardingPage'));
 const HRProjectsPage = React.lazy(() => import('./features/hr/HRProjectsPage'));
@@ -251,7 +253,9 @@ const App = () => {
                 <Route path="/hr/board" element={<KanbanBoard />} />
                 <Route path="/hr/projects/:id/kanban" element={<KanbanBoard />} />
                 <Route path="/hr/team" element={<HRTeamPage />} />
-                <Route path="/hr/leaves" element={<HRApprovedLeavesPage />} />
+                <Route path="/hr/leaves" element={<Navigate to="/hr/approve-leaves" replace />} />
+                <Route path="/hr/approve-leaves" element={<HRApproveLeavesPermissionsPage />} />
+                <Route path="/hr/view-leaves" element={<HRViewLeavesPermissionsPage />} />
                 <Route path="/hr/offboarding" element={<HROffboardingPage />} />
                 <Route path="/hr/projects" element={<HRProjectsPage />} />
                 <Route path="/hr/allocate" element={<HRAllocateProjectHoursPage />} />
