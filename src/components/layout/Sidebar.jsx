@@ -65,6 +65,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/pm/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
         { key: '/pm/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/pm/report', icon: <FileTextOutlined />, label: 'Daily Report' },
+        { key: '/pm/my-reports', icon: <FileTextOutlined />, label: 'My EOD Reports' },
         { key: '/pm/analytics', icon: <TeamOutlined />, label: 'Scrum Master' },
         { key: '/pm/alerts', icon: <BellOutlined />, label: 'Alerts Feed' },
         { key: '/shared/reports', icon: <FileTextOutlined />, label: 'Overall Reports' },
@@ -111,6 +112,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/teamlead/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
         { key: '/teamlead/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/teamlead/report', icon: <FileTextOutlined />, label: 'Daily Report' },
+        { key: '/teamlead/my-reports', icon: <FileTextOutlined />, label: 'My EOD Reports' },
         { key: '/teamlead/scrum-master', icon: <TeamOutlined />, label: 'Scrum Master' },
         { key: '/teamlead/employee-reports', icon: <BarChartOutlined />, label: 'Employee Reports' },
         { key: '/teamlead/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
@@ -128,6 +130,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/employee/kanban', icon: <DashboardOutlined />, label: 'Kanban Board' },
         { key: '/employee/backlogs', icon: <ClockCircleOutlined />, label: 'Ticket Backlogs' },
         { key: '/employee/report', icon: <FileTextOutlined />, label: 'Daily Report' },
+        { key: '/employee/my-reports', icon: <FileTextOutlined />, label: 'My EOD Reports' },
         { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },
         { key: '/employee/reports', icon: <BarChartOutlined />, label: 'Work Reports' },
         { key: '/employee/scrum-master', icon: <TeamOutlined />, label: 'Scrum Master' }

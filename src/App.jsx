@@ -50,6 +50,7 @@ const MyTicketsPage = React.lazy(() => import('./features/employee/MyTicketsPage
 const EmployeeKanbanPage = React.lazy(() => import('./features/employee/EmployeeKanbanPage'));
 const EODReportPage = React.lazy(() => import('./features/employee/EODReportPage'));
 const LeaveRequestsPage = React.lazy(() => import('./features/employee/LeaveRequestsPage'));
+const MyEODReportsPage = React.lazy(() => import('./features/employee/MyEODReportsPage'));
 
 
 // PM & Shared
@@ -184,6 +185,7 @@ const App = () => {
                 <Route path="/pm/timer-requests" element={<TimerRequestsApprovalPage />} />
                 <Route path="/pm/report-access-approvals" element={<ReportAccessApprovalPage />} />
                 <Route path="/pm/org-chart" element={<OrgChartPage />} />
+                <Route path="/pm/my-reports" element={<MyEODReportsPage />} />
               </Route>
 
 
@@ -227,6 +229,7 @@ const App = () => {
                 <Route path="/teamlead/cross-share" element={<CrossTeamSharePage />} />
                 <Route path="/teamlead/timer-requests" element={<TimerRequestsReviewPage />} />
                 <Route path="/teamlead/report-access-approvals" element={<ReportAccessApprovalPage />} />
+                <Route path="/teamlead/my-reports" element={<MyEODReportsPage />} />
               </Route>
 
 
@@ -239,6 +242,7 @@ const App = () => {
                 <Route path="/employee/reports" element={<EmployeeReportsPage />} />
                 <Route path="/employee/leaves" element={<LeaveRequestsPage />} />
                 <Route path="/employee/scrum-master" element={<AnalyticsPage />} />
+                <Route path="/employee/my-reports" element={<MyEODReportsPage />} />
               </Route>
 
               {/* HR Routes */}

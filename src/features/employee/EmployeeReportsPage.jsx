@@ -116,16 +116,26 @@ const EmployeeReportsPage = () => {
         end = '2100-12-31';
       }
       
-      const [res, leavesRes, usersRes] = await Promise.all([
-        isManager 
-          ? reportService.getAllReportsByRange(start, end)
-          : reportService.getReportsByRange(currentUser.id || currentUser.userId, start, end),
-        leaveService.getAllLeaves(),
-        adminService.getUsers()
-      ]);
+      let res, leavesRes, usersRes;
+      if (isManager) {
+        [res, leavesRes, usersRes] = await Promise.all([
+          reportService.getAllReportsByRange(start, end),
+          leaveService.getAllLeaves(),
+          adminService.getUsers()
+        ]);
+      } else {
+        [res, leavesRes] = await Promise.all([
+          reportService.getReportsByRange(currentUser.id || currentUser.userId, start, end),
+          leaveService.getMyLeaves()
+        ]);
+      }
       
-      const allUsers = usersRes.data || [];
-      const leavesData = leavesRes.data || [];
+      const allUsers = isManager ? (usersRes?.data || []) : [{
+        userId: currentUser.id || currentUser.userId,
+        fullName: currentUser.fullName || currentUser.name,
+        role: role
+      }];
+      const leavesData = leavesRes?.data || [];
       const reportsData = res?.data || [];
 
       let reports = [];
