@@ -60,7 +60,7 @@ function buildSection(pm, secX) {
   const maxLeftRel = Math.max(pmR, pmNameW / 2);
 
   /* Calculate max right coordinate relative to pmX */
-  let maxRightRel = pmR;
+  let maxRightRel = Math.max(pmR, pmNameW / 2);
   if (rows.length) {
     const rightRels = rows.map(row => {
       const r = DOT[row.role];
@@ -69,7 +69,7 @@ function buildSection(pm, secX) {
       const nameW = Math.min(nameVal.length * (fs * 0.6) + PILL_PAD * 2, 220);
       return BRANCH + row.indent + r + 8 + nameW;
     });
-    maxRightRel = Math.max(...rightRels);
+    maxRightRel = Math.max(maxRightRel, ...rightRels);
   }
 
   const sectionW = maxLeftRel + maxRightRel;
