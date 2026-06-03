@@ -147,7 +147,6 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
         { key: '/hr/projects', icon: <ProjectOutlined />, label: 'Project Allocations' },
         { key: '/missing-tasks', icon: <ClockCircleOutlined />, label: 'Missing Tasks' },
         { key: '/hr/reports', icon: <BarChartOutlined />, label: 'Work Reports' },
-        { key: '/hr/timer-requests', icon: <ClockCircleOutlined />, label: 'Additional Hours Approvals' },
         { key: '/hr/org-chart', icon: <NodeIndexOutlined />, label: 'Organization Chart' },
         { key: '/hr/offboarding', icon: <UserDeleteOutlined />, label: 'Offboarding' }
       );
