@@ -1,32 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Space, Typography, Tag, Input, Row, Col, Spin, Empty, Button, Tooltip, Avatar, Segmented } from 'antd';
+import { Card, Space, Typography, Tag, Input, Row, Col, Spin, Empty, Button, Avatar } from 'antd';
 import { 
   SearchOutlined, 
-  NodeIndexOutlined, 
-  TeamOutlined, 
-  UserOutlined, 
-  ArrowDownOutlined, 
-  ArrowRightOutlined,
-  PlusOutlined,
-  MinusOutlined,
-  ExpandOutlined,
-  CompressOutlined
+  UserOutlined,
+  ClearOutlined
 } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 const OrgChartPage = () => {
   const { isDarkMode } = useThemeStore();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState('tree'); // 'tree' or 'list'
   
-  // Collapse/Expand state for nodes
-  const [collapsedNodes, setCollapsedNodes] = useState({});
+  // Selected hierarchy filters
+  const [selectedPmId, setSelectedPmId] = useState(null);
+  const [selectedTlId, setSelectedTlId] = useState(null);
 
   useEffect(() => {
     fetchUsers();
@@ -44,102 +37,53 @@ const OrgChartPage = () => {
     }
   };
 
-  // Helper to get initials
-  const getInitials = (name) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  // Filter users by role
+  const pms = users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin');
+  const tls = users.filter(u => u.role === 'TeamLead');
+  const employees = users.filter(u => u.role === 'Employee');
+
+  // Clear filters
+  const handleClearFilters = () => {
+    setSelectedPmId(null);
+    setSelectedTlId(null);
+    setSearchQuery('');
   };
 
-  // Build the hierarchical tree data structure
-  const buildHierarchy = () => {
-    // 1. Identify all PMs (Project Manager, TenantAdmin)
-    const pms = users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin');
-    
-    // 2. Identify Team Leads
-    const tls = users.filter(u => u.role === 'TeamLead');
-    
-    // 3. Identify Employees
-    const employees = users.filter(u => u.role === 'Employee');
-
-    // PMs with their tree
-    const hierarchy = pms.map(pm => {
-      // Find TLs reporting to this PM
-      const pmTls = tls.filter(tl => String(tl.projectManagerId) === String(pm.id));
-      
-      // Find Employees reporting directly to this PM (without a TL)
-      const directEmployees = employees.filter(emp => 
-        String(emp.projectManagerId) === String(pm.id) && !emp.teamLeadId
-      );
-
-      const tlNodes = pmTls.map(tl => {
-        // Find Employees reporting to this TL
-        const tlEmployees = employees.filter(emp => String(emp.teamLeadId) === String(tl.id));
-        return {
-          ...tl,
-          children: tlEmployees,
-          type: 'TeamLead'
-        };
-      });
-
-      return {
-        ...pm,
-        children: [
-          ...tlNodes,
-          ...directEmployees.map(emp => ({ ...emp, children: [], type: 'Employee' }))
-        ],
-        type: 'PM'
-      };
-    });
-
-    // Handle "Unassigned / General" categories to ensure NO users are omitted from the chart
-    const unassignedTls = tls.filter(tl => !tl.projectManagerId);
-    const unassignedEmployees = employees.filter(emp => !emp.teamLeadId && !emp.projectManagerId);
-
-    const fallbackPM = {
-      id: 'unassigned-pm',
-      name: 'Independent & General Support',
-      fullName: 'Independent & General Support',
-      email: 'Platform unassigned members',
-      role: 'General Group',
-      type: 'PM',
-      children: [
-        ...unassignedTls.map(tl => {
-          const tlEmployees = employees.filter(emp => String(emp.teamLeadId) === String(tl.id));
-          return {
-            ...tl,
-            children: tlEmployees,
-            type: 'TeamLead'
-          };
-        }),
-        ...unassignedEmployees.map(emp => ({ ...emp, children: [], type: 'Employee' }))
-      ]
-    };
-
-    if (fallbackPM.children.length > 0) {
-      hierarchy.push(fallbackPM);
+  // Filtered TLs based on selected PM
+  const filteredTls = tls.filter(tl => {
+    if (selectedPmId) {
+      return String(tl.projectManagerId) === String(selectedPmId);
     }
+    return true;
+  });
 
-    return hierarchy;
+  // Filtered Employees based on selected PM and TL
+  const filteredEmployees = employees.filter(emp => {
+    // Filter by selected TL
+    if (selectedTlId) {
+      return String(emp.teamLeadId) === String(selectedTlId);
+    }
+    // Filter by selected PM if no TL is selected
+    if (selectedPmId) {
+      return String(emp.projectManagerId) === String(selectedPmId);
+    }
+    return true;
+  });
+
+  // Highlight matches
+  const matchesSearch = (user) => {
+    if (!searchQuery) return false;
+    const q = searchQuery.toLowerCase();
+    return (
+      (user.name || '').toLowerCase().includes(q) ||
+      (user.fullName || '').toLowerCase().includes(q) ||
+      (user.email || '').toLowerCase().includes(q)
+    );
   };
 
-  const toggleNode = (nodeId) => {
-    setCollapsedNodes(prev => ({
-      ...prev,
-      [nodeId]: !prev[nodeId]
-    }));
-  };
-
-  const handleExpandAll = () => {
-    setCollapsedNodes({});
-  };
-
-  const handleCollapseAll = () => {
-    const collapsed = {};
-    users.forEach(u => {
-      collapsed[u.id] = true;
-    });
-    setCollapsedNodes(collapsed);
-  };
+  const pmColor = '#4f46e5';
+  const tlColor = '#db2777';
+  const empColor = '#10b981';
 
   if (loading) {
     return (
@@ -150,395 +94,322 @@ const OrgChartPage = () => {
     );
   }
 
-  const hierarchy = buildHierarchy();
+  return (
+    <div style={{ height: 'calc(100vh - 120px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <PageHeader 
+        title="Organization Chart"
+        subtitle="Reporting hierarchy of the organization"
+      />
 
-  // Stats
-  const pmCount = users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin').length;
-  const tlCount = users.filter(u => u.role === 'TeamLead').length;
-  const empCount = users.filter(u => u.role === 'Employee').length;
-
-  // Filtered nodes logic (if searching)
-  const isHighlighted = (node) => {
-    if (!searchQuery) return false;
-    const query = searchQuery.toLowerCase();
-    return (
-      (node.name || '').toLowerCase().includes(query) ||
-      (node.fullName || '').toLowerCase().includes(query) ||
-      (node.email || '').toLowerCase().includes(query) ||
-      (node.role || '').toLowerCase().includes(query)
-    );
-  };
-
-  // Node Card renderer
-  const renderNodeCard = (node, level) => {
-    const isPM = node.type === 'PM' || node.role === 'ProjectManager' || node.role === 'TenantAdmin';
-    const isTL = node.type === 'TeamLead' || node.role === 'TeamLead';
-    const hasChildren = node.children && node.children.length > 0;
-    const isCollapsed = collapsedNodes[node.id];
-    const highlighted = isHighlighted(node);
-
-    let gradient = 'linear-gradient(135deg, #a78bfa, #8b5cf6)'; // default Purple
-    let roleTag = 'Employee';
-    let tagColor = 'blue';
-
-    if (isPM) {
-      gradient = 'linear-gradient(135deg, #6366f1, #4f46e5)'; // Indigo
-      roleTag = node.id === 'unassigned-pm' ? 'Platform Unassigned' : 'Project Manager';
-      tagColor = 'indigo';
-    } else if (isTL) {
-      gradient = 'linear-gradient(135deg, #ec4899, #d946ef)'; // Pink/Magenta
-      roleTag = 'Team Lead';
-      tagColor = 'pink';
-    }
-
-    return (
-      <Card
-        size="small"
-        style={{
-          width: 280,
-          borderRadius: 12,
-          boxShadow: highlighted 
-            ? '0 0 0 3px #8b5cf6, 0 8px 24px rgba(139, 92, 246, 0.2)' 
-            : (isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.05)'),
-          border: highlighted 
-            ? '1px solid #8b5cf6' 
-            : (isDarkMode ? '1px solid #3f3f46' : '1px solid #e8e8e8'),
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          background: isDarkMode ? '#1f1f23' : '#ffffff',
-          position: 'relative'
-        }}
-        bodyStyle={{ padding: 12 }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 44,
-            height: 44,
-            borderRadius: '50%',
-            background: gradient,
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 700,
-            fontSize: 14,
-            boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-            flexShrink: 0
-          }}>
-            {getInitials(node.name || node.fullName)}
+      {/* Colors Legend & Controls */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        flexWrap: 'wrap', 
+        gap: 16, 
+        padding: '12px 24px',
+        background: isDarkMode ? '#1c1c1f' : '#ffffff',
+        borderBottom: isDarkMode ? '1px solid #2d2d30' : '1px solid #e4e4e7',
+      }}>
+        {/* Color legend */}
+        <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 14, height: 14, borderRadius: '50%', background: pmColor }} />
+            <Text strong style={{ fontSize: '13px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>Project Manager (PM)</Text>
           </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <Text strong style={{ display: 'block', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {node.name || node.fullName}
-            </Text>
-            <Text type="secondary" style={{ display: 'block', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 4 }}>
-              {node.email}
-            </Text>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Tag color={tagColor} style={{ fontSize: '10px', fontWeight: 600, margin: 0, padding: '0 6px', borderRadius: 4 }}>
-                {roleTag}
-              </Tag>
-              {hasChildren && (
-                <Button
-                  type="text"
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleNode(node.id);
-                  }}
-                  icon={isCollapsed ? <PlusOutlined /> : <MinusOutlined />}
-                  style={{
-                    height: 20,
-                    width: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 0,
-                    borderRadius: '50%',
-                    background: isDarkMode ? '#2d2d30' : '#f3f4f6',
-                    color: '#8b5cf6'
-                  }}
-                />
-              )}
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 14, height: 14, borderRadius: '50%', background: tlColor }} />
+            <Text strong style={{ fontSize: '13px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>Team Leader (TL)</Text>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 14, height: 14, borderRadius: '50%', background: empColor }} />
+            <Text strong style={{ fontSize: '13px', color: isDarkMode ? '#cbd5e1' : '#475569' }}>Employee</Text>
           </div>
         </div>
-      </Card>
-    );
-  };
 
-  // Visual Tree Builder Renderer (Vertical Cascade Branch Map)
-  const renderTree = (nodes) => {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 900, margin: '0 auto', width: '100%', padding: '0 16px' }}>
-        {nodes.map(pmNode => {
-          const pmCollapsed = collapsedNodes[pmNode.id];
-          return (
-            <div 
-              key={pmNode.id} 
-              style={{ 
-                background: isDarkMode ? '#18181b' : '#ffffff',
-                border: isDarkMode ? '1px solid #2d2d30' : '1px solid #f3e8ff',
-                borderRadius: 20,
-                padding: '28px',
-                boxShadow: isDarkMode ? '0 10px 30px rgba(0,0,0,0.5)' : '0 10px 30px rgba(139,92,246,0.03)',
-                width: '100%',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-              }}
+        {/* Search & Reset */}
+        <Space>
+          <Input 
+            prefix={<SearchOutlined style={{ color: '#8b5cf6' }} />} 
+            placeholder="Search name, email..." 
+            style={{ width: 220, borderRadius: 6 }}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {(selectedPmId || selectedTlId || searchQuery) && (
+            <Button 
+              icon={<ClearOutlined />} 
+              onClick={handleClearFilters}
+              type="dashed"
+              danger
             >
-              {/* PM Node Card */}
-              <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
-                {renderNodeCard(pmNode, 0)}
-              </div>
+              Clear
+            </Button>
+          )}
+        </Space>
+      </div>
 
-              {/* TL Level Container */}
-              {pmNode.children && pmNode.children.length > 0 && !pmCollapsed && (
-                <div style={{ 
-                  marginTop: 24, 
-                  paddingLeft: 36, 
-                  borderLeft: isDarkMode ? '2px dashed #4b5563' : '2px dashed #c084fc',
-                  marginLeft: 22,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 24,
-                  position: 'relative'
-                }}>
-                  {pmNode.children.map(tlNode => {
-                    const tlCollapsed = collapsedNodes[tlNode.id];
-                    return (
-                      <div key={tlNode.id} style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                        {/* Horizontal Connector line from vertical branch to TL Card */}
-                        <div style={{
-                          position: 'absolute',
-                          left: -36,
-                          top: 22,
-                          width: 36,
-                          height: 2,
-                          borderTop: isDarkMode ? '2px dashed #4b5563' : '2px dashed #c084fc',
-                          zIndex: 1
-                        }} />
+      {/* 3-Column Org View */}
+      <div style={{ flex: 1, padding: 24, overflow: 'hidden' }}>
+        <Row gutter={24} style={{ height: '100%' }}>
+          {/* Column 1: Project Managers */}
+          <Col xs={24} md={8} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ 
+              padding: '12px 16px', 
+              background: isDarkMode ? '#27272a' : '#f8fafc', 
+              borderRadius: '8px 8px 0 0', 
+              borderLeft: `4px solid ${pmColor}`,
+              fontWeight: 700, 
+              fontSize: '14px',
+              color: isDarkMode ? '#f4f4f5' : '#1e293b',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+              borderBottom: `1px solid ${isDarkMode ? '#3f3f46' : '#e4e4e7'}`
+            }}>
+              <span>Project Managers</span>
+              <Tag color="indigo">{pms.length}</Tag>
+            </div>
+            <div style={{ 
+              flex: 1, 
+              overflowY: 'auto', 
+              padding: 12, 
+              background: isDarkMode ? '#1e1e24' : '#fafafa', 
+              borderRadius: '0 0 8px 8px', 
+              border: isDarkMode ? '1px solid #2d2d30' : '1px solid #e4e4e7',
+              borderTop: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10
+            }}>
+              {pms.length === 0 ? (
+                <Empty description="No Project Managers found" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              ) : (
+                pms.map(pm => {
+                  const isSelected = String(selectedPmId) === String(pm.id);
+                  const highlighted = matchesSearch(pm);
+                  return (
+                    <div 
+                      key={pm.id}
+                      onClick={() => {
+                        setSelectedPmId(isSelected ? null : pm.id);
+                        setSelectedTlId(null); // Clear selected TL filter
+                      }}
+                      style={{ 
+                        padding: '12px 14px', 
+                        background: isSelected 
+                          ? (isDarkMode ? 'rgba(79, 70, 229, 0.2)' : 'rgba(79, 70, 229, 0.08)')
+                          : (isDarkMode ? '#27272a' : '#ffffff'),
+                        border: isSelected 
+                          ? `2px solid ${pmColor}` 
+                          : (highlighted ? `2px solid ${pmColor}` : `1px solid ${isDarkMode ? '#3f3f46' : '#e4e4e7'}`),
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        boxShadow: highlighted ? '0 0 8px rgba(79,70,229,0.3)' : 'none'
+                      }}
+                    >
+                      <Avatar 
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${pm.email}`} 
+                        icon={<UserOutlined />} 
+                        style={{ border: `2px solid ${pmColor}`, flexShrink: 0 }}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <Text strong style={{ display: 'block', fontSize: '13px', color: isDarkMode ? '#f4f4f5' : '#1e293b' }}>
+                          {pm.name || pm.fullName}
+                        </Text>
+                        <Text type="secondary" style={{ display: 'block', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {pm.email}
+                        </Text>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </Col>
 
-                        {/* TL Card or Direct Employee Card */}
-                        <div style={{ position: 'relative', zIndex: 2 }}>
-                          {renderNodeCard(tlNode, 1)}
-                        </div>
+          {/* Column 2: Team Leaders */}
+          <Col xs={24} md={8} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ 
+              padding: '12px 16px', 
+              background: isDarkMode ? '#27272a' : '#f8fafc', 
+              borderRadius: '8px 8px 0 0', 
+              borderLeft: `4px solid ${tlColor}`,
+              fontWeight: 700, 
+              fontSize: '14px',
+              color: isDarkMode ? '#f4f4f5' : '#1e293b',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+              borderBottom: `1px solid ${isDarkMode ? '#3f3f46' : '#e4e4e7'}`
+            }}>
+              <span>Team Leaders {selectedPmId && <span style={{ fontSize: '11px', fontWeight: 500, color: pmColor }}>(Filtered)</span>}</span>
+              <Tag color="pink">{filteredTls.length}</Tag>
+            </div>
+            <div style={{ 
+              flex: 1, 
+              overflowY: 'auto', 
+              padding: 12, 
+              background: isDarkMode ? '#1e1e24' : '#fafafa', 
+              borderRadius: '0 0 8px 8px', 
+              border: isDarkMode ? '1px solid #2d2d30' : '1px solid #e4e4e7',
+              borderTop: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10
+            }}>
+              {filteredTls.length === 0 ? (
+                <Empty description="No Team Leaders found" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              ) : (
+                filteredTls.map(tl => {
+                  const isSelected = String(selectedTlId) === String(tl.id);
+                  const highlighted = matchesSearch(tl);
+                  // Find PM name for this TL
+                  const parentPm = pms.find(p => String(p.id) === String(tl.projectManagerId));
+                  return (
+                    <div 
+                      key={tl.id}
+                      onClick={() => {
+                        setSelectedTlId(isSelected ? null : tl.id);
+                      }}
+                      style={{ 
+                        padding: '12px 14px', 
+                        background: isSelected 
+                          ? (isDarkMode ? 'rgba(219, 39, 119, 0.2)' : 'rgba(219, 39, 119, 0.08)')
+                          : (isDarkMode ? '#27272a' : '#ffffff'),
+                        border: isSelected 
+                          ? `2px solid ${tlColor}` 
+                          : (highlighted ? `2px solid ${tlColor}` : `1px solid ${isDarkMode ? '#3f3f46' : '#e4e4e7'}`),
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        boxShadow: highlighted ? '0 0 8px rgba(219,39,119,0.3)' : 'none'
+                      }}
+                    >
+                      <Avatar 
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${tl.email}`} 
+                        icon={<UserOutlined />} 
+                        style={{ border: `2px solid ${tlColor}`, flexShrink: 0 }}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <Text strong style={{ display: 'block', fontSize: '13px', color: isDarkMode ? '#f4f4f5' : '#1e293b' }}>
+                          {tl.name || tl.fullName}
+                        </Text>
+                        <Text type="secondary" style={{ display: 'block', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {tl.email}
+                        </Text>
+                        {parentPm && (
+                          <Text type="secondary" style={{ display: 'block', fontSize: '10px', color: pmColor, marginTop: 4 }}>
+                            Reports to: {parentPm.name || parentPm.fullName}
+                          </Text>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </Col>
 
-                        {/* Employee Level Container under TL */}
-                        {tlNode.children && tlNode.children.length > 0 && !tlCollapsed && (
-                          <div style={{
-                            marginTop: 20,
-                            paddingLeft: 36,
-                            borderLeft: isDarkMode ? '2px dashed #6b7280' : '2px dashed #f472b6',
-                            marginLeft: 22,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 20,
-                            position: 'relative'
-                          }}>
-                            {tlNode.children.map(empNode => (
-                              <div key={empNode.id} style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                                {/* Horizontal Connector line from TL vertical branch to Employee Card */}
-                                <div style={{
-                                  position: 'absolute',
-                                  left: -36,
-                                  top: 22,
-                                  width: 36,
-                                  height: 2,
-                                  borderTop: isDarkMode ? '2px dashed #6b7280' : '2px dashed #f472b6',
-                                  zIndex: 1
-                                }} />
-
-                                {/* Employee Card */}
-                                <div style={{ position: 'relative', zIndex: 2 }}>
-                                  {renderNodeCard(empNode, 2)}
-                                </div>
-                              </div>
-                            ))}
+          {/* Column 3: Employees */}
+          <Col xs={24} md={8} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ 
+              padding: '12px 16px', 
+              background: isDarkMode ? '#27272a' : '#f8fafc', 
+              borderRadius: '8px 8px 0 0', 
+              borderLeft: `4px solid ${empColor}`,
+              fontWeight: 700, 
+              fontSize: '14px',
+              color: isDarkMode ? '#f4f4f5' : '#1e293b',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+              borderBottom: `1px solid ${isDarkMode ? '#3f3f46' : '#e4e4e7'}`
+            }}>
+              <span>Employees {(selectedPmId || selectedTlId) && <span style={{ fontSize: '11px', fontWeight: 500, color: empColor }}>(Filtered)</span>}</span>
+              <Tag color="success">{filteredEmployees.length}</Tag>
+            </div>
+            <div style={{ 
+              flex: 1, 
+              overflowY: 'auto', 
+              padding: 12, 
+              background: isDarkMode ? '#1e1e24' : '#fafafa', 
+              borderRadius: '0 0 8px 8px', 
+              border: isDarkMode ? '1px solid #2d2d30' : '1px solid #e4e4e7',
+              borderTop: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10
+            }}>
+              {filteredEmployees.length === 0 ? (
+                <Empty description="No Employees found" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              ) : (
+                filteredEmployees.map(emp => {
+                  const highlighted = matchesSearch(emp);
+                  // Find reporting lines
+                  const parentTl = tls.find(t => String(t.id) === String(emp.teamLeadId));
+                  const parentPm = pms.find(p => String(p.id) === String(emp.projectManagerId));
+                  return (
+                    <div 
+                      key={emp.id}
+                      style={{ 
+                        padding: '12px 14px', 
+                        background: isDarkMode ? '#27272a' : '#ffffff',
+                        border: highlighted ? `2px solid ${empColor}` : `1px solid ${isDarkMode ? '#3f3f46' : '#e4e4e7'}`,
+                        borderRadius: '8px',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        boxShadow: highlighted ? '0 0 8px rgba(16,185,129,0.3)' : 'none'
+                      }}
+                    >
+                      <Avatar 
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${emp.email}`} 
+                        icon={<UserOutlined />} 
+                        style={{ border: `2px solid ${empColor}`, flexShrink: 0 }}
+                      />
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <Text strong style={{ display: 'block', fontSize: '13px', color: isDarkMode ? '#f4f4f5' : '#1e293b' }}>
+                          {emp.name || emp.fullName}
+                        </Text>
+                        <Text type="secondary" style={{ display: 'block', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {emp.email}
+                        </Text>
+                        {(parentTl || parentPm) && (
+                          <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {parentTl && (
+                              <Text type="secondary" style={{ display: 'block', fontSize: '10px', color: tlColor }}>
+                                TL: {parentTl.name || parentTl.fullName}
+                              </Text>
+                            )}
+                            {parentPm && (
+                              <Text type="secondary" style={{ display: 'block', fontSize: '10px', color: pmColor }}>
+                                PM: {parentPm.name || parentPm.fullName}
+                              </Text>
+                            )}
                           </div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })
               )}
             </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // Spacious List/Grid Fallback View
-  const renderListView = () => {
-    return (
-      <Row gutter={[24, 24]}>
-        {hierarchy.map(pmNode => (
-          <Col xs={24} key={pmNode.id}>
-            <Card
-              title={
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Avatar style={{ background: '#4f46e5' }}>PM</Avatar>
-                  <div>
-                    <Text strong style={{ fontSize: 16 }}>{pmNode.name || pmNode.fullName}</Text>
-                    <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>{pmNode.email}</Text>
-                  </div>
-                </div>
-              }
-              style={{
-                borderRadius: 16,
-                boxShadow: isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.04)',
-                border: '1px solid #f3e8ff'
-              }}
-            >
-              {pmNode.children && pmNode.children.length > 0 ? (
-                <Row gutter={[16, 16]}>
-                  {pmNode.children.map(child => {
-                    const isTLNode = child.type === 'TeamLead';
-                    return (
-                      <Col xs={24} md={12} lg={8} key={child.id}>
-                        <Card
-                          size="small"
-                          type="inner"
-                          title={
-                            <Tag color={isTLNode ? 'pink' : 'blue'}>
-                              {isTLNode ? 'Team Lead' : 'Direct Employee'}
-                            </Tag>
-                          }
-                          style={{ borderRadius: 12 }}
-                        >
-                          <Text strong style={{ display: 'block' }}>{child.name || child.fullName}</Text>
-                          <Text type="secondary" style={{ display: 'block', fontSize: 12, marginBottom: 8 }}>{child.email}</Text>
-
-                          {isTLNode && child.children && child.children.length > 0 && (
-                            <div style={{ marginTop: 12, background: isDarkMode ? '#27272a' : '#f8fafc', padding: 8, borderRadius: 8 }}>
-                              <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Reporting Employees:</Text>
-                              <Space direction="vertical" style={{ width: '100%' }}>
-                                {child.children.map(emp => (
-                                  <div key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <Avatar size="small" style={{ background: '#8b5cf6', fontSize: 10 }}>EE</Avatar>
-                                    <Text style={{ fontSize: 13 }}>{emp.name || emp.fullName}</Text>
-                                  </div>
-                                ))}
-                              </Space>
-                            </div>
-                          )}
-                        </Card>
-                      </Col>
-                    );
-                  })}
-                </Row>
-              ) : (
-                <Empty description="No reporters under this Project Manager" />
-              )}
-            </Card>
           </Col>
-        ))}
-      </Row>
-    );
-  };
-
-  return (
-    <div style={{ paddingBottom: 60 }}>
-      <PageHeader 
-        title="Organization Chart"
-        subtitle="Visual representation of platform reporting relationships starting from Project Managers"
-      />
-
-      {/* METRIC COUNTER ROW */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={8} md={8}>
-          <Card 
-            style={{ 
-              borderRadius: 12, 
-              textAlign: 'center', 
-              background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)', 
-              border: 'none',
-              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.1)'
-            }}
-            bodyStyle={{ padding: 16 }}
-          >
-            <Title level={3} style={{ margin: 0, color: '#4338ca' }}>{pmCount}</Title>
-            <Text style={{ color: '#4338ca', fontWeight: 600 }}>Project Managers</Text>
-          </Card>
-        </Col>
-        <Col xs={8} md={8}>
-          <Card 
-            style={{ 
-              borderRadius: 12, 
-              textAlign: 'center', 
-              background: 'linear-gradient(135deg, #fce7f3, #fbcfe8)', 
-              border: 'none',
-              boxShadow: '0 4px 12px rgba(219, 39, 119, 0.1)'
-            }}
-            bodyStyle={{ padding: 16 }}
-          >
-            <Title level={3} style={{ margin: 0, color: '#be185d' }}>{tlCount}</Title>
-            <Text style={{ color: '#be185d', fontWeight: 600 }}>Team Leaders</Text>
-          </Card>
-        </Col>
-        <Col xs={8} md={8}>
-          <Card 
-            style={{ 
-              borderRadius: 12, 
-              textAlign: 'center', 
-              background: 'linear-gradient(135deg, #ecfeff, #cffafe)', 
-              border: 'none',
-              boxShadow: '0 4px 12px rgba(8, 145, 178, 0.1)'
-            }}
-            bodyStyle={{ padding: 16 }}
-          >
-            <Title level={3} style={{ margin: 0, color: '#0e7490' }}>{empCount}</Title>
-            <Text style={{ color: '#0e7490', fontWeight: 600 }}>Employees</Text>
-          </Card>
-        </Col>
-      </Row>
-
-      {/* FILTER & CONTROL BAR */}
-      <Card 
-        style={{ 
-          borderRadius: 12, 
-          marginBottom: 24, 
-          boxShadow: isDarkMode ? 'none' : '0 4px 12px rgba(0,0,0,0.02)',
-          border: '1px solid #f3e8ff'
-        }}
-        bodyStyle={{ padding: 12 }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <Space>
-            <Input 
-              prefix={<SearchOutlined style={{ color: '#8b5cf6' }} />} 
-              placeholder="Search employee, manager..." 
-              style={{ width: 280, borderRadius: 8 }}
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-            />
-            {viewMode === 'tree' && (
-              <>
-                <Button icon={<ExpandOutlined />} onClick={handleExpandAll}>Expand All</Button>
-                <Button icon={<CompressOutlined />} onClick={handleCollapseAll}>Collapse All</Button>
-              </>
-            )}
-          </Space>
-          <Segmented
-            options={[
-              { label: 'Tree Map', value: 'tree', icon: <NodeIndexOutlined /> },
-              { label: 'Spacious Grid', value: 'list', icon: <TeamOutlined /> }
-            ]}
-            value={viewMode}
-            onChange={setViewMode}
-          />
-        </div>
-      </Card>
-
-      {/* CHART CONTENT AREA */}
-      {users.length === 0 ? (
-        <Card style={{ borderRadius: 16, padding: '40px 0', textAlign: 'center' }}>
-          <Empty description="No organization details found." />
-        </Card>
-      ) : (
-        <div style={{ width: '100%', overflowX: 'auto', padding: '24px 0' }}>
-          {viewMode === 'tree' ? renderTree(hierarchy) : renderListView()}
-        </div>
-      )}
+        </Row>
+      </div>
     </div>
   );
 };

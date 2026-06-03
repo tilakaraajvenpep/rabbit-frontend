@@ -230,6 +230,7 @@ const App = () => {
                 <Route path="/teamlead/timer-requests" element={<TimerRequestsReviewPage />} />
                 <Route path="/teamlead/report-access-approvals" element={<ReportAccessApprovalPage />} />
                 <Route path="/teamlead/my-reports" element={<MyEODReportsPage />} />
+                <Route path="/teamlead/org-chart" element={<OrgChartPage />} />
               </Route>
 
 
