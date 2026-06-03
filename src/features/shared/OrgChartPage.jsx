@@ -16,11 +16,11 @@ const DOT   = { PM: 14, TL: 11, Emp: 9 };
 const FONT  = { PM: 17, TL: 15, Emp: 13 };
 const PILL_H     = 26;   // label pill height
 const PILL_PAD   = 12;   // horizontal padding inside pill
-const VGAP       = 24;   // vertical gap between child nodes (tighter)
-const HGAP       = 180;  // gap between PM columns
-const BRANCH     = 44;   // horizontal branch length
-const CHILD_TOP  = 48;   // gap from PM dot to first child
-const EMP_INDENT = 22;   // extra right-indent for employees under TL
+const VGAP       = 20;   // vertical gap between child nodes
+const HGAP       = 30;   // gap between PM columns (tight)
+const BRANCH     = 28;   // horizontal branch length
+const CHILD_TOP  = 44;   // gap from PM dot to first child
+const EMP_INDENT = 18;   // extra right-indent for employees under TL
 const TOP_PAD    = 40;
 const LEFT_PAD   = 50;
 const MAX_NAME   = 24;   // chars before truncation
@@ -74,10 +74,10 @@ function buildSection(pm, secX) {
 
   /* estimate max text width for section width */
   const maxW = Math.max(
-    pm.name ? pm.name.length * 8.5 + BRANCH + 30 : 0,
-    ...rows.map(r => r.name.length * 7.5 + BRANCH + r.indent + 30)
+    (pm.name || '').length * 7.5 + BRANCH + 20,
+    ...rows.map(r => r.name.length * 6.5 + BRANCH + r.indent + 20)
   );
-  const sectionW = Math.max(maxW, BRANCH + 160);
+  const sectionW = Math.max(maxW, BRANCH + 110);
   const bottomY  = curY;
   return { nodes, edges, sectionW, bottomY };
 }
@@ -195,13 +195,15 @@ const OrgChartPage = () => {
         />
       </div>
 
-      {/* ── Chart (scrollable) ── */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      {/* ── Chart (auto-fit, single page) ── */}
+      <div style={{ flex: 1, overflow: 'hidden' }}>
         {allNodes.length === 0
           ? <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><Empty /></div>
           : (
-          <svg width={VB_W} height={VB_H}
-            style={{ display: 'block', minWidth: VB_W }}
+          <svg width="100%" height="100%"
+            viewBox={`0 0 ${VB_W} ${VB_H}`}
+            preserveAspectRatio="xMidYMin meet"
+            style={{ display: 'block' }}
           >
             <defs>
               <pattern id="dotbg" width="24" height="24" patternUnits="userSpaceOnUse">
