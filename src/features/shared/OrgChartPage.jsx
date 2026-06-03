@@ -53,16 +53,29 @@ function buildSection(pm, secX) {
     }
   });
 
-  /* section width = driven by children (PM label goes below dot, not sideways) */
-  const childMaxW = rows.length
-    ? Math.max(...rows.map(r => truncate(r.name || r.fullName, MAX_NAME).length * 7 + BRANCH + r.indent + 30))
-    : 0;
-  const pmNameW   = splitName(pm.name || pm.fullName || '').reduce((m, l) => Math.max(m, l.length * 8.5), 0);
-  const sectionW  = Math.max(childMaxW, pmNameW, BRANCH + 90);
-
-  /* center PM dot within section */
+  /* Calculate max width of PM label */
+  const pmLines = splitName(pm.name || pm.fullName || '', 16);
+  const pmNameW = pmLines.reduce((max, line) => Math.max(max, line.length * (FONT.PM * 0.55)), 0);
   const pmR = DOT.PM;
-  const pmX = secX + sectionW / 2;
+  const maxLeftRel = Math.max(pmR, pmNameW / 2);
+
+  /* Calculate max right coordinate relative to pmX */
+  let maxRightRel = pmR;
+  if (rows.length) {
+    const rightRels = rows.map(row => {
+      const r = DOT[row.role];
+      const fs = FONT[row.role];
+      const nameVal = truncate(row.name || row.fullName, MAX_NAME);
+      const nameW = Math.min(nameVal.length * (fs * 0.6) + PILL_PAD * 2, 220);
+      return BRANCH + row.indent + r + 8 + nameW;
+    });
+    maxRightRel = Math.max(...rightRels);
+  }
+
+  const sectionW = maxLeftRel + maxRightRel;
+
+  /* Position PM dot centered with respect to its left/right boundaries */
+  const pmX = secX + maxLeftRel;
   const pmY = TOP_PAD + pmR;
   nodes.push({ id: pm.id, role: 'PM', name: pm.name || pm.fullName || '', x: pmX, y: pmY, r: pmR, labelBelow: true });
 
