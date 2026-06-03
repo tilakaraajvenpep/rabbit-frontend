@@ -20,6 +20,7 @@ const HROffboardingPage = () => {
   
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [allUsersList, setAllUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [userTickets, setUserTickets] = useState([]);
@@ -37,8 +38,10 @@ const HROffboardingPage = () => {
         adminService.getUsers(),
         projectService.getProjects()
       ]);
+      const rawUsers = usersRes.data || [];
+      setAllUsersList(rawUsers);
       // Load all active employees and team leads who can have tickets assigned
-      const activeStaff = (usersRes.data || []).filter(u => u.isActive !== false && u.role !== 'SuperAdmin');
+      const activeStaff = rawUsers.filter(u => u.isActive !== false && u.role !== 'SuperAdmin');
       setUsers(activeStaff);
       setProjects(projectsRes.data || []);
     } catch (e) {
@@ -77,6 +80,8 @@ const HROffboardingPage = () => {
   };
 
   const selectedUser = users.find(u => u.id === selectedUserId);
+  const teamLead = allUsersList.find(u => String(u.id || u.userId) === String(selectedUser?.teamLeadId));
+  const pm = allUsersList.find(u => String(u.id || u.userId) === String(selectedUser?.projectManagerId));
 
   // Compute ticket-level hours
   const totalEstimatedHours = userTickets.reduce((sum, t) => sum + Number(t.estimatedHours || 0), 0);
@@ -308,8 +313,12 @@ const HROffboardingPage = () => {
                         <Tag color="purple">{selectedUser.role}</Tag>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text type="secondary">Allocated Hours:</Text>
-                        <Text strong>{selectedUser.allocatedHours || '0.00'} hrs</Text>
+                        <Text type="secondary">Team Leader:</Text>
+                        <Text strong>{teamLead ? (teamLead.name || teamLead.fullName) : 'Not Assigned'}</Text>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text type="secondary">Project Manager:</Text>
+                        <Text strong>{pm ? (pm.name || pm.fullName) : 'Not Assigned'}</Text>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <Text type="secondary">Status:</Text>
