@@ -157,7 +157,7 @@ const ProjectDetailPage = () => {
   if (loading) return <Skeleton active />;
   if (!project) return <div>Project not found</div>;
 
-  const remainingHours = project.approvedHours - project.consumedHours;
+  const remainingHours = Number(project.totalHours) || 0;
   const projectEmployees = (project.assignedEmployeeIds && Array.isArray(project.assignedEmployeeIds))
     ? users.filter(u => project.assignedEmployeeIds.includes(u.id || u.userId) && u.isActive !== false && u.status !== 'Inactive')
     : [];
