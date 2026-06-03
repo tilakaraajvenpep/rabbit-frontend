@@ -113,15 +113,15 @@ const AnalyticsPage = () => {
               style={{ flexShrink: 0 }}
             />
             <div style={{ minWidth: 0, flex: 1 }}>
-              <Text strong style={{ display: 'block', fontSize: '12px', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isDarkMode ? '#f4f4f5' : '#18181b' }}>
+              <Text strong style={{ display: 'block', fontSize: '14px', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isDarkMode ? '#f4f4f5' : '#18181b' }}>
                 {record.name || record.fullName}
               </Text>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
-                <Tag color={record.role === 'TeamLead' ? 'blue' : 'green'} style={{ alignSelf: 'flex-start', margin: 0, fontSize: '9px', lineHeight: '12px', padding: '0 4px', borderRadius: 3 }}>
+                <Tag color={record.role === 'TeamLead' ? 'blue' : 'green'} style={{ alignSelf: 'flex-start', margin: 0, fontSize: '11px', lineHeight: '12px', padding: '0 4px', borderRadius: 3 }}>
                   {record.role === 'TeamLead' ? 'Team Lead' : 'Employee'}
                 </Tag>
                 {record.role === 'Employee' && tl && (
-                  <Text type="secondary" style={{ fontSize: '9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
+                  <Text type="secondary" style={{ fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
                     TL: {tl.name || tl.fullName}
                   </Text>
                 )}
@@ -143,10 +143,10 @@ const AnalyticsPage = () => {
             borderRadius: '6px',
             border: isToday ? '1px solid rgba(79, 70, 229, 0.3)' : 'none'
           }}>
-            <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: isToday ? '#4f46e5' : '#8c8c8c' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', color: isToday ? '#4f46e5' : '#8c8c8c' }}>
               {day.format('ddd')}
             </div>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: isToday ? '#4f46e5' : 'inherit', marginTop: 1 }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: isToday ? '#4f46e5' : 'inherit', marginTop: 1 }}>
               {day.format('DD MMM')}
             </div>
           </div>
@@ -171,7 +171,7 @@ const AnalyticsPage = () => {
 
           if (dayTickets.length === 0) {
             return (
-              <div style={{ textAlign: 'center', color: isDarkMode ? '#3f3f46' : '#d1d5db', padding: '12px 0', fontSize: '12px' }}>
+              <div style={{ textAlign: 'center', color: isDarkMode ? '#3f3f46' : '#d1d5db', padding: '12px 0', fontSize: '13px' }}>
                 -
               </div>
             );
@@ -233,7 +233,7 @@ const AnalyticsPage = () => {
                     <div style={{ 
                       fontWeight: 700, 
                       color: '#4f46e5', 
-                      fontSize: '10px',
+                      fontSize: '12px',
                       display: 'flex', 
                       justifyContent: 'space-between', 
                       alignItems: 'center',
@@ -244,7 +244,7 @@ const AnalyticsPage = () => {
                       <span style={{ whiteSpace: 'nowrap' }}>{t.ticketCode || `#${t.id}`}</span>
                       {hoursLabel && (
                         <span style={{ 
-                          fontSize: '9px', 
+                          fontSize: '11px', 
                           fontWeight: 800, 
                           background: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : 'rgba(16, 185, 129, 0.1)', 
                           color: '#10b981', 
@@ -259,7 +259,7 @@ const AnalyticsPage = () => {
                     <div style={{ 
                       color: isDarkMode ? '#cbd5e1' : '#475569', 
                       fontWeight: 600, 
-                      fontSize: '10px', 
+                      fontSize: '12px', 
                       lineHeight: '1.3',
                       whiteSpace: 'normal',
                       wordBreak: 'normal',
