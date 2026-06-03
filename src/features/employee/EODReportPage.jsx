@@ -1314,7 +1314,7 @@ const EODReportPage = () => {
       </div>
 
       {/* ── MAIN WORKSPACE ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         
         {isSunday ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1370,9 +1370,9 @@ const EODReportPage = () => {
                   </div>
                 }
                 bordered={true}
-                style={{ background: card, borderColor: border, borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}
-                headStyle={{ borderBottom: `1px solid ${border}`, padding: '12px 20px' }}
-                bodyStyle={{ padding: '20px' }}
+                style={{ background: card, borderColor: border, borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
+                headStyle={{ borderBottom: `1px solid ${border}`, padding: '8px 16px', minHeight: 'auto' }}
+                bodyStyle={{ padding: '12px 16px' }}
               >
                 {/* List task rows inside this project */}
                 {(() => {
@@ -1383,21 +1383,21 @@ const EODReportPage = () => {
 
                   if (rows.length === 0) {
                     return (
-                      <div style={{ textAlign: 'center', padding: '20px 0', color: t2, fontSize: 13 }}>
+                      <div style={{ textAlign: 'center', padding: '10px 0', color: t2, fontSize: 13 }}>
                         No active assigned tickets for this project today.
                       </div>
                     );
                   }
 
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {rows.map(({ field, index }) => {
                         const item = watchedItems?.[index] || {};
 
                         return (
-                          <div key={field.id} style={{ padding: '10px 16px', background: isDarkMode ? '#1e2130' : '#f8fafc', borderRadius: 10, border: `1px solid ${border}` }}>
+                          <div key={field.id} style={{ padding: '8px 12px', background: isDarkMode ? '#1e2130' : '#f8fafc', borderRadius: 8, border: `1px solid ${border}` }}>
                             <Row gutter={[12, 8]} align="middle">
-                              <Col xs={24} md={6}>
+                              <Col xs={24} md={9}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>TICKET NAME</span>
                                   {(() => {
@@ -1405,6 +1405,26 @@ const EODReportPage = () => {
                                     if (!ticketObj) return <span style={{ color: t2, fontSize: 12 }}>Ticket</span>;
                                     const code = ticketObj.code || `#${ticketObj.id}`;
                                     const title = ticketObj.title || ticketObj.ticketTitle || '';
+                                    
+                                    const allottedHours = getAllottedHoursForTicket(item.ticketId);
+                                    const totalConsumed = ticketObj ? (Number(ticketObj.consumedHours) || 0) : 0;
+                                    
+                                    const dbReportTodayItem = existingReport?.items?.find(ri => String(ri.ticketId) === String(item.ticketId));
+                                    const dbTodayHours = dbReportTodayItem ? (Number(dbReportTodayItem.hoursSpent || dbReportTodayItem.hours) || 0) : 0;
+                                    const consumedOther = Math.max(0, totalConsumed - dbTodayHours);
+
+                                    const curH = Number(watch(`items.${index}.hoursInput`)) || 0;
+                                    const curM = Number(watch(`items.${index}.minutesInput`)) || 0;
+                                    const curTotal = curH + (curM / 60);
+
+                                    const remainingHours = Math.max(0, allottedHours - consumedOther - curTotal);
+
+                                    const allotH = Math.floor(allottedHours);
+                                    const allotM = Math.round((allottedHours - allotH) * 60);
+
+                                    const remH = Math.floor(remainingHours);
+                                    const remM = Math.round((remainingHours - remH) * 60);
+
                                     return (
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
                                         <span style={{ 
@@ -1418,51 +1438,22 @@ const EODReportPage = () => {
                                         }}>
                                           {code}
                                         </span>
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: t1, lineHeight: '1.4' }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: t1 }}>
                                           {title}
+                                        </span>
+                                        <span style={{ fontSize: '10px', fontWeight: 600, color: t2, marginLeft: 4 }}>
+                                          (Allotted: {allotH}h {allotM}m)
+                                        </span>
+                                        <span style={{ fontSize: '10px', fontWeight: 700, color: remainingHours <= 0.5 ? '#ef4444' : '#10b981' }}>
+                                          (Remaining: {remH}h {remM}m)
                                         </span>
                                       </div>
                                     );
                                   })()}
-                                  
-                                  {item.ticketId && (
-                                    (() => {
-                                      const allottedHours = getAllottedHoursForTicket(item.ticketId);
-                                      const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-                                      const totalConsumed = ticketObj ? (Number(ticketObj.consumedHours) || 0) : 0;
-                                      
-                                      const dbReportTodayItem = existingReport?.items?.find(ri => String(ri.ticketId) === String(item.ticketId));
-                                      const dbTodayHours = dbReportTodayItem ? (Number(dbReportTodayItem.hoursSpent || dbReportTodayItem.hours) || 0) : 0;
-                                      const consumedOther = Math.max(0, totalConsumed - dbTodayHours);
-
-                                      const curH = Number(watch(`items.${index}.hoursInput`)) || 0;
-                                      const curM = Number(watch(`items.${index}.minutesInput`)) || 0;
-                                      const curTotal = curH + (curM / 60);
-
-                                      const remainingHours = Math.max(0, allottedHours - consumedOther - curTotal);
-
-                                      const allotH = Math.floor(allottedHours);
-                                      const allotM = Math.round((allottedHours - allotH) * 60);
-
-                                      const remH = Math.floor(remainingHours);
-                                      const remM = Math.round((remainingHours - remH) * 60);
-
-                                      return (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 4 }}>
-                                          <span style={{ fontSize: '10px', fontWeight: 600, color: t2 }}>
-                                            Allotted: {allotH}h {allotM}m
-                                          </span>
-                                          <span style={{ fontSize: '10px', fontWeight: 700, color: remainingHours <= 0.5 ? '#ef4444' : '#10b981' }}>
-                                            Remaining: {remH}h {remM}m
-                                          </span>
-                                        </div>
-                                      );
-                                    })()
-                                  )}
                                 </div>
                               </Col>
 
-                              <Col xs={24} md={5}>
+                              <Col xs={24} md={4}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>TIME LOGGED</span>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1479,7 +1470,7 @@ const EODReportPage = () => {
                                 </div>
                               </Col>
 
-                              <Col xs={24} md={10}>
+                              <Col xs={24} md={9}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>WORK DESCRIPTION</span>
                                   <Controller control={control} name={`items.${index}.workDone`} render={({ field: f }) => (
@@ -1488,7 +1479,7 @@ const EODReportPage = () => {
                                 </div>
                               </Col>
 
-                              <Col xs={24} md={3} style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 14 }}>
+                              <Col xs={24} md={2} style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 14 }}>
                                 {(() => {
                                   const isAlert = watch(`items.${index}.isAlertIssue`);
                                   const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
