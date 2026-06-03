@@ -1,114 +1,117 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Input, Spin, Empty, Button, Tooltip } from 'antd';
-import { SearchOutlined, ClearOutlined, ZoomInOutlined, ZoomOutOutlined, FullscreenExitOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Input, Spin, Empty } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { useThemeStore } from '../../store/themeStore';
 
-/* ─────────────────────────── Constants ─────────────────────────── */
-const CARD_W   = 154;
-const CARD_H   = 60;
-const H_GAP    = 28;   // horizontal gap between siblings
-const V_GAP    = 72;   // vertical gap between levels
-const LEVEL_Y  = [0, V_GAP + CARD_H, 2 * (V_GAP + CARD_H)];
+/* ─────────────────────────── Layout Constants ─────────────────────────── */
+// Compact node: just a dot + label
+const NODE_R    = 7;    // circle radius
+const H_GAP     = 52;   // horizontal gap between sibling nodes
+const V_GAP     = 64;   // vertical gap between levels
+const LABEL_H   = 28;   // space reserved below node for text label
+const NODE_SLOT = NODE_R * 2 + H_GAP; // total width per node slot
 
+/* Role color palette */
 const ROLE_COLORS = {
-  PM:       { bg: '#1e3a5f', border: '#2563eb', text: '#e0f2fe', label: 'Project Manager', dot: '#3b82f6' },
-  TL:       { bg: '#1a3a2a', border: '#16a34a', text: '#dcfce7', label: 'Team Leader',      dot: '#22c55e' },
-  Employee: { bg: '#2d1b3d', border: '#7c3aed', text: '#ede9fe', label: 'Employee',         dot: '#a78bfa' },
+  PM:       { dot: '#3b82f6', text: '#60a5fa', glow: '#1d4ed8', label: 'Project Manager' },
+  TL:       { dot: '#22c55e', text: '#4ade80', glow: '#15803d', label: 'Team Leader'     },
+  Employee: { dot: '#a78bfa', text: '#c4b5fd', glow: '#6d28d9', label: 'Employee'        },
 };
 
-/* ─────────────────── Tree layout calculation ─────────────────── */
+/* ─────────────────── Tree layout (returns x/y for each node) ─────────────────── */
 function calcLayout(pmNodes) {
-  // Returns { nodes: [{id, x, y, ...data}], edges: [{x1,y1,x2,y2}] }
   const nodes = [];
   const edges = [];
-  let cursorX  = 0;
+  let cursorX  = NODE_R + 10;
 
   pmNodes.forEach(pm => {
-    const tls = pm.children.filter(c => c.type === 'TeamLead');
+    const tls        = pm.children.filter(c => c.type === 'TeamLead');
     const directEmps = pm.children.filter(c => c.type !== 'TeamLead');
 
-    // Compute TL subtree widths
+    /* Width of each TL's subtree */
     const tlWidths = tls.map(tl => {
-      const empCount = (tl.children || []).length;
-      return Math.max(1, empCount) * (CARD_W + H_GAP) - H_GAP;
+      const ec = (tl.children || []).length;
+      return Math.max(1, ec) * NODE_SLOT - H_GAP;
     });
 
     const directEmpWidth = directEmps.length > 0
-      ? directEmps.length * (CARD_W + H_GAP) - H_GAP
+      ? directEmps.length * NODE_SLOT - H_GAP
       : 0;
 
-    // Total width of PM subtree
     const totalChildWidth = [
       ...tlWidths,
       ...(directEmpWidth > 0 ? [directEmpWidth] : [])
     ].reduce((s, w, i, a) => s + w + (i < a.length - 1 ? H_GAP : 0), 0);
 
-    const pmWidth = Math.max(CARD_W, totalChildWidth);
-    const pmX     = cursorX + (pmWidth - CARD_W) / 2;
-    const pmY     = LEVEL_Y[0];
+    const pmWidth = Math.max(NODE_SLOT, totalChildWidth);
+    const pmX     = cursorX + (pmWidth - NODE_R * 2) / 2;
+    const pmY     = NODE_R + 10;
 
-    nodes.push({ id: pm.id, x: pmX, y: pmY, role: 'PM', name: pm.name || pm.fullName, email: pm.email });
+    nodes.push({ id: pm.id, x: pmX, y: pmY, role: 'PM', name: pm.name || pm.fullName });
 
     let childCursorX = cursorX;
 
-    // Render TL subtrees
+    /* TL subtrees */
     tls.forEach((tl, i) => {
-      const tlSubW  = tlWidths[i];
-      const tlX     = childCursorX + (tlSubW - CARD_W) / 2;
-      const tlY     = LEVEL_Y[1];
+      const tlSubW = tlWidths[i];
+      const tlX    = childCursorX + (tlSubW - NODE_R * 2) / 2;
+      const tlY    = pmY + V_GAP;
 
-      nodes.push({ id: tl.id, x: tlX, y: tlY, role: 'TL', name: tl.name || tl.fullName, email: tl.email });
+      nodes.push({ id: tl.id, x: tlX, y: tlY, role: 'TL', name: tl.name || tl.fullName });
 
-      // Edge: PM → TL
-      edges.push({
-        x1: pmX  + CARD_W / 2,
-        y1: pmY  + CARD_H,
-        x2: tlX  + CARD_W / 2,
-        y2: tlY,
-      });
+      edges.push({ x1: pmX, y1: pmY + NODE_R, x2: tlX, y2: tlY - NODE_R });
 
-      // TL employees
-      const tlEmps = tl.children || [];
+      const tlEmps    = tl.children || [];
       const empStartX = childCursorX;
 
       tlEmps.forEach((emp, ei) => {
-        const empX = empStartX + ei * (CARD_W + H_GAP);
-        const empY = LEVEL_Y[2];
-        nodes.push({ id: emp.id, x: empX, y: empY, role: 'Employee', name: emp.name || emp.fullName, email: emp.email });
-
-        // Edge: TL → Employee
-        edges.push({
-          x1: tlX  + CARD_W / 2,
-          y1: tlY  + CARD_H,
-          x2: empX + CARD_W / 2,
-          y2: empY,
-        });
+        const empX = empStartX + ei * NODE_SLOT + NODE_R;
+        const empY = tlY + V_GAP;
+        nodes.push({ id: emp.id, x: empX, y: empY, role: 'Employee', name: emp.name || emp.fullName });
+        edges.push({ x1: tlX, y1: tlY + NODE_R, x2: empX, y2: empY - NODE_R });
       });
 
       childCursorX += tlSubW + H_GAP;
     });
 
-    // Direct employees under PM
+    /* Direct employees under PM */
     if (directEmps.length > 0) {
       directEmps.forEach((emp, di) => {
-        const empX = childCursorX + di * (CARD_W + H_GAP);
-        const empY = LEVEL_Y[1]; // same level as TL
-        nodes.push({ id: emp.id, x: empX, y: empY, role: 'Employee', name: emp.name || emp.fullName, email: emp.email });
-
-        edges.push({
-          x1: pmX  + CARD_W / 2,
-          y1: pmY  + CARD_H,
-          x2: empX + CARD_W / 2,
-          y2: empY,
-        });
+        const empX = childCursorX + di * NODE_SLOT + NODE_R;
+        const empY = pmY + V_GAP;
+        nodes.push({ id: emp.id, x: empX, y: empY, role: 'Employee', name: emp.name || emp.fullName });
+        edges.push({ x1: pmX, y1: pmY + NODE_R, x2: empX, y2: empY - NODE_R });
       });
     }
 
-    cursorX += pmWidth + H_GAP * 4;
+    cursorX += pmWidth + H_GAP * 3;
   });
 
   return { nodes, edges };
+}
+
+/* ─────────────────── Utility: wrap long names into ≤2 lines ─────────────────── */
+function splitName(name, maxChars = 12) {
+  if (!name) return [''];
+  const words = name.split(' ');
+  const lines = [];
+  let current = '';
+  for (const w of words) {
+    if ((current + (current ? ' ' : '') + w).length <= maxChars) {
+      current += (current ? ' ' : '') + w;
+    } else {
+      if (current) lines.push(current);
+      current = w.length > maxChars ? w.slice(0, maxChars - 1) + '…' : w;
+    }
+    if (lines.length === 1 && current) {
+      lines.push(current);
+      current = '';
+      break;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.slice(0, 2);
 }
 
 /* ─────────────────── Main Component ─────────────────── */
@@ -117,11 +120,6 @@ const OrgChartPage = () => {
   const [users,       setUsers]       = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [scale,       setScale]       = useState(1);
-  const [pan,         setPan]         = useState({ x: 40, y: 40 });
-  const [dragging,    setDragging]    = useState(false);
-  const [dragStart,   setDragStart]   = useState(null);
-  const svgRef = useRef(null);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -140,9 +138,9 @@ const OrgChartPage = () => {
     const employees = users.filter(u => u.role === 'Employee');
 
     const hierarchy = pms.map(pm => {
-      const pmTls = tls.filter(tl => String(tl.projectManagerId) === String(pm.id));
+      const pmTls      = tls.filter(tl => String(tl.projectManagerId) === String(pm.id));
       const directEmps = employees.filter(e => String(e.projectManagerId) === String(pm.id) && !e.teamLeadId);
-      const tlNodes = pmTls.map(tl => ({
+      const tlNodes    = pmTls.map(tl => ({
         ...tl, type: 'TeamLead',
         children: employees.filter(e => String(e.teamLeadId) === String(tl.id))
       }));
@@ -153,30 +151,19 @@ const OrgChartPage = () => {
     const unassignedEmps = employees.filter(e => !e.teamLeadId && !e.projectManagerId);
     const extras = [
       ...unassignedTls.map(tl => ({ ...tl, type: 'TeamLead', children: employees.filter(e => String(e.teamLeadId) === String(tl.id)) })),
-      ...unassignedEmps.map(e => ({ ...e, type: 'Employee', children: [] }))
+      ...unassignedEmps.map(e  => ({ ...e,  type: 'Employee', children: [] }))
     ];
     if (extras.length > 0) {
-      hierarchy.push({ id: 'unassigned', name: 'Unassigned / General', fullName: 'Unassigned / General', email: '', role: 'PM', type: 'PM', children: extras });
+      hierarchy.push({ id: 'unassigned', name: 'Unassigned', fullName: 'Unassigned', email: '', role: 'PM', type: 'PM', children: extras });
     }
 
     return hierarchy;
   }, [users]);
 
-  /* Search match */
-  const matchesSearch = useCallback((name, email) => {
+  const matchesSearch = useCallback((name) => {
     if (!searchQuery) return false;
-    const q = searchQuery.toLowerCase();
-    return (name || '').toLowerCase().includes(q) || (email || '').toLowerCase().includes(q);
+    return (name || '').toLowerCase().includes(searchQuery.toLowerCase());
   }, [searchQuery]);
-
-  /* Pan drag */
-  const onMouseDown = (e) => { setDragging(true); setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }); };
-  const onMouseMove = (e) => { if (!dragging || !dragStart) return; setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }); };
-  const onMouseUp   = ()  => { setDragging(false); setDragStart(null); };
-
-  const zoomIn  = () => setScale(s => Math.min(s + 0.15, 2));
-  const zoomOut = () => setScale(s => Math.max(s - 0.15, 0.25));
-  const resetView = () => { setScale(1); setPan({ x: 40, y: 40 }); };
 
   if (loading) {
     return (
@@ -190,21 +177,24 @@ const OrgChartPage = () => {
   const hierarchy = buildHierarchy();
   const { nodes, edges } = calcLayout(hierarchy);
 
-  // Compute SVG canvas size
-  const maxX = nodes.reduce((m, n) => Math.max(m, n.x + CARD_W), 0) + 80;
-  const maxY = nodes.reduce((m, n) => Math.max(m, n.y + CARD_H), 0) + 80;
+  /* Canvas bounds */
+  const padX = 30;
+  const padY = 30;
+  const canvasW = nodes.reduce((m, n) => Math.max(m, n.x + NODE_R), 0) + padX;
+  const canvasH = nodes.reduce((m, n) => Math.max(m, n.y + NODE_R + LABEL_H), 0) + padY;
+  const viewBox = `0 0 ${canvasW} ${canvasH}`;
 
-  const bg      = isDarkMode ? '#080c18' : '#eef2f7';
-  const cardShadow = isDarkMode
-    ? '0 4px 24px rgba(0,0,0,0.6)'
-    : '0 4px 16px rgba(0,0,0,0.15)';
+  const bg = isDarkMode ? '#080c18' : '#eef2f7';
+
+  const TOOLBAR_H = 52; // px
+  const LEGEND_H  = 32; // px
 
   return (
     <div
       style={{
         position: 'fixed',
-        top: 64,       // header height
-        left: 240,     // sidebar width (adjust if collapsed)
+        top: 64,
+        left: 240,
         right: 0,
         bottom: 0,
         overflow: 'hidden',
@@ -219,64 +209,47 @@ const OrgChartPage = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '10px 20px',
-        background: isDarkMode ? 'rgba(15,23,42,0.9)' : 'rgba(255,255,255,0.9)',
+        padding: '8px 20px',
+        background: isDarkMode ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)',
         backdropFilter: 'blur(8px)',
         borderBottom: isDarkMode ? '1px solid #1e293b' : '1px solid #e2e8f0',
         flexShrink: 0,
         gap: 16,
         flexWrap: 'wrap',
+        height: TOOLBAR_H,
         zIndex: 10,
       }}>
-        {/* Title */}
-        <div style={{ fontWeight: 800, fontSize: 18, color: isDarkMode ? '#f1f5f9' : '#0f172a', letterSpacing: '-0.5px' }}>
+        <div style={{ fontWeight: 800, fontSize: 17, color: isDarkMode ? '#f1f5f9' : '#0f172a', letterSpacing: '-0.5px' }}>
           🏢 Organization Chart
         </div>
 
         {/* Legend */}
-        <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
           {Object.entries(ROLE_COLORS).map(([key, c]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <div style={{ width: 12, height: 12, borderRadius: '50%', background: c.dot, boxShadow: `0 0 6px ${c.dot}` }} />
+              <div style={{
+                width: 13, height: 13, borderRadius: '50%',
+                background: c.dot,
+                boxShadow: `0 0 8px ${c.dot}88`,
+              }} />
               <span style={{ fontSize: 12, fontWeight: 600, color: isDarkMode ? '#94a3b8' : '#475569' }}>{c.label}</span>
             </div>
           ))}
         </div>
 
-        {/* Search + Zoom controls */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Input
-            prefix={<SearchOutlined style={{ color: '#6366f1' }} />}
-            placeholder="Search members…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            allowClear
-            style={{ width: 200, borderRadius: 8, background: isDarkMode ? '#1e293b' : '#f8fafc' }}
-          />
-          <Tooltip title="Zoom In">
-            <Button icon={<ZoomInOutlined />} onClick={zoomIn} style={{ borderRadius: 8 }} />
-          </Tooltip>
-          <Tooltip title="Zoom Out">
-            <Button icon={<ZoomOutOutlined />} onClick={zoomOut} style={{ borderRadius: 8 }} />
-          </Tooltip>
-          <Tooltip title="Reset View">
-            <Button icon={<FullscreenExitOutlined />} onClick={resetView} style={{ borderRadius: 8 }} />
-          </Tooltip>
-          <span style={{ fontSize: 12, color: isDarkMode ? '#64748b' : '#94a3b8', fontWeight: 500, minWidth: 40 }}>
-            {Math.round(scale * 100)}%
-          </span>
-        </div>
+        {/* Search */}
+        <Input
+          prefix={<SearchOutlined style={{ color: '#6366f1' }} />}
+          placeholder="Search members…"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          allowClear
+          style={{ width: 200, borderRadius: 8, background: isDarkMode ? '#1e293b' : '#f8fafc' }}
+        />
       </div>
 
-      {/* ── Chart canvas ── */}
-      <div
-        ref={svgRef}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseUp}
-        style={{ flex: 1, overflow: 'hidden', cursor: dragging ? 'grabbing' : 'grab', position: 'relative' }}
-      >
+      {/* ── SVG Chart — fills the remaining space, auto-fit ── */}
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         {nodes.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
             <Empty description="No organization data found." />
@@ -285,137 +258,93 @@ const OrgChartPage = () => {
           <svg
             width="100%"
             height="100%"
+            viewBox={viewBox}
+            preserveAspectRatio="xMidYMid meet"
             style={{ display: 'block' }}
           >
             <defs>
-              {/* Subtle grid pattern for background texture */}
-              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path d="M 40 0 L 0 0 0 40" fill="none" stroke={isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)'} strokeWidth="1" />
+              {/* Subtle dot-grid background */}
+              <pattern id="dotgrid" width="24" height="24" patternUnits="userSpaceOnUse">
+                <circle cx="1" cy="1" r="0.8" fill={isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)'} />
               </pattern>
 
-              {/* Glow filter for highlighted cards */}
-              <filter id="glow">
-                <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+              {/* Glow filter for highlighted nodes */}
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
                 <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
               </filter>
-
-              {/* Arrow marker */}
-              <marker id="arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-                <path d="M0,0 L0,8 L8,4 z" fill={isDarkMode ? '#334155' : '#94a3b8'} />
-              </marker>
             </defs>
 
-            {/* Background grid */}
-            <rect width="100%" height="100%" fill="url(#grid)" />
+            {/* Background */}
+            <rect width={canvasW} height={canvasH} fill="url(#dotgrid)" />
 
-            {/* Transformed group for pan + zoom */}
-            <g transform={`translate(${pan.x}, ${pan.y}) scale(${scale})`}>
+            {/* ── Edges ── */}
+            {edges.map((e, i) => {
+              const midY = (e.y1 + e.y2) / 2;
+              return (
+                <path
+                  key={i}
+                  d={`M ${e.x1} ${e.y1} C ${e.x1} ${midY}, ${e.x2} ${midY}, ${e.x2} ${e.y2}`}
+                  fill="none"
+                  stroke={isDarkMode ? '#2563eb44' : '#93c5fd88'}
+                  strokeWidth="1.2"
+                  opacity={searchQuery ? 0.15 : 0.9}
+                />
+              );
+            })}
 
-              {/* ── Edges (drawn first, behind cards) ── */}
-              {edges.map((e, i) => {
-                const midY = (e.y1 + e.y2) / 2;
-                return (
-                  <path
-                    key={i}
-                    d={`M ${e.x1} ${e.y1} C ${e.x1} ${midY}, ${e.x2} ${midY}, ${e.x2} ${e.y2}`}
-                    fill="none"
-                    stroke={isDarkMode ? '#1e3a5f' : '#93c5fd'}
-                    strokeWidth="1.8"
-                    strokeDasharray="none"
-                    opacity={searchQuery ? 0.2 : 0.7}
-                  />
-                );
-              })}
+            {/* ── Nodes ── */}
+            {nodes.map(node => {
+              const c           = ROLE_COLORS[node.role];
+              const highlighted = matchesSearch(node.name);
+              const dimmed      = searchQuery && !highlighted;
+              const nameLines   = splitName(node.name, node.role === 'PM' ? 14 : 11);
 
-              {/* ── Nodes (cards) ── */}
-              {nodes.map(node => {
-                const c = ROLE_COLORS[node.role];
-                const highlighted = matchesSearch(node.name, node.email);
-                const dimmed = searchQuery && !highlighted;
-
-                return (
-                  <g key={node.id} transform={`translate(${node.x}, ${node.y})`} opacity={dimmed ? 0.15 : 1}>
-                    {/* Glow halo on search highlight */}
-                    {highlighted && (
-                      <rect
-                        x={-4} y={-4}
-                        width={CARD_W + 8} height={CARD_H + 8}
-                        rx={14}
-                        fill="none"
-                        stroke={c.dot}
-                        strokeWidth="2.5"
-                        filter="url(#glow)"
-                        opacity={0.9}
-                      />
-                    )}
-
-                    {/* Card background */}
-                    <rect
-                      x={0} y={0}
-                      width={CARD_W} height={CARD_H}
-                      rx={10}
-                      fill={c.bg}
-                      stroke={highlighted ? c.dot : c.border}
-                      strokeWidth={highlighted ? 2 : 1.2}
-                      style={{ filter: `drop-shadow(0 4px 10px rgba(0,0,0,0.4))` }}
+              return (
+                <g key={node.id} opacity={dimmed ? 0.12 : 1}>
+                  {/* Glow ring on search highlight */}
+                  {highlighted && (
+                    <circle
+                      cx={node.x} cy={node.y}
+                      r={NODE_R + 5}
+                      fill="none"
+                      stroke={c.dot}
+                      strokeWidth="1.5"
+                      filter="url(#glow)"
+                      opacity={0.85}
                     />
+                  )}
 
-                    {/* Left accent bar */}
-                    <rect x={0} y={0} width={4} height={CARD_H} rx={2} fill={c.dot} />
+                  {/* Role dot */}
+                  <circle
+                    cx={node.x} cy={node.y}
+                    r={node.role === 'PM' ? NODE_R + 2 : node.role === 'TL' ? NODE_R + 1 : NODE_R}
+                    fill={c.dot}
+                    stroke={isDarkMode ? '#0f172a' : '#ffffff'}
+                    strokeWidth={node.role === 'PM' ? 2.5 : 1.8}
+                    style={{ filter: `drop-shadow(0 2px 6px ${c.glow}88)` }}
+                  />
 
-                    {/* Role label */}
+                  {/* Name label lines below the dot */}
+                  {nameLines.map((line, li) => (
                     <text
-                      x={16} y={20}
-                      fontSize="9"
-                      fontWeight="700"
-                      fill={c.dot}
-                      letterSpacing="0.8"
-                      style={{ textTransform: 'uppercase' }}
+                      key={li}
+                      x={node.x}
+                      y={node.y + (node.role === 'PM' ? NODE_R + 3 : node.role === 'TL' ? NODE_R + 2 : NODE_R + 1) + 10 + li * 11}
+                      textAnchor="middle"
+                      fontSize={node.role === 'PM' ? 8.5 : node.role === 'TL' ? 7.5 : 6.8}
+                      fontWeight={node.role === 'PM' ? 700 : node.role === 'TL' ? 600 : 500}
+                      fill={highlighted ? c.dot : (isDarkMode ? c.text : (node.role === 'PM' ? '#1e3a5f' : node.role === 'TL' ? '#14532d' : '#4c1d95'))}
+                      style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
                     >
-                      {c.label.toUpperCase()}
+                      {line}
                     </text>
-
-                    {/* Name */}
-                    <foreignObject x={14} y={24} width={CARD_W - 18} height={32}>
-                      <div
-                        xmlns="http://www.w3.org/1999/xhtml"
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: c.text,
-                          lineHeight: '1.25',
-                          overflow: 'hidden',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          wordBreak: 'break-word',
-                        }}
-                      >
-                        {node.name}
-                      </div>
-                    </foreignObject>
-
-                    {/* Dot indicator */}
-                    <circle cx={CARD_W - 10} cy={10} r={4} fill={c.dot} opacity={0.9} />
-                  </g>
-                );
-              })}
-            </g>
+                  ))}
+                </g>
+              );
+            })}
           </svg>
         )}
-      </div>
-
-      {/* ── Bottom hint ── */}
-      <div style={{
-        padding: '6px 20px',
-        background: isDarkMode ? 'rgba(15,23,42,0.8)' : 'rgba(255,255,255,0.8)',
-        backdropFilter: 'blur(6px)',
-        borderTop: isDarkMode ? '1px solid #1e293b' : '1px solid #e2e8f0',
-        fontSize: 11,
-        color: isDarkMode ? '#475569' : '#94a3b8',
-        flexShrink: 0,
-      }}>
-        💡 Drag to pan · Use zoom buttons or scroll wheel to adjust view
       </div>
     </div>
   );
