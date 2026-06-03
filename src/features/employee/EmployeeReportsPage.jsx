@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, DatePicker, Select, Button, Table, 
-  Typography, Space, notification, Tag
+  Typography, Space, notification, Tag, Form, Input, InputNumber, Modal
 } from 'antd';
-import { DownloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { DownloadOutlined, SearchOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { reportService } from '../../services/reportService';
 import { ticketService } from '../../services/ticketService';
+import { projectService } from '../../services/projectService';
 import { useAuthStore } from '../../store/authStore';
+import { useThemeStore } from '../../store/themeStore';
 import { adminService } from '../../services/adminService';
 import { leaveService } from '../../services/leaveService';
 import PageHeader from '../../components/common/PageHeader';
@@ -15,12 +17,21 @@ import { downloadCSV } from '../../utils/exportUtils';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
+const { TextArea } = Input;
 
 const EmployeeReportsPage = () => {
   const { currentUser, role } = useAuthStore();
+  const { isDarkMode } = useThemeStore();
+  
+  const t1 = isDarkMode ? '#f3f4f6' : '#1f2937';
+  const t2 = isDarkMode ? '#9ca3af' : '#4b5563';
+  const card = isDarkMode ? '#1f2937' : '#ffffff';
+  const border = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+
   const isManager = ['TeamLead', 'ProjectManager', 'TenantAdmin', 'HR', 'Accounts'].includes(role);
   const [loading, setLoading] = useState(false);
   const [tickets, setTickets] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [rawReportData, setRawReportData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [hasGenerated, setHasGenerated] = useState(false);
@@ -34,6 +45,12 @@ const EmployeeReportsPage = () => {
   const [teamLeads, setTeamLeads] = useState([]);
   const [projectManagers, setProjectManagers] = useState([]);
   const [allUsersCache, setAllUsersCache] = useState([]);
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [editForm] = Form.useForm();
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     fetchInitialData();
@@ -51,9 +68,7 @@ const EmployeeReportsPage = () => {
       data = data.filter(r => {
         const u = allUsersCache.find(u => String(u.id || u.userId) === String(r.userId));
         if (!u) return false;
-        // Employee under this TL
         if (u.role === 'Employee' && String(u.teamLeadId) === String(selectedTeamLead)) return true;
-        // The TL themselves
         if (String(u.id || u.userId) === String(selectedTeamLead)) return true;
         return false;
       });
@@ -63,11 +78,8 @@ const EmployeeReportsPage = () => {
       data = data.filter(r => {
         const u = allUsersCache.find(u => String(u.id || u.userId) === String(r.userId));
         if (!u) return false;
-        // Direct PM
         if (String(u.projectManagerId) === String(selectedPM)) return true;
-        // PM themselves
         if (String(u.id || u.userId) === String(selectedPM)) return true;
-        // Employee whose TL reports to this PM
         if (u.role === 'Employee' && u.teamLeadId) {
           const tl = allUsersCache.find(t => String(t.id || t.userId) === String(u.teamLeadId));
           if (tl && String(tl.projectManagerId) === String(selectedPM)) return true;
@@ -81,10 +93,14 @@ const EmployeeReportsPage = () => {
 
   const fetchInitialData = async () => {
     try {
-      const ticketRes = await ticketService.getTickets();
+      const [ticketRes, projectRes] = await Promise.all([
+        ticketService.getTickets(),
+        projectService.getProjects()
+      ]);
       setTickets(ticketRes.data || []);
+      setProjects(projectRes.data || []);
     } catch (error) {
-      notification.error({ message: 'Failed to load tickets list' });
+      notification.error({ message: 'Failed to load initial metadata' });
     }
   };
 
@@ -136,12 +152,16 @@ const EmployeeReportsPage = () => {
 
         report.items.forEach(item => {
           const ticketInfo = tickets.find(t => Number(t.id) === Number(item.ticketId));
+          const projectInfo = projects.find(p => Number(p.id) === Number(ticketInfo?.projectId || item.projectId));
           reports.push({
             userId: report.userId,
             date: report.date || report.reportDate,
             employeeName: employeeName,
             userRole: userRole,
             supervisorName: supervisorName,
+            projectId: ticketInfo?.projectId || item.projectId || 'N/A',
+            projectName: projectInfo?.name || projectInfo?.projectName || 'N/A',
+            ticketId: item.ticketId,
             ticketCode: ticketInfo?.code || 'N/A',
             ticketTitle: ticketInfo?.title || 'Unknown',
             hours: Number(item.hours || item.hoursSpent || 0),
@@ -159,10 +179,7 @@ const EmployeeReportsPage = () => {
         const startDay = dayjs(start).startOf('day');
         const endDay = dayjs(end).endOf('day');
         const inRange = lDate.isAfter(startDay.subtract(1, 'day')) && lDate.isBefore(endDay.add(1, 'day'));
-        
-        // If they are not manager, only show their own leaves
         const isOwn = isManager || String(l.userId || l.user?.id) === String(currentUser.id || currentUser.userId);
-        
         return inRange && l.status === 'Approved' && isOwn;
       });
 
@@ -206,6 +223,7 @@ const EmployeeReportsPage = () => {
           supervisorName: supervisorName,
           ticketCode: 'LEAVE',
           ticketTitle: leaveLabel,
+          projectName: 'Leave / Time Off',
           hours: leaveHours,
           workDone: `[Leave Reason] ${leave.reason || 'No reason provided'}`,
           blockers: 'None',
@@ -267,17 +285,84 @@ const EmployeeReportsPage = () => {
     downloadCSV(filteredData, `Work_Report_${dayjs().format('YYYY-MM-DD')}`);
   };
 
+  const handleOpenEditModal = (record) => {
+    setEditingRecord(record);
+    const decimalHours = record.hours;
+    const h = Math.floor(decimalHours);
+    const m = Math.round((decimalHours - h) * 60);
+
+    editForm.setFieldsValue({
+      hours: h,
+      minutes: m,
+      workDone: record.workDone
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (values) => {
+    setUpdating(true);
+    try {
+      const reportRes = await reportService.getReportByDate(editingRecord.userId, editingRecord.date);
+      const report = reportRes.data;
+      if (!report) {
+        throw new Error("EOD report not found for this date.");
+      }
+
+      const newHoursSpent = Number(values.hours) + (Number(values.minutes) / 60);
+      if (newHoursSpent <= 0) {
+        throw new Error("Total hours must be greater than 0");
+      }
+
+      const updatedItems = report.items.map(item => {
+        if (Number(item.ticketId) === Number(editingRecord.ticketId)) {
+          return {
+            ...item,
+            hoursSpent: newHoursSpent,
+            workDone: values.workDone
+          };
+        }
+        return {
+          ...item,
+          hoursSpent: Number(item.hoursSpent || item.hours)
+        };
+      });
+
+      const payload = {
+        reportDate: editingRecord.date,
+        items: updatedItems
+      };
+
+      await reportService.submitDailyReport(payload);
+
+      notification.success({
+        message: 'Report Updated',
+        description: 'Work report entry successfully updated and synced with EOD.'
+      });
+
+      setIsEditModalOpen(false);
+      handleSearch();
+    } catch (err) {
+      console.error(err);
+      notification.error({
+        message: 'Update Failed',
+        description: err.message || 'Failed to update report.'
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const columns = [
     { 
-      title: 'Date', dataIndex: 'date', key: 'date', width: 120,
+      title: 'Date', dataIndex: 'date', key: 'date', width: 110,
       render: (date) => dayjs(date).format('DD MMM YYYY')
     },
-    { title: 'Employee', dataIndex: 'employeeName', key: 'employeeName', width: 150 },
+    { title: 'Employee', dataIndex: 'employeeName', key: 'employeeName', width: 140 },
     ['HR', 'Accounts', 'TenantAdmin'].includes(role) && {
       title: 'Role',
       dataIndex: 'userRole',
       key: 'userRole',
-      width: 120,
+      width: 100,
       render: (roleVal) => {
         let color = 'blue';
         if (roleVal === 'TeamLead') color = 'purple';
@@ -285,58 +370,100 @@ const EmployeeReportsPage = () => {
         return <Tag color={color} style={{ fontWeight: 600, borderRadius: 4 }}>{roleVal}</Tag>;
       }
     },
-    ['HR', 'Accounts', 'TenantAdmin'].includes(role) && {
-      title: 'Supervisor / Lead',
-      dataIndex: 'supervisorName',
-      key: 'supervisorName',
-      width: 150,
-      render: (supName) => <Text style={{ fontWeight: 600 }}>{supName}</Text>
+    { 
+      title: 'Project Name', 
+      dataIndex: 'projectName', 
+      key: 'projectName', 
+      width: 180,
+      render: (name) => <span style={{ fontWeight: 600, color: t1 }}>{name}</span>
     },
     { 
-      title: 'Ticket Code', dataIndex: 'ticketCode', key: 'ticketCode', width: 130,
-      render: (code) => {
+      title: 'Ticket Code', dataIndex: 'ticketCode', key: 'ticketCode', width: 110,
+      render: (code, record) => {
         if (code === 'LEAVE') {
           return <Tag color="cyan" style={{ fontWeight: 600 }}>LEAVE</Tag>;
         }
-        return code;
+        return (
+          <span style={{ 
+            fontSize: '11px', 
+            fontWeight: 700, 
+            background: `${isDarkMode ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)'}`, 
+            color: '#6366f1', 
+            padding: '2px 6px', 
+            borderRadius: 4,
+            border: '1px solid rgba(99, 102, 241, 0.3)'
+          }}>
+            {code}
+          </span>
+        );
       }
     },
     { 
-      title: 'Ticket / Task', dataIndex: 'ticketTitle', key: 'ticketTitle',
+      title: 'Ticket Name / Task', dataIndex: 'ticketTitle', key: 'ticketTitle',
       render: (title, record) => {
         if (record.isLeave) {
           const typeColor = title.includes('PERMISSION') ? 'cyan' : title.includes('HALF') ? 'purple' : 'magenta';
           return <Tag color={typeColor} style={{ fontWeight: 700 }}>{title}</Tag>;
         }
-        return title;
+        return <span style={{ fontWeight: 600, color: t1 }}>{title}</span>;
       }
     },
     { 
-      title: 'Work Done', dataIndex: 'workDone', key: 'workDone',
+      title: 'Hours & Minutes', 
+      dataIndex: 'hours', 
+      key: 'hours', 
+      width: 130,
+      render: (h, record) => {
+        if (record.isLeave) return record.hours > 0 ? `${record.hours}h` : 'N/A';
+        const hrs = Math.floor(h);
+        const mins = Math.round((h - hrs) * 60);
+        return (
+          <span style={{ fontWeight: 700, color: '#10b981' }}>
+            {hrs}h {mins}m
+          </span>
+        );
+      }
+    },
+    { 
+      title: 'Description (Work Done)', dataIndex: 'workDone', key: 'workDone',
       render: (text, record) => {
         if (record.isLeave) {
           return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>{text}</span>;
         }
-        return text;
+        return <span style={{ color: t2, whiteSpace: 'pre-wrap' }}>{text}</span>;
       }
     },
-    { 
-      title: 'Hours', dataIndex: 'hours', key: 'hours', width: 80, align: 'right',
-      render: (h) => h?.toFixed(1)
-    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 80,
+      render: (_, record) => {
+        const canEdit = String(record.userId) === String(currentUser.id || currentUser.userId) && !record.isLeave;
+        if (!canEdit) return null;
+        return (
+          <Button 
+            type="link" 
+            icon={<EditOutlined />} 
+            onClick={() => handleOpenEditModal(record)}
+            style={{ padding: 0, fontWeight: 600 }}
+          >
+            Edit
+          </Button>
+        );
+      }
+    }
   ].filter(Boolean);
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-      <PageHeader title="Work Reports & Exports" />
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 8px' }}>
+      <PageHeader title="Work Reports" />
 
-      {/* Date Range picker and Generate button ONLY */}
-      <Card style={{ marginBottom: 24, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }} bodyStyle={{ padding: '24px' }}>
+      <Card style={{ marginBottom: 24, borderRadius: 12, border: `1px solid ${border}`, background: card }} bodyStyle={{ padding: '20px' }}>
         <Row gutter={[16, 24]} align="bottom">
           <Col xs={24} sm={16} md={18}>
-            <Text strong style={{ fontSize: '13px', display: 'block', marginBottom: 8 }}>Select Report Date Range</Text>
+            <Text strong style={{ fontSize: '13px', display: 'block', marginBottom: 8, color: t1 }}>Select Report Date Range</Text>
             <RangePicker 
-              style={{ width: '100%', height: 44, borderRadius: 8 }} 
+              style={{ width: '100%', height: 40, borderRadius: 8 }} 
               value={dateRange}
               onChange={(val) => setDateRange(val)}
             />
@@ -349,7 +476,7 @@ const EmployeeReportsPage = () => {
               loading={loading}
               size="large"
               block
-              style={{ borderRadius: 8, height: 44, background: '#4f46e5', borderColor: '#4f46e5', fontWeight: 700 }}
+              style={{ borderRadius: 8, height: 40, background: '#4f46e5', borderColor: '#4f46e5', fontWeight: 700 }}
             >
               Generate Report
             </Button>
@@ -357,15 +484,14 @@ const EmployeeReportsPage = () => {
         </Row>
       </Card>
 
-      {/* Display all work reports once generated */}
       {hasGenerated && (
-        <Card style={{ borderRadius: 12, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }} bodyStyle={{ padding: '24px' }}>
+        <Card style={{ borderRadius: 12, border: `1px solid ${border}`, background: card }} bodyStyle={{ padding: '20px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-              <Text strong style={{ whiteSpace: 'nowrap', minWidth: 120 }}>Filter by Employee:</Text>
+              <Text strong style={{ whiteSpace: 'nowrap', minWidth: 120, color: t1 }}>Filter by Employee:</Text>
               <Select
                 placeholder="All Employees"
-                style={{ minWidth: 220, flex: 1 }}
+                style={{ minWidth: 200, flex: 1 }}
                 allowClear
                 value={selectedEmployee}
                 onChange={setSelectedEmployee}
@@ -380,10 +506,10 @@ const EmployeeReportsPage = () => {
 
               {['HR', 'Accounts', 'TenantAdmin'].includes(role) && (
                 <>
-                  <Text strong style={{ whiteSpace: 'nowrap', minWidth: 100 }}>Team Lead:</Text>
+                  <Text strong style={{ whiteSpace: 'nowrap', minWidth: 100, color: t1 }}>Team Lead:</Text>
                   <Select
                     placeholder="All Team Leads"
-                    style={{ minWidth: 200, flex: 1 }}
+                    style={{ minWidth: 180, flex: 1 }}
                     allowClear
                     value={selectedTeamLead}
                     onChange={setSelectedTeamLead}
@@ -396,10 +522,10 @@ const EmployeeReportsPage = () => {
                     ))}
                   </Select>
  
-                  <Text strong style={{ whiteSpace: 'nowrap', minWidth: 60 }}>PM:</Text>
+                  <Text strong style={{ whiteSpace: 'nowrap', minWidth: 60, color: t1 }}>PM:</Text>
                   <Select
                     placeholder="All PMs"
-                    style={{ minWidth: 200, flex: 1 }}
+                    style={{ minWidth: 180, flex: 1 }}
                     allowClear
                     value={selectedPM}
                     onChange={setSelectedPM}
@@ -419,7 +545,7 @@ const EmployeeReportsPage = () => {
                 onClick={handleExport}
                 disabled={filteredData.length === 0}
                 size="large"
-                style={{ borderRadius: 8, height: 44 }}
+                style={{ borderRadius: 8, height: 40 }}
               >
                 Export CSV
               </Button>
@@ -437,19 +563,99 @@ const EmployeeReportsPage = () => {
               let total = 0;
               pageData.forEach(({ hours }) => { total += hours; });
               return (
-                <Table.Summary.Row style={{ background: '#f8fafc' }}>
-                  <Table.Summary.Cell index={0} colSpan={4}>
-                    <Text strong>Total Hours in Current View</Text>
+                <Table.Summary.Row style={{ background: isDarkMode ? '#1e2130' : '#f8fafc' }}>
+                  <Table.Summary.Cell index={0} colSpan={['HR', 'Accounts', 'TenantAdmin'].includes(role) ? 5 : 3}>
+                    <Text strong style={{ color: t1 }}>Total Hours in Current View</Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={1} align="right">
-                    <Text strong style={{ color: '#4f46e5' }}>{total.toFixed(1)} hrs</Text>
+                  <Table.Summary.Cell index={1} align="left">
+                    <Text strong style={{ color: '#10b981' }}>{total.toFixed(1)} hrs</Text>
                   </Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} colSpan={3} />
                 </Table.Summary.Row>
               );
             }}
           />
         </Card>
       )}
+
+      {/* Edit Work Report Modal */}
+      <Modal
+        title={<span style={{ fontSize: 16, fontWeight: 700, color: t1 }}>Edit Work Report Entry</span>}
+        open={isEditModalOpen}
+        onCancel={() => setIsEditModalOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        {editingRecord && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ marginBottom: 16, background: isDarkMode ? '#11131c' : '#f8fafc', padding: 12, borderRadius: 8, border: `1px solid ${border}` }}>
+              <div style={{ marginBottom: 4 }}><Text type="secondary" style={{ fontSize: 11 }}>PROJECT</Text></div>
+              <div style={{ fontWeight: 600, color: t1, marginBottom: 8 }}>{editingRecord.projectName}</div>
+              
+              <div style={{ marginBottom: 4 }}><Text type="secondary" style={{ fontSize: 11 }}>TICKET</Text></div>
+              <div style={{ fontWeight: 600, color: t1 }}>
+                <span style={{ 
+                  fontSize: '10px', 
+                  fontWeight: 700, 
+                  background: `${isDarkMode ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)'}`, 
+                  color: '#6366f1', 
+                  padding: '2px 6px', 
+                  borderRadius: 4,
+                  marginRight: 6
+                }}>
+                  {editingRecord.ticketCode}
+                </span>
+                {editingRecord.ticketTitle}
+              </div>
+            </div>
+
+            <Form
+              form={editForm}
+              layout="vertical"
+              onFinish={handleEditSubmit}
+            >
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item
+                    name="hours"
+                    label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>HOURS</span>}
+                    rules={[{ required: true, message: 'Required' }]}
+                  >
+                    <InputNumber min={0} style={{ width: '100%', borderRadius: 8 }} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="minutes"
+                    label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>MINUTES</span>}
+                    rules={[{ required: true, message: 'Required' }]}
+                  >
+                    <InputNumber min={0} max={59} style={{ width: '100%', borderRadius: 8 }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Form.Item
+                name="workDone"
+                label={<span style={{ fontWeight: 600, color: t2, fontSize: 12 }}>WORK DESCRIPTION</span>}
+                rules={[{ required: true, message: 'Please enter description' }]}
+              >
+                <TextArea rows={4} placeholder="Describe the work done..." style={{ borderRadius: 8 }} />
+              </Form.Item>
+
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={updating}
+                block
+                style={{ background: '#4f46e5', borderColor: '#4f46e5', height: 40, borderRadius: 8, fontWeight: 600, marginTop: 12 }}
+              >
+                Save Changes
+              </Button>
+            </Form>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

@@ -1372,10 +1372,24 @@ const EODReportPage = () => {
                                   <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>TICKET NAME</span>
                                   {(() => {
                                     const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                                    if (!ticketObj) return <span style={{ color: t2, fontSize: 12 }}>Ticket</span>;
+                                    const code = ticketObj.code || `#${ticketObj.id}`;
+                                    const title = ticketObj.title || ticketObj.ticketTitle || '';
                                     return (
-                                      <div style={{ padding: '6px 10px', background: isDarkMode ? '#11131c' : '#ffffff', border: `1px solid ${border}`, borderRadius: 6, minHeight: 32, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
-                                        <span style={{ fontSize: 12, fontWeight: 700, color: t1, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }} title={ticketObj ? `${ticketObj.code || '#' + ticketObj.id} — ${ticketObj.title || ticketObj.ticketTitle || ''}` : 'Ticket'}>
-                                          {ticketObj ? `${ticketObj.code || '#' + ticketObj.id} — ${ticketObj.title || ticketObj.ticketTitle || ''}` : 'Ticket'}
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                                        <span style={{ 
+                                          fontSize: '11px', 
+                                          fontWeight: 700, 
+                                          background: `${accent}15`, 
+                                          color: accent, 
+                                          padding: '2px 6px', 
+                                          borderRadius: 4,
+                                          border: `1px solid ${accent}30`
+                                        }}>
+                                          {code}
+                                        </span>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: t1, lineHeight: '1.4' }}>
+                                          {title}
                                         </span>
                                       </div>
                                     );
@@ -1384,12 +1398,34 @@ const EODReportPage = () => {
                                   {item.ticketId && (
                                     (() => {
                                       const allottedHours = getAllottedHoursForTicket(item.ticketId);
+                                      const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                                      const totalConsumed = ticketObj ? (Number(ticketObj.consumedHours) || 0) : 0;
+                                      
+                                      const dbReportTodayItem = existingReport?.items?.find(ri => String(ri.ticketId) === String(item.ticketId));
+                                      const dbTodayHours = dbReportTodayItem ? (Number(dbReportTodayItem.hoursSpent || dbReportTodayItem.hours) || 0) : 0;
+                                      const consumedOther = Math.max(0, totalConsumed - dbTodayHours);
+
+                                      const curH = Number(watch(`items.${index}.hoursInput`)) || 0;
+                                      const curM = Number(watch(`items.${index}.minutesInput`)) || 0;
+                                      const curTotal = curH + (curM / 60);
+
+                                      const remainingHours = Math.max(0, allottedHours - consumedOther - curTotal);
+
                                       const allotH = Math.floor(allottedHours);
                                       const allotM = Math.round((allottedHours - allotH) * 60);
+
+                                      const remH = Math.floor(remainingHours);
+                                      const remM = Math.round((remainingHours - remH) * 60);
+
                                       return (
-                                        <span style={{ fontSize: '9px', fontWeight: 600, color: accent, display: 'block', marginTop: 2 }}>
-                                          Allotted: {allotH}h {allotM}m
-                                        </span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 4 }}>
+                                          <span style={{ fontSize: '10px', fontWeight: 600, color: t2 }}>
+                                            Allotted: {allotH}h {allotM}m
+                                          </span>
+                                          <span style={{ fontSize: '10px', fontWeight: 700, color: remainingHours <= 0.5 ? '#ef4444' : '#10b981' }}>
+                                            Remaining: {remH}h {remM}m
+                                          </span>
+                                        </div>
                                       );
                                     })()
                                   )}
@@ -1648,7 +1684,12 @@ const EODReportPage = () => {
               const selectedProjectId = getFieldValue('projectId');
 
               if (currentMode === 'request') {
-                const projectTickets = allMyTickets.filter(t => String(t.projectId) === String(selectedProjectId));
+                const projectTickets = allMyTickets.filter(t => {
+                  if (String(t.projectId) !== String(selectedProjectId)) return false;
+                  const allotted = getAllottedHoursForTicket(t.id);
+                  const totalConsumed = Number(t.consumedHours) || 0;
+                  return totalConsumed < allotted;
+                });
                 return (
                   <>
                     <Form.Item 
