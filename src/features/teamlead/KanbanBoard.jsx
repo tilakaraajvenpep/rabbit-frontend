@@ -565,7 +565,13 @@ const KanbanBoard = () => {
   };
 
   const handleProjectChange = (id) => {
-    const routePrefix = isManager ? 'pm' : 'teamlead';
+    let routePrefix = 'teamlead';
+    const currentRole = authRole || authUser?.role;
+    if (currentRole === 'ProjectManager' || currentRole === 'TenantAdmin') {
+      routePrefix = 'pm';
+    } else if (currentRole === 'HR') {
+      routePrefix = 'hr';
+    }
     navigate(`/${routePrefix}/projects/${id}/kanban`);
   };
 
