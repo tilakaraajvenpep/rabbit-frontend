@@ -44,6 +44,7 @@ const PMDashboardPage = () => {
   const { isDarkMode } = useThemeStore();
   const [projects, setProjects] = useState([]);
   const [teamLeads, setTeamLeads] = useState([]);
+  const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const { alerts, setAlerts } = useAlertStore();
   const { currentUser } = useAuthStore();
@@ -136,6 +137,7 @@ const PMDashboardPage = () => {
       });
 
       setProjects(updatedProjects);
+      setTickets(allTickets);
       setTeamLeads((usersRes.data || []).filter(u => u.role === 'TeamLead'));
       if (alertsRes && alertsRes.data) {
         setAlerts(alertsRes.data);
@@ -864,34 +866,124 @@ const PMDashboardPage = () => {
       <Drawer
         title={`Milestones — ${selectedProjectForMilestones?.name}`}
         placement="right"
-        width={400}
+        width={450}
         onClose={() => setIsMilestoneDrawerVisible(false)}
         open={isMilestoneDrawerVisible}
       >
-        {selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones) ? (
-          <Timeline mode="left" style={{ marginTop: 10 }}>
-            {selectedProjectForMilestones.milestones.map((m, index) => (
-              <Timeline.Item 
-                key={index}
-                dot={<CalendarOutlined style={{ fontSize: '16px', color: '#10b981' }} />}
-                color={dayjs(m.date).isBefore(dayjs()) ? 'red' : 'green'}
+        {(() => {
+          const projectTickets = selectedProjectForMilestones
+            ? tickets.filter(t => String(t.projectId) === String(selectedProjectForMilestones.id))
+            : [];
+
+          const milestoneTitles = selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones)
+            ? selectedProjectForMilestones.milestones.map(m => m.title?.trim().toLowerCase())
+            : [];
+
+          const unmappedTickets = projectTickets.filter(t => 
+            !t.milestone || !milestoneTitles.includes(t.milestone.trim().toLowerCase())
+          );
+
+          const renderTicketItem = (ticket) => {
+            const statusColor = ticket.status === 'Done' ? 'success' : ticket.status === 'InProgress' ? 'processing' : 'default';
+            const priorityColor = ticket.priority === 'High' || ticket.priority === 'Critical' ? 'red' : ticket.priority === 'Medium' ? 'orange' : 'green';
+            
+            return (
+              <div 
+                key={ticket.id} 
+                style={{ 
+                  padding: '8px 10px', 
+                  borderRadius: '8px', 
+                  background: isDarkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+                  border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
+                  marginBottom: '6px',
+                  fontSize: '12px'
+                }}
               >
-                <div style={{ marginBottom: 12 }}>
-                  <Text strong style={{ fontSize: '14px', display: 'block', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>{m.title}</Text>
-                  <Text type="secondary" style={{ fontSize: '12px', display: 'block', margin: '4px 0' }}>{m.description || 'No description'}</Text>
-                  <Tag color="success" style={{ marginTop: 2, border: 'none', borderRadius: 4 }}>
-                    Value: ₹{Number(m.amount || 0).toLocaleString('en-IN')}
-                  </Tag>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: 4 }}>
-                    Release Date: {m.date ? dayjs(m.date).format('DD MMM YYYY') : 'Not Set'}
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <Text code style={{ fontSize: '10px' }}>{ticket.code || `#${ticket.id}`}</Text>
+                  <Space size={4}>
+                    <Tag color={priorityColor} style={{ fontSize: '10px', margin: 0, padding: '0 4px', lineHeight: '1.4' }}>{ticket.priority}</Tag>
+                    <Tag color={statusColor} style={{ fontSize: '10px', margin: 0, padding: '0 4px', lineHeight: '1.4' }}>{ticket.status}</Tag>
+                  </Space>
                 </div>
-              </Timeline.Item>
-            ))}
-          </Timeline>
-        ) : (
-          <Alert message="No milestones defined for this project." type="info" showIcon />
-        )}
+                <div style={{ fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#334155', marginBottom: '4px' }}>{ticket.title}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '11px' }}>
+                  <span>Est: {ticket.estimatedHours || 0}h</span>
+                  <span>Consumed: {ticket.consumedHours || 0}h</span>
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <>
+              {selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones) && selectedProjectForMilestones.milestones.length > 0 ? (
+                <Timeline mode="left" style={{ marginTop: 10 }}>
+                  {selectedProjectForMilestones.milestones.map((m, index) => {
+                    const milestoneTickets = projectTickets.filter(t => 
+                      t.milestone && m.title && t.milestone.trim().toLowerCase() === m.title.trim().toLowerCase()
+                    );
+                    return (
+                      <Timeline.Item 
+                        key={index}
+                        dot={<CalendarOutlined style={{ fontSize: '16px', color: '#10b981' }} />}
+                        color={dayjs(m.date).isBefore(dayjs()) ? 'red' : 'green'}
+                      >
+                        <div style={{ marginBottom: 12 }}>
+                          <Text strong style={{ fontSize: '14px', display: 'block', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>{m.title}</Text>
+                          <Text type="secondary" style={{ fontSize: '12px', display: 'block', margin: '4px 0' }}>{m.description || 'No description'}</Text>
+                          <Tag color="success" style={{ marginTop: 2, border: 'none', borderRadius: 4, marginBottom: 8 }}>
+                            Value: ₹{Number(m.amount || 0).toLocaleString('en-IN')}
+                          </Tag>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: 8 }}>
+                            Release Date: {m.date ? dayjs(m.date).format('DD MMM YYYY') : 'Not Set'}
+                          </div>
+
+                          {/* Tickets for this milestone */}
+                          {milestoneTickets.length > 0 ? (
+                            <div style={{ marginTop: 8 }}>
+                              <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>
+                                Linked Tickets ({milestoneTickets.length}):
+                              </div>
+                              {milestoneTickets.map(renderTicketItem)}
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', marginTop: 4 }}>
+                              No tickets linked to this milestone
+                            </div>
+                          )}
+                        </div>
+                      </Timeline.Item>
+                    );
+                  })}
+                </Timeline>
+              ) : (
+                <div style={{ marginTop: 16 }}>
+                  <Alert message="No milestones defined for this project." type="info" showIcon style={{ marginBottom: 16 }} />
+                  {projectTickets.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: isDarkMode ? '#e2e8f0' : '#1e293b', marginBottom: 10 }}>
+                        Project Tickets ({projectTickets.length})
+                      </div>
+                      {projectTickets.map(renderTicketItem)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* General / Unmapped tickets */}
+              {selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones) && selectedProjectForMilestones.milestones.length > 0 && unmappedTickets.length > 0 && (
+                <div style={{ marginTop: 20 }}>
+                  <Divider style={{ margin: '12px 0' }} />
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: isDarkMode ? '#e2e8f0' : '#1e293b', marginBottom: 10 }}>
+                    General / Unmapped Tickets ({unmappedTickets.length})
+                  </div>
+                  {unmappedTickets.map(renderTicketItem)}
+                </div>
+              )}
+            </>
+          );
+        })()}
       </Drawer>
     </div>
   );
