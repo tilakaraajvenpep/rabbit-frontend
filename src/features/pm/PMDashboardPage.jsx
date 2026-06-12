@@ -959,7 +959,9 @@ const PMDashboardPage = () => {
                 </Timeline>
               ) : (
                 <div style={{ marginTop: 16 }}>
-                  <Alert message="No milestones defined for this project." type="info" showIcon style={{ marginBottom: 16 }} />
+                  {projectTickets.length === 0 && (
+                    <Alert message="No milestones defined for this project." type="info" showIcon style={{ marginBottom: 16 }} />
+                  )}
                   {projectTickets.length > 0 && (
                     <div>
                       <div style={{ fontSize: '13px', fontWeight: 700, color: isDarkMode ? '#e2e8f0' : '#1e293b', marginBottom: 10 }}>
