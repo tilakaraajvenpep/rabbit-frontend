@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, Form, Input, Select, InputNumber, DatePicker, notification, Space, Alert } from 'antd';
+import { Modal, Form, Input, Select, InputNumber, DatePicker, notification, Space, Alert, Typography } from 'antd';
 import { useForm, Controller } from 'react-hook-form';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
@@ -7,6 +7,7 @@ import { adminService } from '../../services/adminService';
 import { useAuthStore } from '../../store/authStore';
 
 const { TextArea } = Input;
+const { Text } = Typography;
 
 const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [], onRequestHours, onSuccess }) => {
   const { currentUser: authUser, role: authRole } = useAuthStore();
