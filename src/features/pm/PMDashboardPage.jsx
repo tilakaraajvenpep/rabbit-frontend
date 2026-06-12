@@ -136,7 +136,27 @@ const PMDashboardPage = () => {
         };
       });
 
-      setProjects(updatedProjects);
+      // Fetch document category checks for pending projects
+      const pendingPMApproval = updatedProjects.filter(p => p.status === 'PendingPMApproval');
+      const docChecks = await Promise.all(
+        pendingPMApproval.map(async (p) => {
+          try {
+            const docsRes = await projectService.getDocuments(p.id);
+            const docs = docsRes.data || [];
+            const hasBudgetDoc = docs.some(d => d.documentCategory === 'budget_milestones');
+            return { projectId: p.id, hasBudgetDoc };
+          } catch (err) {
+            return { projectId: p.id, hasBudgetDoc: false };
+          }
+        })
+      );
+      const docCheckMap = new Map(docChecks.map(d => [d.projectId, d.hasBudgetDoc]));
+      const finalProjects = updatedProjects.map(p => ({
+        ...p,
+        hasBudgetDoc: docCheckMap.get(p.id) || false
+      }));
+
+      setProjects(finalProjects);
       setTickets(allTickets);
       setTeamLeads((usersRes.data || []).filter(u => u.role === 'TeamLead'));
       if (alertsRes && alertsRes.data) {
@@ -151,9 +171,13 @@ const PMDashboardPage = () => {
   };
 
   const handleApproveProject = async (project) => {
+    const hasBudgetAndMilestone = project.hasBudgetDoc || (project.milestones && Array.isArray(project.milestones) && project.milestones.length > 0);
+
     Modal.confirm({
-      title: 'Approve Project Budget & Milestones?',
-      content: `Are you sure you want to approve "${project.name}"? This will auto-generate project tickets and move the project status to Approved.`,
+      title: hasBudgetAndMilestone ? 'Approve Project & Auto-generate Tickets?' : 'Approve Project?',
+      content: hasBudgetAndMilestone
+        ? `Are you sure you want to approve "${project.name}"? This will auto-generate project tickets and move the project status to Approved.`
+        : `Are you sure you want to approve "${project.name}"? No budget and milestone document is present. Please create tickets manually. This will move the project status to Approved.`,
       okText: 'Yes, Approve',
       cancelText: 'No',
       onOk: async () => {
@@ -164,7 +188,9 @@ const PMDashboardPage = () => {
           });
           notification.success({ 
             message: 'Project Approved', 
-            description: 'Tickets have been automatically generated for this project.' 
+            description: hasBudgetAndMilestone
+              ? 'Tickets have been automatically generated for this project.'
+              : 'Project has been approved. Please create project tickets manually.'
           });
           fetchData();
         } catch (error) {
@@ -505,26 +531,29 @@ const PMDashboardPage = () => {
       key: 'actions',
       width: 320,
       align: 'center',
-      render: (_, record) => (
-        <Space>
-          <Button 
-            type="primary" 
-            icon={<CheckCircleOutlined />} 
-            style={{ background: '#16a34a', borderColor: '#16a34a' }}
-            onClick={() => handleApproveProject(record)}
-          >
-            Approve & Auto-gen Tickets
-          </Button>
-          <Button 
-            type="default" 
-            danger 
-            icon={<RollbackOutlined />} 
-            onClick={() => handleOpenReturnModal(record)}
-          >
-            Return
-          </Button>
-        </Space>
-      )
+      render: (_, record) => {
+        const hasBudgetAndMilestone = record.hasBudgetDoc || (record.milestones && Array.isArray(record.milestones) && record.milestones.length > 0);
+        return (
+          <Space>
+            <Button 
+              type="primary" 
+              icon={<CheckCircleOutlined />} 
+              style={{ background: '#16a34a', borderColor: '#16a34a' }}
+              onClick={() => handleApproveProject(record)}
+            >
+              {hasBudgetAndMilestone ? 'Approve & Auto-gen Tickets' : 'Approve & Create Tickets Manually'}
+            </Button>
+            <Button 
+              type="default" 
+              danger 
+              icon={<RollbackOutlined />} 
+              onClick={() => handleOpenReturnModal(record)}
+            >
+              Return
+            </Button>
+          </Space>
+        );
+      }
     }
   ];
 
