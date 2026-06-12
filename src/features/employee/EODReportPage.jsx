@@ -905,22 +905,32 @@ const EODReportPage = () => {
       }
     }
 
-    // Ticket Allotted Hours Validation Constraint
+    // Ticket Remaining Hours Validation Constraint
     for (let i = 0; i < mappedItems.length; i++) {
       const item = mappedItems[i];
       const ticket = allMyTickets.find(t => String(t.id) === String(item.ticketId));
       if (ticket) {
         const allottedHours = getAllottedHoursForTicket(item.ticketId);
-        if (item.hours > allottedHours) {
+        const totalConsumed = Number(ticket.consumedHours) || 0;
+        const dbReportTodayItem = existingReport?.items?.find(dbItem => String(dbItem.ticketId) === String(item.ticketId));
+        const dbTodayHours = dbReportTodayItem 
+          ? (dbReportTodayItem.hoursInput !== undefined 
+              ? (Number(dbReportTodayItem.hoursInput) + Number(dbReportTodayItem.minutesInput) / 60)
+              : (Number(dbReportTodayItem.hoursSpent || dbReportTodayItem.hours) || 0))
+          : 0;
+        const consumedOther = Math.max(0, totalConsumed - dbTodayHours);
+        const remainingHours = Math.max(0, allottedHours - consumedOther);
+
+        if (item.hours > remainingHours) {
           Modal.confirm({
             title: 'Validation Error',
             content: (
               <div>
-                <p>Hours logged for <strong>"{ticket.code || '#' + ticket.id} — {ticket.title || ticket.ticketTitle}"</strong> ({fmtH(item.hours)}) exceeds the allotted hours ({fmtH(allottedHours)}).</p>
-                <p style={{ fontWeight: 600, color: '#ff4d4f', marginTop: 10 }}>You cannot report beyond the allotted hours. Please raise a ticket for additional hours.</p>
+                <p>Hours logged for <strong>"{ticket.code || '#' + ticket.id} — {ticket.title || ticket.ticketTitle}"</strong> ({fmtH(item.hours)}) exceeds the remaining hours ({fmtH(remainingHours)}).</p>
+                <p style={{ fontWeight: 600, color: '#ff4d4f', marginTop: 10 }}>You cannot report beyond the remaining hours. Please raise a request for additional hours.</p>
               </div>
             ),
-            okText: 'Raise Ticket',
+            okText: 'Raise Request',
             cancelText: 'Cancel',
             okButtonProps: { style: { background: accent, borderColor: accent } },
             onOk: () => {
@@ -1537,11 +1547,21 @@ const EODReportPage = () => {
                               
                               const totalEnteredHours = enteredHrs + (enteredMins / 60);
                               const allottedHours = getAllottedHoursForTicket(item.ticketId);
-                              if (totalEnteredHours > allottedHours) {
-                                const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                              const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
+                              const totalConsumed = ticketObj ? (Number(ticketObj.consumedHours) || 0) : 0;
+                              const dbReportTodayItem = existingReport?.items?.find(ri => String(ri.ticketId) === String(item.ticketId));
+                              const dbTodayHours = dbReportTodayItem 
+                                ? (dbReportTodayItem.hoursInput !== undefined 
+                                    ? (Number(dbReportTodayItem.hoursInput) + Number(dbReportTodayItem.minutesInput) / 60)
+                                    : (Number(dbReportTodayItem.hoursSpent || dbReportTodayItem.hours) || 0))
+                                : 0;
+                              const consumedOther = Math.max(0, totalConsumed - dbTodayHours);
+                              const remainingHours = Math.max(0, allottedHours - consumedOther);
+
+                              if (totalEnteredHours > remainingHours) {
                                 return (
                                   <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 6, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <span>⚠️ Entered hours ({fmtH(totalEnteredHours)}) exceeds allotted ({fmtH(allottedHours)}).</span>
+                                    <span>⚠️ Entered hours ({fmtH(totalEnteredHours)}) exceeds remaining ({fmtH(remainingHours)}).</span>
                                     {!viewOnly && (
                                       <Button 
                                         type="primary" 
