@@ -53,6 +53,7 @@ const CostAnalysisPage = () => {
 
   // Extraction state
   const [extractedOnce, setExtractedOnce] = useState(false);
+  const [isBudgetEdited, setIsBudgetEdited] = useState(false);
 
   useEffect(() => {
     fetchProject();
@@ -96,6 +97,7 @@ const CostAnalysisPage = () => {
         setTotalBudget(sumBudget);
         setExtractedOnce(true);
       }
+      setIsBudgetEdited(false);
 
       // Load documents
       let docForExtraction = null;
@@ -157,6 +159,7 @@ const CostAnalysisPage = () => {
         setTotalHours(calcHours);
       }
       setExtractedOnce(true);
+      setIsBudgetEdited(false);
     } catch (err) {
       console.error('Auto-extraction failed:', err);
     } finally {
@@ -185,6 +188,7 @@ const CostAnalysisPage = () => {
         setTotalHours(calcHours);
       }
       setExtractedOnce(true);
+      setIsBudgetEdited(false);
 
       notification.success({
         message: 'Extraction Complete',
@@ -471,7 +475,10 @@ const CostAnalysisPage = () => {
                   formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                   parser={value => value.replace(/₹\s?|(,*)/g, '')}
                   placeholder="Enter total project budget"
-                  onChange={val => setTotalBudget(val || 0)}
+                  onChange={val => {
+                    setTotalBudget(val || 0);
+                    setIsBudgetEdited(true);
+                  }}
                 />
               </Form.Item>
             </Card>
@@ -535,7 +542,7 @@ const CostAnalysisPage = () => {
                     placeholder={billingType === 'monthly' ? 'Hours per month' : 'Total fixed hours'}
                     onChange={handleTotalHoursChange}
                   />
-                  {(!totalHours || totalHours === 0) && totalBudget > 0 && (
+                  {(isBudgetEdited || !totalHours || totalHours === 0) && totalBudget > 0 && (
                     <Button
                       size="large"
                       type="dashed"
