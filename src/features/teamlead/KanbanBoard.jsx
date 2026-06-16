@@ -1061,7 +1061,44 @@ const KanbanBoard = () => {
       <PageHeader 
         title="Kanban Board" 
         extra={
-          <Space>
+          <Space wrap size={[8, 8]}>
+            {projectId && canEdit && (
+              <Space wrap size={[8, 8]}>
+                {isManager && (
+                  <Button icon={<UploadOutlined />} onClick={() => {
+                    setImportedTickets([]);
+                    setIsImportModalOpen(true);
+                  }}>
+                    Import Excel
+                  </Button>
+                )}
+                <Button icon={<BookOutlined />} onClick={handleOpenTemplatesModal}>
+                  Templates
+                </Button>
+                <Button icon={<EditOutlined />} onClick={handleOpenHeadingsModal}>
+                  Edit Headings
+                </Button>
+              </Space>
+            )}
+            {projectId && canEdit && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>Create Ticket</Button>
+            )}
+          </Space>
+        }
+      />
+
+      {/* Styled Responsive Control Toolbar */}
+      <Card 
+        bodyStyle={{ padding: '12px 20px' }} 
+        className="glass-panel"
+        style={{ 
+          marginBottom: 20, 
+          boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+        }}
+      >
+        <Space wrap size={24} style={{ width: '100%' }}>
+          <Space direction="vertical" size={4}>
+            <Text type="secondary" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</Text>
             <Select
               placeholder="Select Project"
               style={{ width: 250 }}
@@ -1069,7 +1106,11 @@ const KanbanBoard = () => {
               onChange={handleProjectChange}
               options={allProjects.map(p => ({ label: p.name, value: String(p.id) }))}
             />
-            {projectId && (
+          </Space>
+
+          {projectId && (
+            <Space direction="vertical" size={4}>
+              <Text type="secondary" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team Member Filter</Text>
               <Select
                 placeholder="Filter by Team Member"
                 style={{ width: 230 }}
@@ -1110,31 +1151,10 @@ const KanbanBoard = () => {
                   ];
                 })()}
               />
-            )}
-            {projectId && canEdit && (
-              <Space>
-                {isManager && (
-                  <Button icon={<UploadOutlined />} onClick={() => {
-                    setImportedTickets([]);
-                    setIsImportModalOpen(true);
-                  }}>
-                    Import Excel
-                  </Button>
-                )}
-                <Button icon={<BookOutlined />} onClick={handleOpenTemplatesModal}>
-                  Templates
-                </Button>
-                <Button icon={<EditOutlined />} onClick={handleOpenHeadingsModal}>
-                  Edit Headings
-                </Button>
-              </Space>
-            )}
-            {projectId && canEdit && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>Create Ticket</Button>
-            )}
-          </Space>
-        }
-      />
+            </Space>
+          )}
+        </Space>
+      </Card>
 
       {/* Submit to Team Lead banner */}
       {projectId && project?.status === 'Approved' && isManager && (
