@@ -157,6 +157,22 @@ const HRTeamPage = () => {
     }
   };
 
+  const handleRoleChange = async (userId, role) => {
+    try {
+      await adminService.updateUserRole(userId, role);
+      notification.success({
+        message: 'Success',
+        description: 'User role updated successfully.'
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u));
+    } catch (error) {
+      notification.error({
+        message: 'Error',
+        description: error.response?.data?.message || 'Failed to update user role.'
+      });
+    }
+  };
+
   const filteredUsers = users.filter(u => {
     const nameStr = (u.name || u.fullName || '').toLowerCase();
     const emailStr = (u.email || '').toLowerCase();
@@ -206,6 +222,26 @@ const HRTeamPage = () => {
           <MailOutlined style={{ color: '#8c8c8c' }} />
           <Text style={{ fontSize: '13px' }}>{text}</Text>
         </div>
+      )
+    },
+    {
+      title: 'Role',
+      dataIndex: 'role',
+      key: 'role',
+      width: 160,
+      render: (role, record) => (
+        <Select 
+          value={role} 
+          style={{ width: '100%', minWidth: 120 }} 
+          onChange={(newRole) => handleRoleChange(record.id, newRole)}
+        >
+          <Select.Option value="Sales">Sales</Select.Option>
+          <Select.Option value="Accounts">Accounts</Select.Option>
+          <Select.Option value="TeamLead">Team Lead</Select.Option>
+          <Select.Option value="Employee">Employee</Select.Option>
+          <Select.Option value="ProjectManager">PM</Select.Option>
+          <Select.Option value="HR">HR</Select.Option>
+        </Select>
       )
     },
     {
