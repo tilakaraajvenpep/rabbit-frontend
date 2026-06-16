@@ -1129,7 +1129,7 @@ const KanbanBoard = () => {
                 </Button>
               </Space>
             )}
-            {projectId && canEdit && (authRole !== 'ProjectManager' && authUser?.role !== 'ProjectManager') && (
+            {projectId && canEdit && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>Create Ticket</Button>
             )}
           </Space>
