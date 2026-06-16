@@ -1087,6 +1087,22 @@ const KanbanBoard = () => {
                       (u.role === 'Employee' && String(u.teamLeadId) === String(myUserId)) ||
                       (u.role === 'Employee' && projectAssignedIds.includes(String(u.id || u.userId)))
                     );
+                  } else if (authRole === 'ProjectManager' || authUser?.role === 'ProjectManager') {
+                    filteredUsers = filteredUsers.filter(u => {
+                      if (String(u.id || u.userId) === String(myUserId)) return true;
+                      if (u.role === 'TeamLead') {
+                        return String(u.projectManagerId) === String(myUserId);
+                      }
+                      if (u.role === 'Employee') {
+                        if (String(u.projectManagerId) === String(myUserId)) return true;
+                        if (u.teamLeadId) {
+                          const tl = users.find(tlUser => String(tlUser.id || tlUser.userId) === String(u.teamLeadId));
+                          if (tl && String(tl.projectManagerId) === String(myUserId)) return true;
+                        }
+                        return false;
+                      }
+                      return false;
+                    });
                   }
                   return [
                     { label: 'All Team Members', value: 'all' },
@@ -1113,7 +1129,7 @@ const KanbanBoard = () => {
                 </Button>
               </Space>
             )}
-            {projectId && canEdit && (
+            {projectId && canEdit && (authRole !== 'ProjectManager' && authUser?.role !== 'ProjectManager') && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>Create Ticket</Button>
             )}
           </Space>
