@@ -7,18 +7,21 @@ import { projectService } from '../../services/projectService';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import EmptyState from '../../components/common/EmptyState';
+import { useAuthStore } from '../../store/authStore';
 
 const { Text } = Typography;
 
 const ProjectListPage = () => {
   const navigate = useNavigate();
+  const { token, isAuthenticated } = useAuthStore();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
+    if (!token || !isAuthenticated) return;
     fetchProjects();
-  }, []);
+  }, [token, isAuthenticated]);
 
   const fetchProjects = async () => {
     setLoading(true);

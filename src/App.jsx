@@ -6,7 +6,7 @@ import ProtectedRoute from './components/layout/ProtectedRoute';
 import LoadingScreen from './components/common/LoadingScreen';
 import EmployeeReportsPage from './features/employee/EmployeeReportsPage';
 import { useThemeStore } from './store/themeStore';
-
+import SessionTimeoutHandler from './components/common/SessionTimeoutHandler';
 
 // Lazy load features
 const LoginPage = React.lazy(() => import('./features/auth/LoginPage'));
@@ -143,6 +143,7 @@ const App = () => {
       }
     }}>
       <BrowserRouter>
+        <SessionTimeoutHandler />
         <Suspense fallback={<LoadingScreen />}>
           <Routes>
             {/* Public Routes */}

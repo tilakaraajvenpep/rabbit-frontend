@@ -15,6 +15,7 @@ import dayjs from 'dayjs';
 import { projectService } from '../../services/projectService';
 import { useThemeStore } from '../../store/themeStore';
 import PageHeader from '../../components/common/PageHeader';
+import { useAuthStore } from '../../store/authStore';
 
 const { Text, Title } = Typography;
 
@@ -215,11 +216,15 @@ const ProjectCard = ({ record, isDarkMode, onAnalyze, onDelete }) => {
 const PendingReviewPage = () => {
   const navigate = useNavigate();
   const { isDarkMode } = useThemeStore();
+  const { token, isAuthenticated } = useAuthStore();
   const [projects, setProjects]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [activeTab, setActiveTab] = useState('All');
 
-  useEffect(() => { fetchPendingProjects(); }, []);
+  useEffect(() => {
+    if (!token || !isAuthenticated) return;
+    fetchPendingProjects();
+  }, [token, isAuthenticated]);
 
   const fetchPendingProjects = async () => {
     setLoading(true);

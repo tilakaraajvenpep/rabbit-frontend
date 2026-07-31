@@ -7,6 +7,8 @@ import { ticketService } from '../../services/ticketService';
 import { adminService } from '../../services/adminService';
 import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
+import { formatHoursToHrsMins } from '../../utils/timeUtils';
+import { useAuthStore } from '../../store/authStore';
 
 const { Text } = Typography;
 
@@ -14,13 +16,15 @@ const HRProjectsPage = () => {
   const [loading, setLoading] = useState(true);
   const [projectList, setProjectList] = useState([]);
   const { isDarkMode } = useThemeStore();
+  const { token, isAuthenticated } = useAuthStore();
 
   useEffect(() => {
+    if (!token || !isAuthenticated) return;
     fetchData();
-    const onVisible = () => { if (document.visibilityState === 'visible') fetchData(); };
+    const onVisible = () => { if (document.visibilityState === 'visible' && token && isAuthenticated) fetchData(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, []);
+  }, [token, isAuthenticated]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -36,6 +40,7 @@ const HRProjectsPage = () => {
 
       const detailedProjects = projects.map(p => {
         const projectTickets  = tickets.filter(t => String(t.projectId) === String(p.id || p.projectId));
+        const ticketConsumedHours = projectTickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
         const assignedUserIds = [...new Set(projectTickets.map(t => t.assignedToUserId).filter(Boolean))];
         const tlAssignedIds   = p.assignedEmployeeIds && Array.isArray(p.assignedEmployeeIds) ? p.assignedEmployeeIds : [];
         const employees = users.filter(u =>
@@ -46,6 +51,8 @@ const HRProjectsPage = () => {
         const tlUser = users.find(u => String(u.id || u.userId) === String(p.assignedTeamLeadId));
         return {
           ...p,
+          consumedHours: (Number(p.consumedHours) || 0) + ticketConsumedHours,
+          remainingHours: Math.max(0, (Number(p.remainingHours) || 0) - ticketConsumedHours),
           teamLeadName:   p.teamLead || (tlUser ? (tlUser.name || tlUser.fullName) : 'None'),
           teamLeadAvatar: tlUser ? tlUser.avatar : null,
           employees,
@@ -87,15 +94,38 @@ const HRProjectsPage = () => {
       ),
     },
     {
-      title: 'Approved Hours',
+      title: 'Total Hours',
       dataIndex: 'approvedHours',
       key: 'approvedHours',
       render: (hours) => (
         <Space>
           <ClockCircleOutlined style={{ color: '#4f6ef7' }} />
-          <Text strong>{hours ? `${Number(hours)} hrs` : '0 hrs'}</Text>
+          <Text strong>{formatHoursToHrsMins(hours)}</Text>
         </Space>
       ),
+    },
+    {
+      title: 'Utilized Hours',
+      dataIndex: 'consumedHours',
+      key: 'consumedHours',
+      render: (hours) => (
+        <Space>
+          <ClockCircleOutlined style={{ color: '#cf1322' }} />
+          <Text strong>{formatHoursToHrsMins(hours)}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Remaining Hours',
+      key: 'remainingHours',
+      render: (_, record) => {
+        return (
+          <Space>
+            <ClockCircleOutlined style={{ color: '#3f9142' }} />
+            <Text strong>{formatHoursToHrsMins(record.remainingHours)}</Text>
+          </Space>
+        );
+      },
     },
     {
       title: 'Team Lead',

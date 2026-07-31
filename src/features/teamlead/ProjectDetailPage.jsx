@@ -19,6 +19,7 @@ import PriorityBadge from '../../components/common/PriorityBadge';
 import HoursProgress from '../../components/common/HoursProgress';
 import dayjs from 'dayjs';
 import { useAuthStore } from '../../store/authStore';
+import { formatHoursToHrsMins } from '../../utils/timeUtils';
 
 const { Text } = Typography;
 
@@ -94,7 +95,8 @@ const ProjectDetailPage = () => {
       const computedConsumed = allTickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
       const updatedProject = {
         ...projRes.data,
-        consumedHours: Math.max(Number(projRes.data.consumedHours) || 0, computedConsumed)
+        consumedHours: (Number(projRes.data.consumedHours) || 0) + computedConsumed,
+        ticketConsumedHours: computedConsumed
       };
       setProject(updatedProject);
       setTickets(allTickets);
@@ -136,7 +138,7 @@ const ProjectDetailPage = () => {
         if (!userId) {
           return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>Not Assigned</span>;
         }
-        const user = users.find(u => String(u.id) === String(userId)) || mockUsers.find(u => String(u.id) === String(userId));
+        const user = (users || []).find(u => String(u.id || u.userId) === String(userId));
         if (!user) {
           return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>Not Assigned</span>;
         }
@@ -157,7 +159,7 @@ const ProjectDetailPage = () => {
   if (loading) return <Skeleton active />;
   if (!project) return <div>Project not found</div>;
 
-  const remainingHours = Number(project.totalHours) || 0;
+  const remainingHours = Math.max(0, (Number(project.remainingHours) || 0) - (Number(project.ticketConsumedHours) || 0));
   const projectEmployees = (project.assignedEmployeeIds && Array.isArray(project.assignedEmployeeIds))
     ? users.filter(u => project.assignedEmployeeIds.includes(u.id || u.userId) && u.isActive !== false && u.status !== 'Inactive')
     : [];
@@ -202,17 +204,17 @@ const ProjectDetailPage = () => {
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={8}>
           <Card>
-            <Statistic title="Approved Hours" value={project.approvedHours} prefix={<FieldTimeOutlined />} />
+            <Statistic title="Total Hours" value={formatHoursToHrsMins(project.approvedHours)} prefix={<FieldTimeOutlined />} />
           </Card>
         </Col>
         <Col span={8}>
           <Card>
-            <Statistic title="Consumed Hours" value={project.consumedHours} prefix={<FieldTimeOutlined />} valueStyle={{ color: '#cf1322' }} />
+            <Statistic title="Utilized Hours" value={formatHoursToHrsMins(project.consumedHours)} prefix={<FieldTimeOutlined />} valueStyle={{ color: '#cf1322' }} />
           </Card>
         </Col>
         <Col span={8}>
           <Card>
-            <Statistic title="Remaining Hours" value={remainingHours} prefix={<FieldTimeOutlined />} valueStyle={{ color: '#3f9142' }} />
+            <Statistic title="Remaining Hours" value={formatHoursToHrsMins(remainingHours)} prefix={<FieldTimeOutlined />} valueStyle={{ color: '#3f9142' }} />
           </Card>
         </Col>
       </Row>

@@ -39,17 +39,21 @@ const LoginPage = () => {
           login(user, accessToken, refreshToken);
           logger.info('Login successful', user);
 
-          switch (user.role) {
-            case 'SuperAdmin': navigate('/superadmin/tenants'); break;
-            case 'TenantAdmin': navigate('/admin/users'); break;
-            case 'Sales': navigate('/sales/projects'); break;
-            case 'Accounts': navigate('/accounts/pending'); break;
-            case 'TeamLead': navigate('/teamlead/projects'); break;
-            case 'Employee': navigate('/employee/tickets'); break;
-            case 'ProjectManager': navigate('/pm/dashboard'); break;
-            case 'HR': navigate('/hr/team'); break;
-            default: navigate('/');
-          }
+          const userRoles = typeof user.role === 'string'
+            ? user.role.split(',').map(r => r.trim()).filter(Boolean)
+            : (Array.isArray(user.role) ? user.role : [user.role]);
+
+          const hasRole = (r) => userRoles.includes(r);
+
+          if (hasRole('SuperAdmin')) navigate('/superadmin/tenants');
+          else if (hasRole('TenantAdmin')) navigate('/admin/users');
+          else if (hasRole('ProjectManager')) navigate('/pm/dashboard');
+          else if (hasRole('Accounts')) navigate('/accounts/pending');
+          else if (hasRole('HR')) navigate('/hr/team');
+          else if (hasRole('TeamLead')) navigate('/teamlead/projects');
+          else if (hasRole('Sales')) navigate('/sales/projects');
+          else if (hasRole('Employee')) navigate('/employee/tickets');
+          else navigate('/');
         } else {
           notification.error({
             message: 'Login Failed',

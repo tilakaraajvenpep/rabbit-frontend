@@ -89,9 +89,11 @@ const AssignTicketModal = ({ open, onClose, ticket, onSuccess }) => {
         <div>
           <Text strong>Select Assignees:</Text>
           <Select 
+            showSearch
             mode="multiple"
             style={{ width: '100%', marginTop: 8 }} 
             placeholder="Select employees"
+            optionFilterProp="children"
             value={selectedUser}
             onChange={(val) => {
               setSelectedUser(val);
@@ -111,7 +113,7 @@ const AssignTicketModal = ({ open, onClose, ticket, onSuccess }) => {
             {employees.map(emp => (
               <Select.Option key={emp.id} value={emp.id}>
                 <Space>
-                  <Avatar size="small" src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${emp.email}`} icon={<UserOutlined />} />
+                  <Avatar size="small" icon={<UserOutlined />} />
                   {emp.name || emp.fullName} ({emp.role})
                 </Space>
               </Select.Option>

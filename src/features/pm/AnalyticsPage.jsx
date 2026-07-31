@@ -56,22 +56,25 @@ const AnalyticsPage = () => {
     </div>
   );
 
-  // Filter associated employees and team leads
+  // Filter associated employees, team leads, and project managers
   const pmId = authUser?.userId || authUser?.id;
   const filteredUsers = allUsers.filter(u => {
     if (authRole === 'Employee') {
       return String(u.id || u.userId) === String(pmId);
     }
-    if (u.role !== 'Employee' && u.role !== 'TeamLead') return false;
+    if (u.role !== 'Employee' && u.role !== 'TeamLead' && u.role !== 'ProjectManager') return false;
     
     if (authRole === 'ProjectManager') {
+      if (u.role === 'ProjectManager') {
+        return true;
+      }
       if (u.role === 'TeamLead') {
         return String(u.projectManagerId) === String(pmId);
       }
       if (u.role === 'Employee') {
         if (String(u.projectManagerId) === String(pmId)) return true;
         if (u.teamLeadId) {
-          const tl = allUsers.find(tlUser => String(tlUser.id) === String(u.teamLeadId));
+          const tl = allUsers.find(tlUser => String(tlUser.id || tlUser.userId) === String(u.teamLeadId));
           if (tl && String(tl.projectManagerId) === String(pmId)) return true;
         }
         return false;
@@ -83,6 +86,7 @@ const AnalyticsPage = () => {
       if (u.role === 'Employee') {
         return String(u.teamLeadId) === String(pmId);
       }
+      return false;
     }
     return true;
   });
@@ -103,11 +107,10 @@ const AnalyticsPage = () => {
       key: 'employee',
       width: '16%',
       render: (_, record) => {
-        const tl = allUsers.find(u => String(u.id) === String(record.teamLeadId));
+        const tl = allUsers.find(u => String(u.id || u.userId) === String(record.teamLeadId));
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Avatar 
-              src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${record.email}`} 
               icon={<UserOutlined />} 
               size={32}
               style={{ flexShrink: 0 }}
@@ -117,8 +120,8 @@ const AnalyticsPage = () => {
                 {record.name || record.fullName}
               </Text>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 2 }}>
-                <Tag color={record.role === 'TeamLead' ? 'blue' : 'green'} style={{ alignSelf: 'flex-start', margin: 0, fontSize: '11px', lineHeight: '12px', padding: '0 4px', borderRadius: 3 }}>
-                  {record.role === 'TeamLead' ? 'Team Lead' : 'Employee'}
+                <Tag color={record.role === 'TeamLead' ? 'blue' : record.role === 'ProjectManager' ? 'purple' : 'green'} style={{ alignSelf: 'flex-start', margin: 0, fontSize: '11px', lineHeight: '12px', padding: '0 4px', borderRadius: 3 }}>
+                  {record.role === 'TeamLead' ? 'Team Lead' : record.role === 'ProjectManager' ? 'Project Manager' : 'Employee'}
                 </Tag>
                 {record.role === 'Employee' && tl && (
                   <Text type="secondary" style={{ fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>
@@ -381,6 +384,38 @@ const AnalyticsPage = () => {
               <Text type="secondary" style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4 }}>TICKET TITLE / NAME</Text>
               <div style={{ fontSize: 14, fontWeight: 700, color: isDarkMode ? '#f4f4f5' : '#18181b' }}>
                 {selectedTicketForDesc.title}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
+              <div>
+                <Text type="secondary" style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4 }}>START DATE</Text>
+                <div style={{ fontSize: 13, fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {selectedTicketForDesc.startDate 
+                    ? dayjs(selectedTicketForDesc.startDate).format('DD MMM YYYY') 
+                    : 'Not Specified'}
+                </div>
+              </div>
+              <div>
+                <Text type="secondary" style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4 }}>DUE DATE</Text>
+                <div style={{ fontSize: 13, fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#475569' }}>
+                  {selectedTicketForDesc.dueDate 
+                    ? dayjs(selectedTicketForDesc.dueDate).format('DD MMM YYYY') 
+                    : 'Not Specified'}
+                </div>
+              </div>
+              <div>
+                <Text type="secondary" style={{ fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 4 }}>TASK TYPE</Text>
+                {selectedTicketForDesc.taskType ? (
+                  <Tag
+                    color={selectedTicketForDesc.taskType === 'Bug' ? 'red' : 'green'}
+                    style={{ fontWeight: 700, fontSize: 11, borderRadius: 4, margin: 0, textTransform: 'uppercase' }}
+                  >
+                    {selectedTicketForDesc.taskType === 'Bug' ? '🐛 Bug' : '✨ New'}
+                  </Tag>
+                ) : (
+                  <Text style={{ fontSize: 13, color: isDarkMode ? '#a1a1aa' : '#71717a' }}>Not Specified</Text>
+                )}
               </div>
             </div>
 

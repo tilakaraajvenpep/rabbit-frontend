@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card, Form, Input, Button, Space, Typography, Row, Col,
   Avatar, Tag, Divider, notification, theme, Tabs
@@ -35,8 +35,55 @@ const ProfilePage = () => {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
+  const [profileData, setProfileData] = useState(null);
+  const [allUsers, setAllUsers] = useState([]);
+  const [myProjects, setMyProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const role = currentUser?.role || 'Employee';
   const roleMeta = ROLE_META[role] || ROLE_META['Employee'];
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const profileRes = await apiClient.get('/users/me');
+        const freshUser = profileRes.data.data;
+        setProfileData(freshUser);
+        
+        setUser({
+          ...currentUser,
+          ...freshUser,
+          name: freshUser.fullName,
+        });
+
+        const usersRes = await apiClient.get('/users');
+        setAllUsers(usersRes.data.data || []);
+
+        const projRes = await apiClient.get('/projects');
+        const projList = projRes.data.data || [];
+        const currentUserId = freshUser.userId || freshUser.id;
+        const allocatedProjects = projList.filter(p => {
+          return p.employeeAllocatedHours && p.employeeAllocatedHours[currentUserId] !== undefined;
+        });
+        setMyProjects(allocatedProjects);
+      } catch (err) {
+        console.error('Failed to load profile details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (profileData) {
+      profileForm.setFieldsValue({
+        fullName: profileData.fullName || profileData.name || '',
+        email: profileData.email || '',
+      });
+    }
+  }, [profileData]);
 
   const handleUpdateProfile = async (values) => {
     setSavingProfile(true);
@@ -53,6 +100,7 @@ const ProfilePage = () => {
         name: updatedUser.fullName,
       };
       setUser(mergedUser);
+      setProfileData(mergedUser);
 
       notification.success({
         message: 'Profile Updated',
@@ -90,6 +138,14 @@ const ProfilePage = () => {
     borderRadius: 12,
     border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
   };
+
+  const teamLead = allUsers.find(u => Number(u.id || u.userId) === Number(profileData?.teamLeadId));
+  const teamLeadName = teamLead ? (teamLead.name || teamLead.fullName) : 'None';
+
+  const projectManager = allUsers.find(u => Number(u.id || u.userId) === Number(profileData?.projectManagerId));
+  const pmName = projectManager ? (projectManager.name || projectManager.fullName) : 'None';
+
+  const projectNames = myProjects.map(p => p.projectCode || p.code || p.projectName).join(', ') || 'No Projects Assigned';
 
   const tabItems = [
     {
@@ -144,10 +200,52 @@ const ProfilePage = () => {
 
           <Row gutter={24}>
             <Col xs={24} sm={12}>
+              <Form.Item label="Designation">
+                <Input
+                  value={profileData?.designation || 'Not Set'}
+                  disabled
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
               <Form.Item label="Role">
                 <Input
                   prefix={roleMeta.icon}
                   value={roleMeta.label}
+                  disabled
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={24}>
+            <Col xs={24} sm={12}>
+              <Form.Item label="Assigned Team Lead">
+                <Input
+                  value={teamLeadName}
+                  disabled
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item label="Reporting Project Manager">
+                <Input
+                  value={pmName}
+                  disabled
+                  size="large"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={24}>
+            <Col xs={24} sm={12}>
+              <Form.Item label="Assigned Projects">
+                <Input
+                  value={projectNames}
                   disabled
                   size="large"
                 />
@@ -164,7 +262,7 @@ const ProfilePage = () => {
             </Col>
           </Row>
 
-          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right', marginTop: 16 }}>
             <Button
               type="primary"
               htmlType="submit"
@@ -250,7 +348,7 @@ const ProfilePage = () => {
             </Col>
           </Row>
 
-          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right', marginTop: 16 }}>
             <Button
               type="primary"
               htmlType="submit"
@@ -298,6 +396,13 @@ const ProfilePage = () => {
                 {roleMeta.label}
               </Tag>
             </div>
+            {profileData?.designation && (
+              <div style={{ marginBottom: 8 }}>
+                <Text style={{ fontSize: 15, fontWeight: 600, color: token.colorPrimary }}>
+                  {profileData.designation}
+                </Text>
+              </div>
+            )}
             <Space size="large" wrap>
               <Space size={6}>
                 <MailOutlined style={{ color: token.colorTextSecondary }} />

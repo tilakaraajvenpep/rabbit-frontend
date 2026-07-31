@@ -17,6 +17,8 @@ import {
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+dayjs.extend(utc);
 import { projectService } from '../../services/projectService';
 import { ticketService } from '../../services/ticketService';
 import { adminService } from '../../services/adminService';
@@ -24,6 +26,7 @@ import { useAuthStore } from '../../store/authStore';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import HoursProgress from '../../components/common/HoursProgress';
+import { formatHoursToHrsMins } from '../../utils/timeUtils';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -39,6 +42,7 @@ const ProjectOverviewPage = () => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [consumedHours, setConsumedHours] = useState(0);
+  const [ticketConsumedHours, setTicketConsumedHours] = useState(0);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -65,7 +69,8 @@ const ProjectOverviewPage = () => {
       // Filter tickets for this project and collect unique assigned user IDs
       const projectTickets = allTickets.filter(t => String(t.projectId) === String(id));
       const calculatedHours = projectTickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
-      setConsumedHours(calculatedHours || Number(projRes.data.consumedHours) || 0);
+      setTicketConsumedHours(calculatedHours);
+      setConsumedHours((Number(projRes.data.consumedHours) || 0) + calculatedHours);
 
       const assignedUserIds = [...new Set(projectTickets.map(t => t.assignedToUserId).filter(Boolean))];
 
@@ -112,6 +117,8 @@ const ProjectOverviewPage = () => {
     : remainingDays < 0
       ? `${remainingDays} days (Overdue)`
       : `${remainingDays} days`;
+  const remainingHours = Math.max(0, (Number(project.remainingHours) || 0) - ticketConsumedHours);
+  const isOverBudgetHours = (Number(consumedHours) || 0) > (Number(project.approvedHours) || 0);
 
   return (
     <div style={{ height: 'calc(100vh - 110px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -141,30 +148,27 @@ const ProjectOverviewPage = () => {
           )}
           <Card size="small" style={{ flex: 1, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <Statistic 
-              title={<span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Approved Hours</span>} 
-              value={project.approvedHours} 
+              title={<span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Total Hours</span>} 
+              value={formatHoursToHrsMins(project.approvedHours)} 
               prefix={<FieldTimeOutlined />} 
               valueStyle={{ fontSize: 20, fontWeight: 700 }}
             />
           </Card>
           <Card size="small" style={{ flex: 1, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <Statistic 
-              title={<span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Consumed Hours</span>} 
-              value={consumedHours.toFixed(2)} 
+              title={<span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Utilized Hours</span>} 
+              value={formatHoursToHrsMins(consumedHours)} 
               prefix={<FieldTimeOutlined />} 
-              valueStyle={{ color: '#cf1322', fontSize: 20, fontWeight: 700 }} 
+              valueStyle={{ color: isOverBudgetHours ? '#cf1322' : 'inherit', fontSize: 20, fontWeight: 700 }}
             />
           </Card>
           <Card size="small" style={{ flex: 1, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
             <Statistic 
-              title={<span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Days Remaining</span>} 
-              value={displayRemaining} 
-              prefix={<CalendarOutlined />} 
-              valueStyle={{ 
-                color: (typeof remainingDays === 'number' && remainingDays < 7) ? '#cf1322' : '#3f9142', 
-                fontSize: 20, 
-                fontWeight: 700 
-              }} 
+              title={<span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Remaining Hours</span>} 
+              value={formatHoursToHrsMins(remainingHours)} 
+              prefix={<FieldTimeOutlined />} 
+              valueStyle={{ color: isOverBudgetHours ? '#cf1322' : '#3f9142', fontSize: 20, fontWeight: 700 }}
+              suffix={isOverBudgetHours ? ' (Over)' : ' left'}
             />
           </Card>
         </div>
@@ -187,7 +191,7 @@ const ProjectOverviewPage = () => {
                   <Text type="secondary" style={{ fontSize: 12 }}>Status:</Text> <StatusBadge status={project.status} />
                 </Col>
                 <Col span={12}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>Start Date:</Text> <Text strong style={{ fontSize: 13 }}>{dayjs(project.createdAt).format('DD MMM YYYY')}</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>Start Date:</Text> <Text strong style={{ fontSize: 13 }}>{project.startDate ? dayjs(project.startDate).format('DD MMM YYYY') : 'Not Set'}</Text>
                 </Col>
                 <Col span={12}>
                   <Text type="secondary" style={{ fontSize: 12 }}>Est. End Date:</Text> <Text strong style={{ fontSize: 13 }}>{project.endDate ? dayjs(project.endDate).format('DD MMM YYYY') : 'Not Set'}</Text>
@@ -329,7 +333,16 @@ const ProjectOverviewPage = () => {
               style={{ borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
             >
               <div style={{ marginBottom: ['TeamLead', 'ProjectManager'].includes(role) ? 0 : 12 }}>
-                <Text strong style={{ fontSize: 12 }}>Hours Consumption</Text>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text strong style={{ fontSize: 12 }}>Hours Consumption</Text>
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    {formatHoursToHrsMins(consumedHours)} consumed / {formatHoursToHrsMins(project.approvedHours)} approved
+                    {' · '}
+                    <span style={{ color: isOverBudgetHours ? '#cf1322' : '#3f9142', fontWeight: 600 }}>
+                      {formatHoursToHrsMins(remainingHours)} remaining
+                    </span>
+                  </Text>
+                </div>
                 <HoursProgress consumed={consumedHours} total={project.approvedHours} />
               </div>
               {!['TeamLead', 'ProjectManager'].includes(role) && (

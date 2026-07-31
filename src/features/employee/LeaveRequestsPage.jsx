@@ -29,6 +29,7 @@ const STATUS_CONFIG = {
 const TYPE_CONFIG = {
   FullDay: { color: '#6366f1', bg: 'rgba(99,102,241,0.1)', label: 'Full Day',  icon: <SunOutlined /> },
   HalfDay: { color: '#06b6d4', bg: 'rgba(6,182,212,0.1)',  label: 'Half Day', icon: <ClockCircleOutlined /> },
+  Permission: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'Permission', icon: <ClockCircleOutlined /> },
 };
 
 /* ─── Leave Card ─────────────────────────────────────────────── */
@@ -328,10 +329,11 @@ const LeaveRequestsPage = () => {
                 rules={[{ required: true }]}
               >
                 <Radio.Group style={{ width: '100%' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                     {[
                       { value: 'FullDay', label: 'Full Day',  color: '#6366f1', icon: <SunOutlined /> },
                       { value: 'HalfDay', label: 'Half Day', color: '#06b6d4', icon: <ClockCircleOutlined /> },
+                      { value: 'Permission', label: 'Permission', color: '#f59e0b', icon: <ClockCircleOutlined /> },
                     ].map(opt => (
                       <Radio.Button
                         key={opt.value}
@@ -520,9 +522,10 @@ const LeaveRequestsPage = () => {
             rules={[{ required: true }]}
           >
             <Radio.Group style={{ width: '100%' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 <Radio.Button value="FullDay"  style={{ textAlign: 'center', height: 40, lineHeight: '38px', borderRadius: 8 }}>Full Day</Radio.Button>
                 <Radio.Button value="HalfDay" style={{ textAlign: 'center', height: 40, lineHeight: '38px', borderRadius: 8 }}>Half Day</Radio.Button>
+                <Radio.Button value="Permission" style={{ textAlign: 'center', height: 40, lineHeight: '38px', borderRadius: 8 }}>Permission</Radio.Button>
               </div>
             </Radio.Group>
           </Form.Item>

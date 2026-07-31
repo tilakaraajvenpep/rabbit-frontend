@@ -88,6 +88,8 @@ const MyEODReportsPage = () => {
             ticketId: item.ticketId,
             ticketCode: ticketInfo?.code || 'N/A',
             ticketTitle: ticketInfo?.title || 'Unknown',
+            ticketStartDate: ticketInfo?.startDate || null,
+            ticketDueDate: ticketInfo?.dueDate || null,
             hours: Number(item.hours || item.hoursSpent || 0),
             workDone: item.workDone || '',
             key: `${report.userId}-${report.date || report.reportDate}-${item.ticketId || Math.random()}`
@@ -254,10 +256,54 @@ const MyEODReportsPage = () => {
     }
   };
 
+  const getRemainingHours = (record) => {
+    if (!record.ticketId || record.ticketCode === 'N/A') return null;
+    const ticket = tickets.find(t => String(t.id) === String(record.ticketId));
+    if (!ticket) return null;
+
+    let allotted = 0;
+    const uId = currentUser?.userId || currentUser?.id;
+    if (ticket.assignedEmployees && Array.isArray(ticket.assignedEmployees)) {
+      const empAssign = ticket.assignedEmployees.find(emp => String(emp.userId) === String(uId));
+      if (empAssign) {
+        allotted = Number(empAssign.hours) || 0;
+      }
+    }
+    if (!allotted) {
+      allotted = Number(ticket.estimatedHours) || 0;
+    }
+
+    const consumed = Number(ticket.consumedHours) || 0;
+    return Math.max(0, allotted - consumed);
+  };
+
   const columns = [
     { 
-      title: 'Date', dataIndex: 'date', key: 'date', width: 120,
-      render: (date) => dayjs(date).format('DD MMM YYYY')
+      title: 'Ticket Start Date', 
+      dataIndex: 'ticketStartDate', 
+      key: 'ticketStartDate', 
+      width: 140,
+      render: (date, record) => {
+        if (!date) return <span style={{ color: t2 }}>-</span>;
+        return <span style={{ color: t2 }}>{dayjs(date).format('DD MMM YYYY')}</span>;
+      }
+    },
+    { 
+      title: 'Ticket End Date', 
+      dataIndex: 'ticketDueDate', 
+      key: 'ticketDueDate', 
+      width: 140,
+      render: (date, record) => {
+        if (!date) return <span style={{ color: t2 }}>-</span>;
+        return <span style={{ color: t2 }}>{dayjs(date).format('DD MMM YYYY')}</span>;
+      }
+    },
+    { 
+      title: 'Reporting Date', 
+      dataIndex: 'date', 
+      key: 'reportingDate', 
+      width: 130,
+      render: (date) => <span style={{ fontWeight: 600, color: '#4f46e5' }}>{dayjs(date).format('DD MMM YYYY')}</span>
     },
     { 
       title: 'Project Name', 
@@ -296,6 +342,22 @@ const MyEODReportsPage = () => {
         const mins = Math.round((h - hrs) * 60);
         return (
           <span style={{ fontWeight: 700, color: '#10b981' }}>
+            {hrs}h {mins}m
+          </span>
+        );
+      }
+    },
+    { 
+      title: 'Remaining Hours', 
+      key: 'remainingHours', 
+      width: 140,
+      render: (_, record) => {
+        const remaining = getRemainingHours(record);
+        if (remaining === null) return <span style={{ color: t2 }}>-</span>;
+        const hrs = Math.floor(remaining);
+        const mins = Math.round((remaining - hrs) * 60);
+        return (
+          <span style={{ fontWeight: 700, color: '#ff4d4f' }}>
             {hrs}h {mins}m
           </span>
         );
@@ -366,13 +428,13 @@ const MyEODReportsPage = () => {
               pageData.forEach(({ hours }) => { total += hours; });
               return (
                 <Table.Summary.Row style={{ background: isDarkMode ? '#1e2130' : '#f8fafc' }}>
-                  <Table.Summary.Cell index={0} colSpan={4}>
+                  <Table.Summary.Cell index={0} colSpan={6}>
                     <Text strong style={{ color: t1 }}>Total Hours in Current View</Text>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={1} align="left">
-                    <Text strong style={{ color: '#10b981' }}>{total.toFixed(1)} hrs</Text>
+                    <Text strong style={{ color: '#10b981', whiteSpace: 'nowrap' }}>{total.toFixed(1)} hrs</Text>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={2} colSpan={2} />
+                  <Table.Summary.Cell index={2} colSpan={3} />
                 </Table.Summary.Row>
               );
             }}

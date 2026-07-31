@@ -119,10 +119,15 @@ const ChatbotPage = () => {
           items={sessions.map(s => ({
             key: s.id,
             icon: <MessageOutlined />,
+            style: { height: '56px', display: 'flex', alignItems: 'center' },
             label: (
-              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {s.title}
-                <div style={{ fontSize: '10px', color: '#bfbfbf' }}>{dayjs(s.date).format('DD MMM')}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: '1.3', padding: '4px 0' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, display: 'block' }}>
+                  {s.title}
+                </span>
+                <span style={{ fontSize: '11px', color: '#8c8c8c', display: 'block', marginTop: '2px' }}>
+                  {dayjs(s.date).format('DD MMM')}
+                </span>
               </div>
             )
           }))}

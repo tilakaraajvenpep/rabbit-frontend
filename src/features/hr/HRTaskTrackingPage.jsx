@@ -30,6 +30,7 @@ const HRTaskTrackingPage = () => {
   const [roleFilter, setRoleFilter] = useState('all');
   const [selectedPmId, setSelectedPmId] = useState('all');
   const [selectedTlId, setSelectedTlId] = useState('all');
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     fetchData();
@@ -519,7 +520,11 @@ const HRTaskTrackingPage = () => {
           <Table 
             columns={columns} 
             dataSource={filteredMissingData} 
-            pagination={{ pageSize: 10, showSizeChanger: true }}
+            pagination={{ 
+              pageSize: pageSize, 
+              showSizeChanger: true,
+              onChange: (page, size) => setPageSize(size)
+            }}
             bordered
             locale={{ 
               emptyText: <Empty description="Excellent! No team members have missing or short-reported tasks in this date range." /> 

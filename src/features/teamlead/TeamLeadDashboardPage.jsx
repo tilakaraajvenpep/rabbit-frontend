@@ -8,12 +8,14 @@ import { analyticsService } from '../../services/analyticsService';
 import { ticketService } from '../../services/ticketService';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
+import { useAuthStore } from '../../store/authStore';
 
 const { Text } = Typography;
 const { TextArea } = Input;
 
 const TeamLeadDashboardPage = () => {
   const navigate = useNavigate();
+  const { token, isAuthenticated } = useAuthStore();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -24,11 +26,12 @@ const TeamLeadDashboardPage = () => {
   const [submittingAlert, setSubmittingAlert] = useState(false);
 
   useEffect(() => {
+    if (!token || !isAuthenticated) return;
     fetchProjects();
-    const onVisible = () => { if (document.visibilityState === 'visible') fetchProjects(); };
+    const onVisible = () => { if (document.visibilityState === 'visible' && token && isAuthenticated) fetchProjects(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, []);
+  }, [token, isAuthenticated]);
 
   const fetchProjects = async () => {
     setLoading(true);

@@ -7,7 +7,7 @@ import { logger } from '../utils/logger';
 const BACKEND_URL =
   import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim() !== ''
     ? import.meta.env.VITE_API_URL.trim()
-    : 'https://rabbit-backend-p765.onrender.com';
+    : 'https://g3r2qowipf.execute-api.ap-south-1.amazonaws.com/production';
 
 const apiClient = axios.create({
   baseURL: `${BACKEND_URL}/api`,

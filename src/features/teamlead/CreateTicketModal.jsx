@@ -17,6 +17,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
       title: '',
       description: '',
       priority: 'Medium',
+      taskType: 'New',
       estimatedHours: 0,
       assignedTo: [],
       startDate: null,
@@ -123,6 +124,7 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
         title: data.title,
         description: data.description,
         priority: data.priority,
+        taskType: data.taskType || 'New',
         estimatedHours: assignedEmployees.reduce((sum, emp) => sum + emp.hours, 0),
         assignedToUserId: assignedEmployees[0]?.userId || null,
         assignedEmployees: assignedEmployees,
@@ -187,6 +189,19 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
           />
         </Form.Item>
 
+        <Form.Item label="Task Type">
+          <Controller
+            name="taskType"
+            control={control}
+            render={({ field }) => (
+              <Select {...field} style={{ width: '100%' }}>
+                <Select.Option value="New">✨ New</Select.Option>
+                <Select.Option value="Bug">🐛 Bug</Select.Option>
+              </Select>
+            )}
+          />
+        </Form.Item>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
           <Form.Item label="Assigned Employees" required validateStatus={errors.assignedTo ? 'error' : ''} help={errors.assignedTo?.message}>
             <Controller
@@ -196,9 +211,11 @@ const CreateTicketModal = ({ open, onClose, projectId, project, allTickets = [],
               render={({ field }) => (
                 <Select 
                   {...field} 
+                  showSearch
                   mode="multiple"
                   style={{ width: '100%' }} 
                   placeholder="Select employees"
+                  optionFilterProp="children"
                   onChange={(val) => {
                     field.onChange(val);
                     const newAssigned = val.map(id => {

@@ -20,7 +20,7 @@ const { Title, Text, Paragraph } = Typography;
 const MyTicketsPage = () => {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
-  const { currentUser, role } = useAuthStore();
+  const { currentUser, role, token, isAuthenticated } = useAuthStore();
   const { isDarkMode } = useThemeStore();
   
   const [tickets, setTickets] = useState([]);
@@ -31,10 +31,12 @@ const MyTicketsPage = () => {
   // Table Filters State
   const [tableSearchText, setTableSearchText] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [pageSize, setPageSize] = useState(8);
 
   useEffect(() => {
+    if (!token || !isAuthenticated || !currentUser?.id) return;
     fetchMyTickets();
-  }, [currentUser.id]);
+  }, [currentUser?.id, token, isAuthenticated]);
 
   const fetchMyTickets = async () => {
     setLoading(true);
@@ -99,9 +101,19 @@ const MyTicketsPage = () => {
       key: 'title',
       render: (title, record) => (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <a onClick={() => openTicketDetail(record)} style={{ fontWeight: 600, fontSize: '14px', color: '#1d4ed8' }}>
-            {title}
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <a onClick={() => openTicketDetail(record)} style={{ fontWeight: 600, fontSize: '14px', color: '#1d4ed8' }}>
+              {title}
+            </a>
+            {record.taskType && (
+              <Tag
+                color={record.taskType === 'Bug' ? 'red' : 'green'}
+                style={{ fontWeight: 700, fontSize: 9, borderRadius: 4, padding: '0 4px', textTransform: 'uppercase', lineHeight: '1.5em' }}
+              >
+                {record.taskType === 'Bug' ? '🐛 Bug' : '✨ New'}
+              </Tag>
+            )}
+          </div>
           <Text type="secondary" style={{ fontSize: '11px', marginTop: 4 }}>
             Project: <Tag style={{ borderRadius: 4, margin: 0, fontSize: 10 }}>{record.projectName || 'General'}</Tag>
           </Text>
@@ -121,7 +133,7 @@ const MyTicketsPage = () => {
       key: 'status',
       width: 120,
       render: (status) => {
-        const color = status === 'Done' ? 'success' : status === 'InProgress' ? 'processing' : 'default';
+        const color = (status === 'Done' || status === 'Completed') ? 'success' : status === 'InProgress' ? 'processing' : 'default';
         return <Tag color={color} style={{ textTransform: 'capitalize', fontWeight: 500 }}>{status === 'InProgress' ? 'In Progress' : status}</Tag>;
       }
     },
@@ -146,7 +158,7 @@ const MyTicketsPage = () => {
       key: 'availableTimer',
       width: 160,
       render: (_, record) => {
-        const userId = currentUser.userId || currentUser.id;
+        const userId = currentUser?.userId || currentUser?.id;
         let allotted = 0;
         if (record.assignedEmployees && Array.isArray(record.assignedEmployees)) {
           const match = record.assignedEmployees.find(emp => String(emp.userId) === String(userId));
@@ -234,7 +246,13 @@ const MyTicketsPage = () => {
               columns={tableColumns} 
               dataSource={filteredTickets} 
               rowKey="id" 
-              pagination={{ pageSize: 8, showSizeChanger: true }}
+              pagination={{ 
+                pageSize: pageSize, 
+                showSizeChanger: true,
+                pageSizeOptions: ['8', '10', '20', '50', '100'],
+                onChange: (page, size) => setPageSize(size),
+                onShowSizeChange: (current, size) => setPageSize(size)
+              }}
               locale={{ emptyText: 'No tickets match the search filters.' }}
             />
           </Card>
@@ -261,13 +279,24 @@ const MyTicketsPage = () => {
             </div>
 
             <Row gutter={[16, 16]}>
-              <Col span={12}>
+              <Col span={8}>
                 <Text type="secondary" block>Priority</Text>
                 <PriorityBadge priority={selectedTicket.priority} />
               </Col>
-              <Col span={12}>
+              {selectedTicket.taskType && (
+                <Col span={8}>
+                  <Text type="secondary" block>Task Type</Text>
+                  <Tag
+                    color={selectedTicket.taskType === 'Bug' ? 'red' : 'green'}
+                    style={{ fontWeight: 700, fontSize: 11, borderRadius: 4, margin: 0, textTransform: 'uppercase' }}
+                  >
+                    {selectedTicket.taskType === 'Bug' ? '🐛 Bug' : '✨ New'}
+                  </Tag>
+                </Col>
+              )}
+              <Col span={8}>
                 <Text type="secondary" block>Status</Text>
-                <Tag color={selectedTicket.status === 'Done' ? 'green' : 'blue'} style={{ textTransform: 'capitalize' }}>
+                <Tag color={selectedTicket.status === 'Done' || selectedTicket.status === 'Completed' ? 'green' : 'blue'} style={{ textTransform: 'capitalize' }}>
                   {selectedTicket.status}
                 </Tag>
               </Col>

@@ -43,10 +43,16 @@ export const useAuthStore = create(
     {
       name: 'rabbit-auth-storage',
       onRehydrateStorage: () => (state) => {
-        state.setHasHydrated(true);
+        if (state) {
+          state.setHasHydrated(true);
+          if (!state.isAuthenticated) {
+            useAuthStore.setState({ tenantCode: resolveTenant() });
+          }
+        }
       },
       partialize: (state) => ({ 
         token: state.token, 
+        refreshToken: state.refreshToken,
         tenantCode: state.tenantCode,
         isAuthenticated: state.isAuthenticated,
         role: state.role,

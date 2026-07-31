@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Form, Input, Select, Switch, Button, Typography, Skeleton, notification, Table, Tag, Divider, Progress, Result, Tabs, Modal } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined, UserAddOutlined } from '@ant-design/icons';
+import { Row, Col, Card, Form, Input, Select, Switch, Button, Typography, Skeleton, notification, Table, Tag, Divider, Progress, Result, Tabs, Modal, Popconfirm, Space } from 'antd';
+import { ArrowLeftOutlined, SaveOutlined, UserAddOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import { superAdminService } from '../../services/superAdminService';
 import PageHeader from '../../components/common/PageHeader';
@@ -28,7 +28,11 @@ const TenantDetailPage = () => {
     try {
       const res = await superAdminService.getTenantById(id);
       setTenant(res.data);
-      form.setFieldsValue(res.data);
+      form.setFieldsValue({
+        ...res.data,
+        isEmailNotificationEnabled: res.data?.isEmailNotificationEnabled !== false,
+        isInAppNotificationEnabled: res.data?.isInAppNotificationEnabled !== false
+      });
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to load tenant details.' });
     } finally {
@@ -48,8 +52,9 @@ const TenantDetailPage = () => {
   const handleSave = async (values) => {
     setUpdating(true);
     try {
-      await superAdminService.createTenant(values);
+      await superAdminService.updateTenant(id, values);
       notification.success({ message: 'Success', description: 'Tenant updated successfully.' });
+      fetchTenant();
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to update tenant.' });
     } finally {
@@ -59,13 +64,27 @@ const TenantDetailPage = () => {
 
   const handleCreateUser = async (values) => {
     try {
-      await superAdminService.createTenantUser(id, values);
+      const payload = {
+        ...values,
+        role: Array.isArray(values.role) ? values.role.join(', ') : values.role
+      };
+      await superAdminService.createTenantUser(id, payload);
       notification.success({ message: 'User Created', description: 'The user has been added to this tenant.' });
       setIsUserModalOpen(false);
       userForm.resetFields();
       fetchUsers();
     } catch (error) {
       notification.error({ message: 'Error', description: 'Failed to create user.' });
+    }
+  };
+
+  const handleDeleteTenant = async () => {
+    try {
+      await superAdminService.deleteTenant(id);
+      notification.success({ message: 'Success', description: 'Tenant deleted successfully.' });
+      navigate('/superadmin/tenants');
+    } catch (error) {
+      notification.error({ message: 'Error', description: 'Failed to delete tenant.' });
     }
   };
 
@@ -81,6 +100,19 @@ const TenantDetailPage = () => {
       />
     );
   }
+
+  const userCount = users.length > 0 ? users.length : (tenant?.users || 0);
+  const projectCount = tenant?.projects || 0;
+  const maxUsers = tenant?.plan === 'Starter' ? 50 : tenant?.plan === 'Pro' ? 200 : 5000;
+  const maxProjects = tenant?.plan === 'Starter' ? 20 : tenant?.plan === 'Pro' ? 50 : 5000;
+
+  const userPercent = Math.min(100, Math.round((userCount / maxUsers) * 100));
+  const projectPercent = Math.min(100, Math.round((projectCount / maxProjects) * 100));
+
+  const maxStorageGB = tenant?.plan === 'Starter' ? 50 : tenant?.plan === 'Pro' ? 250 : 1000;
+  const storageLabel = tenant?.plan === 'Enterprise' ? '1 TB' : `${maxStorageGB} GB`;
+  const storageUsedGB = tenant?.storageUsedGB || 300;
+  const storagePercent = Math.min(100, Math.round((storageUsedGB / maxStorageGB) * 100));
 
   const items = [
     {
@@ -116,6 +148,16 @@ const TenantDetailPage = () => {
                       <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
                     </Form.Item>
                   </Col>
+                  <Col span={12}>
+                    <Form.Item name="isEmailNotificationEnabled" label="Email Notifications" valuePropName="checked">
+                      <Switch checkedChildren="Enabled" unCheckedChildren="Disabled" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item name="isInAppNotificationEnabled" label="In-App Notifications" valuePropName="checked">
+                      <Switch checkedChildren="Enabled" unCheckedChildren="Disabled" />
+                    </Form.Item>
+                  </Col>
                   <Col span={24}>
                     <Form.Item name="customDomain" label="Custom Domain">
                       <Input placeholder="e.g. rabbit.acme.com" />
@@ -133,18 +175,18 @@ const TenantDetailPage = () => {
             <Card title="Usage Statistics">
               <div style={{ marginBottom: 20 }}>
                 <Text type="secondary">Users</Text>
-                <Progress percent={75} status="active" />
-                <Text type="secondary" style={{ fontSize: '12px' }}>150 / 200 users</Text>
+                <Progress percent={userPercent} status="active" />
+                <Text type="secondary" style={{ fontSize: '12px' }}>{userCount} / {maxUsers} users</Text>
               </div>
               <div style={{ marginBottom: 20 }}>
                 <Text type="secondary">Projects</Text>
-                <Progress percent={45} status="active" />
-                <Text type="secondary" style={{ fontSize: '12px' }}>45 / 100 projects</Text>
+                <Progress percent={projectPercent} status="active" />
+                <Text type="secondary" style={{ fontSize: '12px' }}>{projectCount} / {maxProjects} projects</Text>
               </div>
               <div style={{ marginBottom: 20 }}>
                 <Text type="secondary">Storage</Text>
-                <Progress percent={30} status="active" />
-                <Text type="secondary" style={{ fontSize: '12px' }}>300 GB / 1 TB</Text>
+                <Progress percent={storagePercent} status="active" />
+                <Text type="secondary" style={{ fontSize: '12px' }}>{storageUsedGB} GB / {storageLabel}</Text>
               </div>
             </Card>
           </Col>
@@ -200,7 +242,23 @@ const TenantDetailPage = () => {
     <div>
       <PageHeader 
         title={`Tenant: ${tenant?.name || 'Loading...'}`} 
-        extra={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>Back</Button>}
+        extra={
+          <Space>
+            <Popconfirm
+              title="Delete Tenant"
+              description="Are you sure you want to delete this tenant? This action cannot be undone."
+              onConfirm={handleDeleteTenant}
+              okText="Yes, Delete"
+              cancelText="Cancel"
+              okButtonProps={{ danger: true }}
+            >
+              <Button danger icon={<DeleteOutlined />}>
+                Delete Tenant
+              </Button>
+            </Popconfirm>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>Back</Button>
+          </Space>
+        }
       />
 
       <Tabs defaultActiveKey="1" items={items} />
@@ -221,8 +279,8 @@ const TenantDetailPage = () => {
           <Form.Item name="password" label="Initial Password" rules={[{ required: true, min: 6 }]}>
             <Input.Password />
           </Form.Item>
-          <Form.Item name="role" label="Role" rules={[{ required: true }]}>
-            <Select>
+          <Form.Item name="role" label="Assigned Role(s)" rules={[{ required: true, message: 'Please select at least one role' }]}>
+            <Select mode="multiple" placeholder="Select roles" allowClear>
               <Select.Option value="TenantAdmin">Tenant Admin</Select.Option>
               <Select.Option value="Sales">Sales</Select.Option>
               <Select.Option value="Accounts">Accounts</Select.Option>

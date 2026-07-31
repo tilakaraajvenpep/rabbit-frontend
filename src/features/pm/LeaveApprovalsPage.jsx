@@ -13,6 +13,7 @@ const { Text } = Typography;
 const LeaveApprovalsPage = () => {
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
   const { isDarkMode } = useThemeStore();
   const { currentUser, role } = useAuthStore();
 
@@ -99,11 +100,22 @@ const LeaveApprovalsPage = () => {
       dataIndex: 'type',
       key: 'type',
       width: 120,
-      render: (type) => (
-        <Tag color={type === 'FullDay' ? 'purple' : 'cyan'} style={{ borderRadius: 6 }}>
-          {type === 'FullDay' ? 'Full Day' : 'Half Day'}
-        </Tag>
-      ),
+      render: (type) => {
+        let color = 'cyan';
+        let label = 'Half Day';
+        if (type === 'FullDay') {
+          color = 'purple';
+          label = 'Full Day';
+        } else if (type === 'Permission') {
+          color = 'orange';
+          label = 'Permission';
+        }
+        return (
+          <Tag color={color} style={{ borderRadius: 6 }}>
+            {label}
+          </Tag>
+        );
+      },
     },
     {
       title: 'Reason',
@@ -172,7 +184,13 @@ const LeaveApprovalsPage = () => {
           dataSource={leaves}
           rowKey="leaveId"
           loading={loading}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          pagination={{ 
+            pageSize: pageSize, 
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            onChange: (page, size) => setPageSize(size),
+            onShowSizeChange: (current, size) => setPageSize(size)
+          }}
           locale={{ emptyText: 'No HR-approved leaves found.' }}
         />
       </Card>

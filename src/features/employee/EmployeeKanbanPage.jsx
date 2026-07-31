@@ -22,9 +22,11 @@ const { Title, Text, Paragraph } = Typography;
 
 const DEFAULT_COLUMNS = [
   { key: 'ToDo', title: 'To Do' },
+  { key: 'Pending', title: 'Pending' },
   { key: 'InProgress', title: 'In Progress' },
-  { key: 'InReview', title: 'In Review' },
-  { key: 'Done', title: 'Done' },
+  { key: 'InternalTesting', title: 'Internal Testing' },
+  { key: 'DevTesting', title: 'Dev Testing' },
+  { key: 'Completed', title: 'Completed' },
 ];
 
 const deriveColumnConfig = (kanbanColumns) => {
@@ -35,7 +37,7 @@ const deriveColumnConfig = (kanbanColumns) => {
 
 const EmployeeKanbanPage = () => {
   const navigate = useNavigate();
-  const { currentUser } = useAuthStore();
+  const { currentUser, token, isAuthenticated } = useAuthStore();
   const { isDarkMode } = useThemeStore();
   
   const [tickets, setTickets] = useState([]);
@@ -55,18 +57,28 @@ const EmployeeKanbanPage = () => {
   // Live timer tick state
   const [now, setNow] = useState(new Date());
 
+  const getTicketColKeys = (ticket) => {
+    if (!ticket) return { lastKey: 'Completed', reviewKey: 'DevTesting' };
+    const proj = projects.find(p => String(p.id) === String(ticket.projectId));
+    const cols = proj ? deriveColumnConfig(proj.kanbanColumns) : DEFAULT_COLUMNS;
+    const lastKey = cols[cols.length - 1]?.key || 'Completed';
+    const reviewKey = cols[cols.length - 2]?.key || 'DevTesting';
+    return { lastKey, reviewKey };
+  };
+
   useEffect(() => {
+    if (!token || !isAuthenticated || !currentUser) return;
     fetchMyTickets();
     fetchProjects();
     const onVisible = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && token && isAuthenticated && currentUser) {
         fetchMyTickets();
         fetchProjects();
       }
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [currentUser.userId || currentUser.id]);
+  }, [currentUser?.userId || currentUser?.id, token, isAuthenticated]);
 
   const fetchProjects = async () => {
     try {
@@ -98,8 +110,8 @@ const EmployeeKanbanPage = () => {
       });
 
       // Filter only tickets assigned to the logged-in user for TL / PM roles
-      if (currentUser && currentUser.role !== 'Employee') {
-        const myUserId = currentUser.userId || currentUser.id;
+      if (currentUser && currentUser?.role !== 'Employee') {
+        const myUserId = currentUser?.userId || currentUser?.id;
         ticketsData = ticketsData.filter(t => t.assignedToUserId === myUserId);
       }
 
@@ -112,23 +124,27 @@ const EmployeeKanbanPage = () => {
   };
 
   const handleStatusChange = async (ticketId, newStatus) => {
-    const ticket = tickets.find(t => t.id === ticketId);
-    if (newStatus === 'Done' && currentUser.role === 'Employee') {
-      if (ticket && !ticket.approvedForDone) {
+    const ticket = tickets.find(t => String(t.id) === String(ticketId));
+    if (!ticket) return;
+
+    const { lastKey } = getTicketColKeys(ticket);
+
+    if (newStatus === lastKey && currentUser?.role === 'Employee') {
+      if (!ticket.approvedForDone) {
         notification.error({
           message: 'Action Blocked',
-          description: 'You can move a ticket to Done stage only after your Team Leader gives permission/approval.'
+          description: `You can move a ticket to ${lastKey} stage only after your Team Leader gives permission/approval.`
         });
         return;
       }
     }
 
-    if (ticket && ticket.status === 'Done' && newStatus !== 'Done') {
-      if (currentUser.role === 'Employee' || currentUser.role === 'TeamLead') {
+    if (ticket.status === lastKey && newStatus !== lastKey) {
+      if (currentUser?.role === 'Employee' || currentUser?.role === 'TeamLead') {
         if (!ticket.approvedForInProgress) {
           notification.error({
             message: 'Action Blocked',
-            description: 'Approval from Project Manager is required to move this ticket out of the Done stage.'
+            description: `Approval from Project Manager is required to move this ticket out of the ${lastKey} stage.`
           });
           return;
         }
@@ -216,6 +232,7 @@ const EmployeeKanbanPage = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
         <Text strong>Filter by Project:</Text>
         <Select
+          showSearch
           style={{ width: 350 }}
           value={selectedProjectId}
           onChange={(val) => setSelectedProjectId(val)}
@@ -226,6 +243,10 @@ const EmployeeKanbanPage = () => {
               label: `📁 ${p.name} (${p.code})`
             }))
           ]}
+          optionFilterProp="label"
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
           placeholder="Select Project Name"
         />
       </div>
@@ -253,9 +274,12 @@ const EmployeeKanbanPage = () => {
                 
                 const colColors = {
                   ToDo: '#8c8c8c',
+                  Pending: '#faad14',
                   InProgress: '#1890ff',
-                  InReview: '#fa8c16',
-                  Done: '#52c41a'
+                  InternalTesting: '#722ed1',
+                  InternalTseting: '#722ed1',
+                  DevTesting: '#13c2c2',
+                  Completed: '#52c41a'
                 };
                 const colColor = colColors[columnStatus] || `hsl(${(idx * 75) % 360}, 70%, 50%)`;
 
@@ -295,7 +319,7 @@ const EmployeeKanbanPage = () => {
                         e.preventDefault();
                         e.currentTarget.style.borderColor = 'transparent';
                         e.currentTarget.style.background = isDarkMode ? '#1c1c1e' : '#f8fafc';
-                        const ticketId = Number(e.dataTransfer.getData('ticketId'));
+                        const ticketId = e.dataTransfer.getData('ticketId');
                         if (ticketId) {
                           handleStatusChange(ticketId, columnStatus);
                         }
@@ -331,6 +355,18 @@ const EmployeeKanbanPage = () => {
                                   <PriorityBadge priority={ticket.priority} />
                                 </div>
                                 
+                                {/* Task Type badge */}
+                                {ticket.taskType && (
+                                  <div style={{ marginBottom: 8 }}>
+                                    <Tag
+                                      color={ticket.taskType === 'Bug' ? 'red' : 'green'}
+                                      style={{ fontWeight: 700, fontSize: 10, borderRadius: 4, margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}
+                                    >
+                                      {ticket.taskType === 'Bug' ? '🐛 Bug' : '✨ New'}
+                                    </Tag>
+                                  </div>
+                                )}
+                                
                                 <Title level={5} style={{ margin: '0 0 8px 0', fontSize: 14 }}>
                                   {ticket.title}
                                 </Title>
@@ -340,7 +376,7 @@ const EmployeeKanbanPage = () => {
                                     Project: {ticket.projectName || 'General'}
                                   </Text>
                                   {(() => {
-                                    const userId = currentUser.userId || currentUser.id;
+                                     const userId = currentUser?.userId || currentUser?.id;
                                     let allotted = 0;
                                     if (ticket.assignedEmployees && Array.isArray(ticket.assignedEmployees)) {
                                       const match = ticket.assignedEmployees.find(emp => String(emp.userId) === String(userId));
@@ -384,36 +420,39 @@ const EmployeeKanbanPage = () => {
                                   </span>
                                 </div>
 
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  {ticket.status === 'InReview' && (
-                                    <div style={{ marginTop: 4 }}>
-                                      {ticket.approvedForDone ? (
-                                        <Tag color="success" style={{ fontWeight: 600, fontSize: 11 }}>
-                                          ✓ Approved for Done
-                                        </Tag>
-                                      ) : (
-                                        <Tag color="warning" style={{ fontWeight: 600, fontSize: 11 }}>
-                                          ⚠ Awaiting TL Approval
-                                        </Tag>
+                                {(() => {
+                                  const { lastKey, reviewKey } = getTicketColKeys(ticket);
+                                  return (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      {ticket.status === reviewKey && (
+                                        <div style={{ marginTop: 4 }}>
+                                          {ticket.approvedForDone ? (
+                                            <Tag color="success" style={{ fontWeight: 600, fontSize: 11 }}>
+                                              ✓ Approved for {lastKey}
+                                            </Tag>
+                                          ) : (
+                                            <Tag color="warning" style={{ fontWeight: 600, fontSize: 11 }}>
+                                              ⚠ Awaiting TL Approval
+                                            </Tag>
+                                          )}
+                                        </div>
+                                      )}
+                                      {ticket.status === lastKey && (
+                                        <div style={{ marginTop: 4 }}>
+                                          {ticket.approvedForInProgress ? (
+                                            <Tag color="success" style={{ fontWeight: 600, fontSize: 11 }}>
+                                              ✓ Approved for In Progress
+                                            </Tag>
+                                          ) : (
+                                            <Tag color="warning" style={{ fontWeight: 600, fontSize: 11 }}>
+                                              🔒 PM Approval Required to Re-Open
+                                            </Tag>
+                                          )}
+                                        </div>
                                       )}
                                     </div>
-                                  )}
-                                  {ticket.status === 'Done' && (
-                                    <div style={{ marginTop: 4 }}>
-                                      {ticket.approvedForInProgress ? (
-                                        <Tag color="success" style={{ fontWeight: 600, fontSize: 11 }}>
-                                          ✓ Approved for In Progress
-                                        </Tag>
-                                      ) : (
-                                        <Tag color="warning" style={{ fontWeight: 600, fontSize: 11 }}>
-                                          🔒 PM Approval Required to Re-Open
-                                        </Tag>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-
-
+                                  );
+                                })()}
                               </Card>
                             );
                           })
@@ -461,28 +500,46 @@ const EmployeeKanbanPage = () => {
             </div>
 
             <Row gutter={[16, 16]}>
-              <Col span={12}>
+              <Col span={8}>
                 <Text type="secondary" block>Priority</Text>
                 <PriorityBadge priority={selectedTicket.priority} />
               </Col>
-              <Col span={12}>
+              {selectedTicket.taskType && (
+                <Col span={8}>
+                  <Text type="secondary" block>Task Type</Text>
+                  <Tag
+                    color={selectedTicket.taskType === 'Bug' ? 'red' : 'green'}
+                    style={{ fontWeight: 700, fontSize: 11, borderRadius: 4, margin: 0, textTransform: 'uppercase' }}
+                  >
+                    {selectedTicket.taskType === 'Bug' ? '🐛 Bug' : '✨ New'}
+                  </Tag>
+                </Col>
+              )}
+              <Col span={8}>
                 <Text type="secondary" block>Status</Text>
-                <Tag color={selectedTicket.status === 'Done' ? 'green' : 'blue'}>
+                <Tag color={selectedTicket.status === 'Done' || selectedTicket.status === 'Completed' ? 'green' : 'blue'}>
                   {selectedTicket.status}
                 </Tag>
               </Col>
             </Row>
 
-            {currentUser.role === 'Employee' && (
-              <div>
-                <Text type="secondary" block style={{ marginBottom: 6 }}>Team Leader Approval Status</Text>
-                {selectedTicket.approvedForDone ? (
-                  <Tag color="success" style={{ fontWeight: 600 }}>✓ Approved for Done stage</Tag>
-                ) : (
-                  <Tag color="warning" style={{ fontWeight: 600 }}>⚠ Awaiting Team Leader Approval (InReview)</Tag>
-                )}
-              </div>
-            )}
+            {(() => {
+              const { lastKey, reviewKey } = getTicketColKeys(selectedTicket);
+              return (
+                <>
+                   {currentUser?.role === 'Employee' && (
+                    <div>
+                      <Text type="secondary" block style={{ marginBottom: 6 }}>Team Leader Approval Status</Text>
+                      {selectedTicket.approvedForDone ? (
+                        <Tag color="success" style={{ fontWeight: 600 }}>✓ Approved for {lastKey} stage</Tag>
+                      ) : (
+                        <Tag color="warning" style={{ fontWeight: 600 }}>⚠ Awaiting Team Leader Approval ({reviewKey})</Tag>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <div style={{ border: '1px solid rgba(0, 0, 0, 0.06)', borderRadius: 8, padding: 12, background: isDarkMode ? '#1e1e1e' : '#f8fafc' }}>
               <Row gutter={[16, 16]}>

@@ -29,7 +29,7 @@ const { Title, Text } = Typography;
 const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { role } = useAuthStore();
+  const { role, currentUser } = useAuthStore();
   const { isDarkMode } = useThemeStore();
   const { token } = antdTheme.useToken();
 
@@ -43,15 +43,21 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
   const getMenuItems = () => {
     const items = [];
 
-    if (role === 'SuperAdmin') {
+    const userRoles = typeof role === 'string'
+      ? role.split(',').map(r => r.trim()).filter(Boolean)
+      : (Array.isArray(role) ? role : [role]);
+
+    const hasRole = (r) => userRoles.includes(r);
+
+    if (hasRole('SuperAdmin')) {
       items.push(
         { key: '/superadmin/tenants', icon: <GlobalOutlined />, label: 'Tenants' },
         { key: '/superadmin/settings', icon: <SettingOutlined />, label: 'Platform Settings' }
       );
     }
 
-    if (role === 'TenantAdmin' || role === 'ProjectManager') {
-      if (role === 'TenantAdmin') {
+    if (hasRole('TenantAdmin') || hasRole('ProjectManager')) {
+      if (hasRole('TenantAdmin')) {
         items.push(
           { key: '/admin/users', icon: <TeamOutlined />, label: 'Users' },
           { key: '/admin/hours', icon: <DollarOutlined />, label: 'Hour Allocation' },
@@ -79,8 +85,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       );
     }
 
-
-    if (role === 'Sales') {
+    if (hasRole('Sales')) {
       items.push(
         { key: '/sales/projects', icon: <ProjectOutlined />, label: 'Projects' },
         { key: '/sales/projects/create', icon: <FileTextOutlined />, label: 'Create Project' },
@@ -88,7 +93,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       );
     }
 
-    if (role === 'Accounts') {
+    if (hasRole('Accounts')) {
       items.push(
         { key: '/accounts/pending', icon: <CheckSquareOutlined />, label: 'Pending Review' },
         { key: '/accounts/leaves', icon: <CalendarOutlined />, label: 'Leave Approvals' },
@@ -103,7 +108,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       );
     }
 
-    if (role === 'TeamLead') {
+    if (hasRole('TeamLead')) {
       items.push(
         { key: '/teamlead/projects', icon: <ProjectOutlined />, label: 'My Projects' },
         { key: '/teamlead/team', icon: <TeamOutlined />, label: 'My Team' },
@@ -123,9 +128,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       );
     }
 
-
-
-    if (role === 'Employee') {
+    if (hasRole('Employee')) {
       items.push(
         { key: '/employee/tickets', icon: <CheckSquareOutlined />, label: 'My Tickets' },
         { key: '/employee/kanban', icon: <DashboardOutlined />, label: 'Kanban Board' },
@@ -137,7 +140,7 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
       );
     }
 
-    if (role === 'HR') {
+    if (hasRole('HR')) {
       items.push(
         { key: '/hr/board', icon: <CheckSquareOutlined />, label: 'Project Board' },
         { key: '/hr/team', icon: <TeamOutlined />, label: 'Team Details' },
@@ -155,7 +158,16 @@ const Sidebar = ({ collapsed, isMobile, closeDrawer }) => {
     // Common items
     items.push({ key: '/chatbot', icon: <MessageOutlined />, label: 'Rabbit Assistant' });
 
-    return items;
+    // Deduplicate by item key
+    const seenKeys = new Set();
+    return items.filter(item => {
+      if (seenKeys.has(item.key)) return false;
+      seenKeys.add(item.key);
+      if (currentUser?.permissions && currentUser.permissions[item.key] === false) {
+        return false;
+      }
+      return true;
+    });
   };
 
   return (

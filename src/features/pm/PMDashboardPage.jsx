@@ -19,11 +19,13 @@ import {
   DashboardOutlined,
   ArrowRightOutlined,
   ClockCircleOutlined,
-  EditOutlined
+  EditOutlined,
+  FileExcelOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
+import utc from 'dayjs/plugin/utc';
 import { analyticsService } from '../../services/analyticsService';
 import { useAlertStore } from '../../store/alertStore';
 import { projectService } from '../../services/projectService';
@@ -34,8 +36,11 @@ import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { timerRequestService } from '../../services/timerRequestService';
 import { ticketService } from '../../services/ticketService';
+import ExcelProjectUploadModal from '../../components/common/ExcelProjectUploadModal';
+import { formatHoursToHrsMins } from '../../utils/timeUtils';
 
 dayjs.extend(isBetween);
+dayjs.extend(utc);
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
@@ -47,7 +52,10 @@ const PMDashboardPage = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const { alerts, setAlerts } = useAlertStore();
-  const { currentUser } = useAuthStore();
+  const { currentUser, token, isAuthenticated } = useAuthStore();
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [pageSize, setPageSize] = useState(8);
 
   const pmUnreadCount = Array.isArray(alerts)
     ? alerts.filter(a => !a.acknowledged && a.type !== 'Leave Alert' && a.type !== 'Leave Request Alert').length
@@ -71,6 +79,8 @@ const PMDashboardPage = () => {
   // Milestones drawer state
   const [isMilestoneDrawerVisible, setIsMilestoneDrawerVisible] = useState(false);
   const [selectedProjectForMilestones, setSelectedProjectForMilestones] = useState(null);
+  const [milestonesLoading, setMilestonesLoading] = useState(false);
+  const [projectMilestoneTickets, setProjectMilestoneTickets] = useState([]);
 
   // Reassign Team Lead Modal state
   const [isReassignModalVisible, setIsReassignModalVisible] = useState(false);
@@ -110,11 +120,12 @@ const PMDashboardPage = () => {
   };
 
   useEffect(() => {
+    if (!token || !isAuthenticated) return;
     fetchData();
-    const onVisible = () => { if (document.visibilityState === 'visible') fetchData(); };
+    const onVisible = () => { if (document.visibilityState === 'visible' && token && isAuthenticated) fetchData(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, []);
+  }, [token, isAuthenticated]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -132,7 +143,8 @@ const PMDashboardPage = () => {
         const computedConsumed = projectTickets.reduce((sum, t) => sum + (Number(t.consumedHours) || 0), 0);
         return {
           ...p,
-          consumedHours: Math.max(Number(p.consumedHours) || 0, computedConsumed)
+          consumedHours: (Number(p.consumedHours) || 0) + computedConsumed,
+          remainingHours: Math.max(0, (Number(p.remainingHours) || 0) - computedConsumed)
         };
       });
 
@@ -158,6 +170,7 @@ const PMDashboardPage = () => {
 
       setProjects(finalProjects);
       setTickets(allTickets);
+      setAllUsers(usersRes.data || []);
       setTeamLeads((usersRes.data || []).filter(u => u.role === 'TeamLead'));
       if (alertsRes && alertsRes.data) {
         setAlerts(alertsRes.data);
@@ -231,15 +244,40 @@ const PMDashboardPage = () => {
     }
   };
 
-  const handleOpenMilestoneDrawer = (project) => {
+  const handleOpenMilestoneDrawer = async (project) => {
     setSelectedProjectForMilestones(project);
     setIsMilestoneDrawerVisible(true);
+    setMilestonesLoading(true);
+    setProjectMilestoneTickets([]);
+    try {
+      const [projRes, ticketsRes] = await Promise.all([
+        projectService.getProjectById(project.id),
+        ticketService.getTickets(project.id).catch(err => {
+          console.error('Failed to fetch project tickets', err);
+          return { data: [] };
+        })
+      ]);
+      if (projRes.data) {
+        setSelectedProjectForMilestones(projRes.data);
+      }
+      if (ticketsRes.data) {
+        setProjectMilestoneTickets(ticketsRes.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch project or tickets for milestones:', err);
+    } finally {
+      setMilestonesLoading(false);
+    }
   };
 
-  // Filter projects to only those assigned to the current PM
+  // Filter projects to only those assigned to the current PM (or created by PM / unassigned fallback)
   const pmId = currentUser?.id || currentUser?.userId;
   const myProjects = pmId
-    ? projects.filter(p => p.assignedProjectManagerId === pmId)
+    ? projects.filter(p => 
+        Number(p.assignedProjectManagerId) === Number(pmId) || 
+        Number(p.createdByUserId) === Number(pmId) || 
+        !p.assignedProjectManagerId
+      )
     : projects;
 
   // Calculations for Deadline stats
@@ -255,9 +293,10 @@ const PMDashboardPage = () => {
     let thisMonthCrossed = 0;
 
     activeProjs.forEach(p => {
-      if (p.endDate) {
+      const targetEnd = p.endDate || p.expectedEnd;
+      if (targetEnd) {
         totalDeadlines++;
-        const end = dayjs(p.endDate);
+        const end = dayjs(targetEnd);
         if (end.isBefore(now)) {
           crossedDeadlines++;
         }
@@ -278,9 +317,13 @@ const PMDashboardPage = () => {
   // Filtering active projects
   const activeProjects = myProjects.filter(p => ['Approved', 'InProgress', 'OnHold'].includes(p.status));
   const filteredActiveProjects = activeProjects.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchText.toLowerCase()) || 
-                          (p.client && p.client.toLowerCase().includes(searchText.toLowerCase())) ||
-                          p.code.toLowerCase().includes(searchText.toLowerCase());
+    const projName = (p.name || p.projectName || '').toLowerCase();
+    const projClient = (p.client || '').toLowerCase();
+    const projCode = (p.code || p.projectCode || '').toLowerCase();
+
+    const matchesSearch = projName.includes(searchText.toLowerCase()) || 
+                          projClient.includes(searchText.toLowerCase()) ||
+                          projCode.includes(searchText.toLowerCase());
 
     const matchesType = !selectedProjectType || p.description?.toLowerCase().includes(selectedProjectType.toLowerCase());
     const matchesSales = !selectedSalesOwner || p.createdByUserId === selectedSalesOwner;
@@ -382,16 +425,16 @@ const PMDashboardPage = () => {
       }
     },
     {
-      title: 'Login Date',
-      dataIndex: 'createdAt',
-      key: 'loginDate',
+      title: 'Start Date',
+      dataIndex: 'startDate',
+      key: 'startDate',
       width: 130,
-      render: (date) => <Text style={{ color: '#475569' }}>{dayjs(date).format('DD MMM YYYY')}</Text>
+      render: (date) => date ? <Text style={{ color: '#475569' }}>{dayjs(date).format('DD MMM YYYY')}</Text> : <Text type="secondary">-</Text>
     },
     {
-      title: 'Deadline',
+      title: 'End Date',
       dataIndex: 'endDate',
-      key: 'deadline',
+      key: 'endDate',
       width: 140,
       render: (date) => {
         if (!date) return <Text type="secondary">-</Text>;
@@ -417,14 +460,14 @@ const PMDashboardPage = () => {
     {
       title: 'Progress (hrs)',
       key: 'progress',
-      width: 180,
+      width: 230,
       render: (_, record) => {
-        const total = Number(record.totalHours) || 100;
+        const total = Number(record.totalHours) || 0;
         const consumed = Number(record.consumedHours) || 0;
-        const pct = Math.min(100, Math.round((consumed / total) * 100));
+        const pct = total > 0 ? Math.min(100, Math.round((consumed / total) * 100)) : 0;
         return (
-          <Tooltip title={`${consumed} / ${total} hrs consumed`}>
-            <div style={{ width: '100%', minWidth: 120 }}>
+          <Tooltip title={`${formatHoursToHrsMins(consumed)} / ${formatHoursToHrsMins(total)} consumed`}>
+            <div style={{ width: '100%', minWidth: 160 }}>
               <Progress 
                 percent={pct} 
                 size="small" 
@@ -433,8 +476,8 @@ const PMDashboardPage = () => {
                 style={{ margin: 0 }}
               />
               <div style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', color: '#64748b', marginTop: 4 }}>
-                <span>Consumed: {consumed}h</span>
-                <span>Total: {total}h</span>
+                <span>Consumed: {formatHoursToHrsMins(consumed)}</span>
+                <span>Total: {formatHoursToHrsMins(total)}</span>
               </div>
             </div>
           </Tooltip>
@@ -522,7 +565,7 @@ const PMDashboardPage = () => {
       key: 'totalHours',
       width: 200,
       render: (_, record) => (
-        <Text>Total Hours: <strong>{record.totalHours}h</strong></Text>
+        <Text>Total Hours: <strong>{formatHoursToHrsMins(record.totalHours)}</strong></Text>
       )
     },
 
@@ -679,7 +722,19 @@ const PMDashboardPage = () => {
         }
       `}} />
 
-      <PageHeader title="Project Manager Dashboard" />
+      <PageHeader 
+        title="Project Manager Dashboard" 
+        extra={
+          <Button 
+            type="default" 
+            icon={<FileExcelOutlined />} 
+            onClick={() => setIsExcelModalOpen(true)}
+            style={{ borderRadius: 8, fontWeight: 600 }}
+          >
+            Import Excel
+          </Button>
+        }
+      />
 
 
 
@@ -836,7 +891,13 @@ const PMDashboardPage = () => {
           columns={activeColumns} 
           dataSource={filteredActiveProjects} 
           rowKey="id" 
-          pagination={{ pageSize: 8, showSizeChanger: true }}
+          pagination={{ 
+            pageSize: pageSize, 
+            showSizeChanger: true,
+            pageSizeOptions: ['8', '10', '20', '50', '100'],
+            onChange: (page, size) => setPageSize(size),
+            onShowSizeChange: (current, size) => setPageSize(size)
+          }}
           locale={{ emptyText: 'No active projects matching the filters.' }}
           scroll={{ x: 'max-content' }}
           className="pm-table"
@@ -899,123 +960,136 @@ const PMDashboardPage = () => {
         onClose={() => setIsMilestoneDrawerVisible(false)}
         open={isMilestoneDrawerVisible}
       >
-        {(() => {
-          const projectTickets = selectedProjectForMilestones
-            ? tickets.filter(t => String(t.projectId) === String(selectedProjectForMilestones.id))
-            : [];
+        {milestonesLoading ? (
+          <Skeleton active />
+        ) : (
+          (() => {
+            const projectTickets = projectMilestoneTickets.filter(t => {
+              const isCompleted = t.status === 'Completed' || t.status === 'Done';
+              const isOverdue = t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && !isCompleted;
+              return !isOverdue;
+            });
 
-          const milestoneTitles = selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones)
-            ? selectedProjectForMilestones.milestones.map(m => m.title?.trim().toLowerCase())
-            : [];
+            const milestoneTitles = selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones)
+              ? selectedProjectForMilestones.milestones.map(m => m.title?.trim().toLowerCase())
+              : [];
 
-          const unmappedTickets = projectTickets.filter(t => 
-            !t.milestone || !milestoneTitles.includes(t.milestone.trim().toLowerCase())
-          );
-
-          const renderTicketItem = (ticket) => {
-            const statusColor = ticket.status === 'Done' ? 'success' : ticket.status === 'InProgress' ? 'processing' : 'default';
-            const priorityColor = ticket.priority === 'High' || ticket.priority === 'Critical' ? 'red' : ticket.priority === 'Medium' ? 'orange' : 'green';
-            
-            return (
-              <div 
-                key={ticket.id} 
-                style={{ 
-                  padding: '8px 10px', 
-                  borderRadius: '8px', 
-                  background: isDarkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc',
-                  border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
-                  marginBottom: '6px',
-                  fontSize: '12px'
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <Text code style={{ fontSize: '10px' }}>{ticket.code || `#${ticket.id}`}</Text>
-                  <Space size={4}>
-                    <Tag color={priorityColor} style={{ fontSize: '10px', margin: 0, padding: '0 4px', lineHeight: '1.4' }}>{ticket.priority}</Tag>
-                    <Tag color={statusColor} style={{ fontSize: '10px', margin: 0, padding: '0 4px', lineHeight: '1.4' }}>{ticket.status}</Tag>
-                  </Space>
-                </div>
-                <div style={{ fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#334155', marginBottom: '4px' }}>{ticket.title}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '11px' }}>
-                  <span>Est: {ticket.estimatedHours || 0}h</span>
-                  <span>Consumed: {ticket.consumedHours || 0}h</span>
-                </div>
-              </div>
+            const unmappedTickets = projectTickets.filter(t => 
+              !t.milestone || !milestoneTitles.includes(t.milestone.trim().toLowerCase())
             );
-          };
 
-          return (
-            <>
-              {selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones) && selectedProjectForMilestones.milestones.length > 0 ? (
-                <Timeline mode="left" style={{ marginTop: 10 }}>
-                  {selectedProjectForMilestones.milestones.map((m, index) => {
-                    const milestoneTickets = projectTickets.filter(t => 
-                      t.milestone && m.title && t.milestone.trim().toLowerCase() === m.title.trim().toLowerCase()
-                    );
-                    return (
-                      <Timeline.Item 
-                        key={index}
-                        dot={<CalendarOutlined style={{ fontSize: '16px', color: '#10b981' }} />}
-                        color={dayjs(m.date).isBefore(dayjs()) ? 'red' : 'green'}
-                      >
-                        <div style={{ marginBottom: 12 }}>
-                          <Text strong style={{ fontSize: '14px', display: 'block', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>{m.title}</Text>
-                          <Text type="secondary" style={{ fontSize: '12px', display: 'block', margin: '4px 0' }}>{m.description || 'No description'}</Text>
-                          <Tag color="success" style={{ marginTop: 2, border: 'none', borderRadius: 4, marginBottom: 8 }}>
-                            Value: ₹{Number(m.amount || 0).toLocaleString('en-IN')}
-                          </Tag>
-                          <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: 8 }}>
-                            Release Date: {m.date ? dayjs(m.date).format('DD MMM YYYY') : 'Not Set'}
-                          </div>
-
-                          {/* Tickets for this milestone */}
-                          {milestoneTickets.length > 0 ? (
-                            <div style={{ marginTop: 8 }}>
-                              <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>
-                                Linked Tickets ({milestoneTickets.length}):
-                              </div>
-                              {milestoneTickets.map(renderTicketItem)}
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', marginTop: 4 }}>
-                              No tickets linked to this milestone
-                            </div>
-                          )}
-                        </div>
-                      </Timeline.Item>
-                    );
-                  })}
-                </Timeline>
-              ) : (
-                <div style={{ marginTop: 16 }}>
-                  {projectTickets.length === 0 && (
-                    <Alert message="No milestones defined for this project." type="info" showIcon style={{ marginBottom: 16 }} />
-                  )}
-                  {projectTickets.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 700, color: isDarkMode ? '#e2e8f0' : '#1e293b', marginBottom: 10 }}>
-                        Project Tickets ({projectTickets.length})
-                      </div>
-                      {projectTickets.map(renderTicketItem)}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* General / Unmapped tickets */}
-              {selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones) && selectedProjectForMilestones.milestones.length > 0 && unmappedTickets.length > 0 && (
-                <div style={{ marginTop: 20 }}>
-                  <Divider style={{ margin: '12px 0' }} />
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: isDarkMode ? '#e2e8f0' : '#1e293b', marginBottom: 10 }}>
-                    General / Unmapped Tickets ({unmappedTickets.length})
+            const renderTicketItem = (ticket) => {
+              const statusColor = ticket.status === 'Done' ? 'success' : ticket.status === 'InProgress' ? 'processing' : 'default';
+              const priorityColor = ticket.priority === 'High' || ticket.priority === 'Critical' ? 'red' : ticket.priority === 'Medium' ? 'orange' : 'green';
+              
+              return (
+                <div 
+                  key={ticket.id} 
+                  style={{ 
+                    padding: '8px 10px', 
+                    borderRadius: '8px', 
+                    background: isDarkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+                    border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : '#e2e8f0'}`,
+                    marginBottom: '6px',
+                    fontSize: '12px'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <Text code style={{ fontSize: '10px' }}>{ticket.code || `#${ticket.id}`}</Text>
+                    <Space size={4}>
+                      <Tag color={priorityColor} style={{ fontSize: '10px', margin: 0, padding: '0 4px', lineHeight: '1.4' }}>{ticket.priority}</Tag>
+                      <Tag color={statusColor} style={{ fontSize: '10px', margin: 0, padding: '0 4px', lineHeight: '1.4' }}>{ticket.status}</Tag>
+                    </Space>
                   </div>
-                  {unmappedTickets.map(renderTicketItem)}
+                  <div style={{ fontWeight: 600, color: isDarkMode ? '#cbd5e1' : '#334155', marginBottom: '4px' }}>{ticket.title}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '11px' }}>
+                    <span>Est: {ticket.estimatedHours || 0}h</span>
+                    <span>Consumed: {ticket.consumedHours || 0}h</span>
+                  </div>
                 </div>
-              )}
-            </>
-          );
-        })()}
+              );
+            };
+
+            return (
+              <>
+                {selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones) && selectedProjectForMilestones.milestones.length > 0 ? (
+                  <Timeline mode="left" style={{ marginTop: 10 }}>
+                    {selectedProjectForMilestones.milestones.map((m, index) => {
+                      const milestoneTickets = projectTickets.filter(t => 
+                        t.milestone && m.title && t.milestone.trim().toLowerCase() === m.title.trim().toLowerCase()
+                      );
+                      return (
+                        <Timeline.Item 
+                          key={index}
+                          dot={<CalendarOutlined style={{ fontSize: '16px', color: '#10b981' }} />}
+                          color={dayjs(m.date).isBefore(dayjs()) ? 'red' : 'green'}
+                        >
+                          <div style={{ marginBottom: 12 }}>
+                            <Text strong style={{ fontSize: '14px', display: 'block', color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>{m.title}</Text>
+                            <Text type="secondary" style={{ fontSize: '12px', display: 'block', margin: '4px 0' }}>{m.description || 'No description'}</Text>
+                            <Tag color="success" style={{ marginTop: 2, border: 'none', borderRadius: 4, marginBottom: 8 }}>
+                              Value: ₹{Number(m.amount || 0).toLocaleString('en-IN')}
+                            </Tag>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: 8 }}>
+                              Release Date: {m.date ? dayjs(m.date).format('DD MMM YYYY') : 'Not Set'}
+                            </div>
+
+                            {/* Tickets for this milestone */}
+                            {milestoneTickets.length > 0 ? (
+                              <div style={{ marginTop: 8 }}>
+                                <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>
+                                  Linked Tickets ({milestoneTickets.length}):
+                                </div>
+                                {milestoneTickets.map(renderTicketItem)}
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', marginTop: 4 }}>
+                                No tickets linked to this milestone
+                              </div>
+                            )}
+                          </div>
+                        </Timeline.Item>
+                      );
+                    })}
+                  </Timeline>
+                ) : (
+                  <div style={{ marginTop: 16 }}>
+                    {projectTickets.length === 0 && (
+                      <Alert message="No milestones defined for this project." type="info" showIcon style={{ marginBottom: 16 }} />
+                    )}
+                    {projectTickets.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: isDarkMode ? '#e2e8f0' : '#1e293b', marginBottom: 10 }}>
+                          Project Tickets ({projectTickets.length})
+                        </div>
+                        {projectTickets.map(renderTicketItem)}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* General / Unmapped tickets */}
+                {selectedProjectForMilestones?.milestones && Array.isArray(selectedProjectForMilestones.milestones) && selectedProjectForMilestones.milestones.length > 0 && unmappedTickets.length > 0 && (
+                  <div style={{ marginTop: 20 }}>
+                    <Divider style={{ margin: '12px 0' }} />
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: isDarkMode ? '#e2e8f0' : '#1e293b', marginBottom: 10 }}>
+                      General / Unmapped Tickets ({unmappedTickets.length})
+                    </div>
+                    {unmappedTickets.map(renderTicketItem)}
+                  </div>
+                )}
+              </>
+            );
+          })()
+        )}
       </Drawer>
+
+      <ExcelProjectUploadModal
+        open={isExcelModalOpen}
+        onClose={() => setIsExcelModalOpen(false)}
+        onSuccess={fetchData}
+        existingUsers={allUsers}
+      />
     </div>
   );
 };

@@ -177,18 +177,20 @@ const AssistantDrawer = ({ open, onClose }) => {
       onClose={onClose}
       open={open}
       closeIcon={<CloseOutlined style={{ fontSize: 16 }} />}
-      drawerStyle={{
-        background: isDarkMode ? '#141414' : '#f8fafc',
-      }}
-      headerStyle={{
-        borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid #f1f5f9',
-        padding: '16px 24px',
-        background: isDarkMode ? '#18181b' : '#fff',
-      }}
-      footerStyle={{
-        borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid #f1f5f9',
-        padding: '16px 20px',
-        background: isDarkMode ? '#18181b' : '#fff',
+      styles={{
+        content: {
+          background: isDarkMode ? '#141414' : '#f8fafc',
+        },
+        header: {
+          borderBottom: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid #f1f5f9',
+          padding: '16px 24px',
+          background: isDarkMode ? '#18181b' : '#fff',
+        },
+        footer: {
+          borderTop: isDarkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid #f1f5f9',
+          padding: '16px 20px',
+          background: isDarkMode ? '#18181b' : '#fff',
+        }
       }}
       footer={
         <div>

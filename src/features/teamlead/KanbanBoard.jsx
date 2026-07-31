@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Layout, Typography, Card, Badge, Avatar, Tooltip, Space, Button, 
   Drawer, Select, theme, Modal, message, Input, Alert, Form, DatePicker, InputNumber, Tag, Tabs, List, Popconfirm,
-  Table, Upload
+  Table, Upload, Dropdown
 } from 'antd';
 import * as XLSX from 'xlsx';
 import { 
@@ -10,6 +10,7 @@ import {
   PointerSensor, 
   useSensor, 
   useSensors, 
+  closestCenter,
   closestCorners,
   useDroppable
 } from '@dnd-kit/core';
@@ -20,7 +21,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PlusOutlined, UserOutlined, CalendarOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined, BookOutlined, CopyOutlined, SaveOutlined, UploadOutlined, InboxOutlined } from '@ant-design/icons';
+import { PlusOutlined, UserOutlined, CalendarOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, TeamOutlined, MinusCircleOutlined, HolderOutlined, LockOutlined, CheckCircleOutlined, BookOutlined, CopyOutlined, SaveOutlined, UploadOutlined, InboxOutlined, DownloadOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { ticketService } from '../../services/ticketService';
 import { projectService } from '../../services/projectService';
@@ -40,9 +41,11 @@ const { Title, Text } = Typography;
 
 const DEFAULT_COLUMNS = [
   { key: 'ToDo', title: 'To Do' },
+  { key: 'Pending', title: 'Pending' },
   { key: 'InProgress', title: 'In Progress' },
-  { key: 'InReview', title: 'In Review' },
-  { key: 'Done', title: 'Done' },
+  { key: 'InternalTesting', title: 'Internal Testing' },
+  { key: 'DevTesting', title: 'Dev Testing' },
+  { key: 'Completed', title: 'Completed' },
 ];
 
 // Derive column config from stored project.kanbanColumns (array or legacy object)
@@ -106,23 +109,64 @@ const SortableColumnItem = ({ col, idx, onTitleChange, onRemove, length }) => {
   );
 };
 
-// Sortable Ticket Card
-const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDarkMode, isDragDisabled, isTLOrPM, onApproveToggle }) => {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ 
-    id: ticket.id,
-    disabled: isDragDisabled
-  });
+// Ticket Card — uses native HTML5 drag-and-drop for reliable cross-column movement
+const SortableTicket = ({ 
+  ticket, colId, onClick, user, users, onDelete, onEdit, canEdit, isDarkMode, 
+  isDragDisabled, isTLOrPM, onApproveToggle, reviewColKey, lastColKey, 
+  draggedTicket, setDraggedTicket, onTicketDrop, columns
+}) => {
+  const [isDragging, setIsDragging] = React.useState(false);
+  const wasDraggingRef = React.useRef(false);
 
-  const style = { 
-    transform: CSS.Transform.toString(transform), 
-    transition, 
-    marginBottom: 12, 
-    cursor: isDragDisabled ? 'not-allowed' : 'pointer' 
+  const isOverdue = ticket.dueDate && new Date(ticket.dueDate) < new Date() && ticket.status !== lastColKey;
+
+  const handleDragStart = (e) => {
+    wasDraggingRef.current = true;
+    e.dataTransfer.effectAllowed = 'move';
+    // Fallback dataTransfer values
+    e.dataTransfer.setData('text/plain', String(ticket.id || ticket.ticketId));
+    e.dataTransfer.setData('ticketId', String(ticket.id || ticket.ticketId));
+    e.dataTransfer.setData('fromCol', colId);
+    setIsDragging(true);
+    if (setDraggedTicket) {
+      setDraggedTicket({ ticketId: ticket.id || ticket.ticketId, fromCol: colId });
+    }
   };
-  const isOverdue = ticket.dueDate && new Date(ticket.dueDate) < new Date() && ticket.status !== 'Done';
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    if (setDraggedTicket) {
+      setDraggedTicket(null);
+    }
+    // Block the click handler briefly after dragging
+    setTimeout(() => {
+      wasDraggingRef.current = false;
+    }, 100);
+  };
+
+  const handleClick = () => {
+    if (wasDraggingRef.current) {
+      return;
+    }
+    onClick(ticket);
+  };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      draggable={!isDragDisabled}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onClick={handleClick}
+      style={{
+        marginBottom: 12,
+        cursor: isDragDisabled ? 'not-allowed' : (isDragging ? 'grabbing' : 'grab'),
+        opacity: isDragging ? 0.4 : 1,
+        transition: 'opacity 0.15s ease',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        msUserSelect: 'none',
+      }}
+    >
       <Card 
         size="small" 
         hoverable 
@@ -135,11 +179,11 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
           background: isDarkMode ? '#1f1f23' : '#ffffff',
           border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}`,
           transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+          pointerEvents: 'auto',
         }}
         bodyStyle={{ padding: '14px 16px' }}
-        onClick={() => onClick(ticket)}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center' }}>
           <Tag color={isDarkMode ? 'zinc' : 'default'} style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 11, borderRadius: 4, margin: 0 }}>
             {ticket.ticketCode || ticket.code}
           </Tag>
@@ -147,6 +191,29 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
             <PriorityBadge priority={ticket.priority} />
             {canEdit && (
               <Space size={2} onClick={e => e.stopPropagation()}>
+                {columns && columns.length > 0 && (
+                  <Dropdown
+                    menu={{
+                      items: columns
+                        .filter(c => c.key !== colId)
+                        .map(c => ({
+                          key: c.key,
+                          label: `Move to ${c.title}`,
+                          onClick: () => onTicketDrop && onTicketDrop(ticket.id || ticket.ticketId, colId, c.key)
+                        }))
+                    }}
+                    trigger={['click']}
+                    placement="bottomRight"
+                  >
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<ArrowRightOutlined />}
+                      style={{ padding: '0 4px', height: 'auto', color: '#10b981' }}
+                      title="Quick Move Column"
+                    />
+                  </Dropdown>
+                )}
                 <Button
                   size="small" type="text" icon={<EditOutlined />}
                   style={{ padding: '0 4px', height: 'auto', color: '#6366f1' }}
@@ -161,6 +228,17 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
             )}
           </Space>
         </div>
+        {/* Task Type badge */}
+        {ticket.taskType && (
+          <div style={{ marginBottom: 8 }}>
+            <Tag
+              color={ticket.taskType === 'Bug' ? 'red' : 'green'}
+              style={{ fontWeight: 700, fontSize: 10, borderRadius: 4, margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}
+            >
+              {ticket.taskType === 'Bug' ? '🐛 Bug' : '✨ New'}
+            </Tag>
+          </div>
+        )}
         <Title level={5} style={{ margin: '0 0 12px 0', fontSize: '13.5px', fontWeight: 600, lineHeight: 1.4 }} ellipsis={{ rows: 2 }}>
           {ticket.title}
         </Title>
@@ -226,17 +304,23 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
 
         {/* Bottom Row: Assignee Info */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Space size={8}>
-            <Tooltip title={user ? `${user.name || user.fullName} (${user.role})` : 'Unassigned'}>
-              <Avatar size="small" src={user?.avatar} icon={<UserOutlined />} />
-            </Tooltip>
-            {user ? (
+          {ticket.assignedEmployees && Array.isArray(ticket.assignedEmployees) && ticket.assignedEmployees.length > 0 ? (
+            <Space size={8}>
+              <Avatar.Group maxCount={2} size="small">
+                {ticket.assignedEmployees.map((emp, index) => {
+                  const empUser = (users || []).find(u => String(u.id || u.userId) === String(emp.userId));
+                  return (
+                    <Tooltip key={emp.userId || index} title={`${emp.name || empUser?.fullName || 'Employee'} (${emp.hours}h)`}>
+                      <Avatar src={empUser?.avatar} icon={<UserOutlined />} />
+                    </Tooltip>
+                  );
+                })}
+              </Avatar.Group>
               <span 
                 style={{ 
-                  fontSize: '12px', 
-                  fontWeight: 600, 
-                  color: isDarkMode ? '#e4e4e7' : '#3f3f46',
-                  maxWidth: '180px',
+                  fontSize: '11px', 
+                  color: isDarkMode ? '#a1a1aa' : '#71717a',
+                  maxWidth: '150px',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -244,17 +328,40 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
                   verticalAlign: 'middle'
                 }}
               >
-                {user.name || user.fullName}
+                {ticket.assignedEmployees.map(emp => emp.name.split(' ')[0]).join(', ')}
               </span>
-            ) : (
-              <span style={{ fontSize: '11px', color: '#a1a1aa', fontStyle: 'italic' }}>
-                Not Assigned
-              </span>
-            )}
-          </Space>
+            </Space>
+          ) : (
+            <Space size={8}>
+              <Tooltip title={user ? `${user.name || user.fullName} (${user.role})` : 'Unassigned'}>
+                <Avatar size="small" src={user?.avatar} icon={<UserOutlined />} />
+              </Tooltip>
+              {user ? (
+                <span 
+                  style={{ 
+                    fontSize: '12px', 
+                    fontWeight: 600, 
+                    color: isDarkMode ? '#e4e4e7' : '#3f3f46',
+                    maxWidth: '180px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-block',
+                    verticalAlign: 'middle'
+                  }}
+                >
+                  {user.name || user.fullName}
+                </span>
+              ) : (
+                <span style={{ fontSize: '11px', color: '#a1a1aa', fontStyle: 'italic' }}>
+                  Not Assigned
+                </span>
+              )}
+            </Space>
+          )}
         </div>
         
-        {ticket.status === 'InReview' && (
+        {ticket.status === reviewColKey && (
           <div style={{ marginTop: 10 }} onClick={e => e.stopPropagation()}>
             {ticket.approvedForDone ? (
               <Button
@@ -310,7 +417,7 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
           </div>
         )}
 
-        {ticket.status === 'Done' && (
+        {ticket.status === lastColKey && (
           <div style={{ marginTop: 10 }}>
             {ticket.approvedForInProgress ? (
               <Tag color="success" style={{ fontWeight: 600, fontSize: 11, width: '100%', textAlign: 'center', margin: 0, padding: '4px' }}>
@@ -328,69 +435,114 @@ const SortableTicket = ({ ticket, onClick, user, onDelete, onEdit, canEdit, isDa
   );
 };
 
-// Droppable Column Component — receives displayTitle directly
-const DroppableColumn = ({ colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, onEditTicket, isDarkMode, token, users, canEdit, authRole, isTLOrPM, onApproveToggle }) => {
-  const { setNodeRef } = useDroppable({ id: colId });
+const DroppableColumn = ({ 
+  colId, displayTitle, tickets, openTicketDetail, onDeleteTicket, onEditTicket, 
+  isDarkMode, token, users, canEdit, authRole, isTLOrPM, onApproveToggle, 
+  reviewColKey, lastColKey, onTicketDrop, draggedTicket, setDraggedTicket, columns 
+}) => {
+  const [isDragOver, setIsDragOver] = React.useState(false);
 
   const colColors = {
     ToDo: '#64748b',
+    Pending: '#fa8c16',
     InProgress: '#6366f1',
-    InReview: '#f59e0b',
-    Done: '#10b981'
+    InternalTesting: '#f59e0b',
+    InternalTseting: '#f59e0b',
+    DevTesting: '#0284c7',
+    Completed: '#10b981'
   };
   const borderTopColor = colColors[colId] || '#d9d9d9';
 
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    // Only clear if leaving the column entirely
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    let ticketId = draggedTicket?.ticketId;
+    let fromCol = draggedTicket?.fromCol;
+    
+    if (!ticketId) {
+      ticketId = e.dataTransfer.getData('ticketId') || e.dataTransfer.getData('text/plain');
+      fromCol = e.dataTransfer.getData('fromCol');
+    }
+    
+    if (ticketId && fromCol && fromCol !== colId) {
+      onTicketDrop(ticketId, fromCol, colId);
+    }
+  };
+
   return (
-    <div style={{ 
-      width: 300, minWidth: 300, 
-      background: isDarkMode ? '#131316' : '#f8fafc', 
-      borderRadius: 14, padding: 14,
-      border: `1px solid ${isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'}`,
-      borderTop: `4px solid ${borderTopColor}`,
-      boxShadow: isDarkMode 
-        ? '0 10px 15px -3px rgba(0,0,0,0.3)' 
-        : '0 4px 6px -1px rgba(0,0,0,0.02)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 12
-    }}>
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{ 
+        width: 300, minWidth: 300, 
+        background: isDragOver
+          ? (isDarkMode ? '#1e1e2e' : '#eef2ff')
+          : (isDarkMode ? '#131316' : '#f8fafc'), 
+        borderRadius: 14, padding: 14,
+        border: `1px solid ${isDragOver ? borderTopColor : (isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)')}`,
+        borderTop: `4px solid ${borderTopColor}`,
+        boxShadow: isDragOver
+          ? `0 0 0 2px ${borderTopColor}55`
+          : (isDarkMode ? '0 10px 15px -3px rgba(0,0,0,0.3)' : '0 4px 6px -1px rgba(0,0,0,0.02)'),
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        transition: 'background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease',
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center', padding: '0 4px' }}>
         <span style={{ fontSize: '14.5px', fontWeight: 700, color: isDarkMode ? '#f4f4f5' : '#1e293b' }}>
           {displayTitle}
         </span>
         <Badge 
           count={tickets.length} 
-          style={{ 
-            backgroundColor: borderTopColor, 
-            color: '#ffffff',
-            fontWeight: 'bold',
-            borderRadius: 8
-          }} 
+          style={{ backgroundColor: borderTopColor, color: '#ffffff', fontWeight: 'bold', borderRadius: 8 }} 
         />
       </div>
-      <SortableContext id={colId} items={tickets.map(t => t.id)} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} style={{ minHeight: 450, height: '100%', paddingBottom: 20 }}>
-          {tickets.map(ticket => {
-            const user = users.find(u => u.id === ticket.assignedToUserId) || mockUsers.find(u => u.id === ticket.assignedToUserId);
-            const isDragDisabled = user?.role === 'ProjectManager' && authRole === 'TeamLead';
-            return (
-              <SortableTicket 
-                key={ticket.id} 
-                ticket={ticket} 
-                onClick={openTicketDetail} 
-                onDelete={onDeleteTicket} 
-                onEdit={onEditTicket} 
-                user={user} 
-                canEdit={canEdit}
-                isDarkMode={isDarkMode}
-                isDragDisabled={isDragDisabled}
-                isTLOrPM={isTLOrPM}
-                onApproveToggle={onApproveToggle}
-              />
-            );
-          })}
-        </div>
-      </SortableContext>
+      <div style={{ minHeight: 450, height: '100%', paddingBottom: 20 }}>
+        {tickets.map(ticket => {
+          const user = (users || []).find(u => String(u.id || u.userId) === String(ticket.assignedToUserId));
+          const isDragDisabled = user?.role === 'ProjectManager' && authRole === 'TeamLead';
+          return (
+            <SortableTicket 
+              key={ticket.id} 
+              ticket={ticket}
+              colId={colId}
+              onClick={openTicketDetail} 
+              onDelete={onDeleteTicket} 
+              onEdit={onEditTicket} 
+              user={user}
+              users={users}
+              canEdit={canEdit}
+              isDarkMode={isDarkMode}
+              isDragDisabled={isDragDisabled}
+              isTLOrPM={isTLOrPM}
+              onApproveToggle={onApproveToggle}
+              reviewColKey={reviewColKey}
+              lastColKey={lastColKey}
+              draggedTicket={draggedTicket}
+              setDraggedTicket={setDraggedTicket}
+              onTicketDrop={onTicketDrop}
+              columns={columns}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -409,6 +561,7 @@ const KanbanBoard = () => {
 
   const [allProjects, setAllProjects] = useState([]);
   const [allTickets, setAllTickets] = useState([]);  // local ticket state — drives board rendering
+  const [draggedTicket, setDraggedTicket] = useState(null); // { ticketId, fromCol }
   const [selectedAssigneeId, setSelectedAssigneeId] = useState('all');
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -449,6 +602,9 @@ const KanbanBoard = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importedTickets, setImportedTickets] = useState([]);
   const [importingLoading, setImportingLoading] = useState(false);
+  const [missingDevelopers, setMissingDevelopers] = useState([]);
+  const [importPageSize, setImportPageSize] = useState(5);
+  const [importCurrentPage, setImportCurrentPage] = useState(1);
 
   const isManager = authRole === 'ProjectManager' || authRole === 'TenantAdmin'
     || authUser?.role === 'ProjectManager' || authUser?.role === 'TenantAdmin';
@@ -462,6 +618,14 @@ const KanbanBoard = () => {
 
   // Effective column config — from saved project data or defaults
   const effectiveColumnList = useMemo(() => deriveColumnConfig(project?.kanbanColumns), [project]);
+
+  const lastColKey = useMemo(() => {
+    return effectiveColumnList[effectiveColumnList.length - 1]?.key || 'Completed';
+  }, [effectiveColumnList]);
+
+  const reviewColKey = useMemo(() => {
+    return effectiveColumnList[effectiveColumnList.length - 2]?.key || 'DevTesting';
+  }, [effectiveColumnList]);
 
   const totalTicketHours = useMemo(() => {
     return allTickets.reduce((sum, t) => sum + (Number(t.estimatedHours) || 0), 0);
@@ -482,10 +646,11 @@ const KanbanBoard = () => {
 
   const nonBacklogTickets = useMemo(() => {
     return allTickets.filter(t => {
-      const isOverdue = t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && t.status !== 'Done';
+      const isCompleted = t.status === lastColKey || t.status === 'Completed' || t.status === 'Done';
+      const isOverdue = t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && !isCompleted;
       return !isOverdue;
     });
-  }, [allTickets]);
+  }, [allTickets, lastColKey]);
 
   // Filter tickets by selected assignee
   const filteredTickets = useMemo(() => {
@@ -502,7 +667,13 @@ const KanbanBoard = () => {
     return result;
   }, [filteredTickets, effectiveColumnList]);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    })
+  );
 
   useEffect(() => {
     fetchProjects();
@@ -577,16 +748,21 @@ const KanbanBoard = () => {
 
   const handleDragEnd = async (event) => {
     const { active, over } = event;
-    if (!over) return;
+    console.log('[Kanban DragEnd] Drag ended. Active:', active?.id, 'Over:', over?.id);
+    if (!over) {
+      console.warn('[Kanban DragEnd] Dropped outside a valid target.');
+      return;
+    }
 
     const ticketId = active.id;
 
     // Block Team Lead from dragging tickets assigned to the PM
     if (authRole === 'TeamLead') {
-      const activeTicket = allTickets.find(t => t.id === ticketId);
+      const activeTicket = allTickets.find(t => String(t.id) === String(ticketId));
       if (activeTicket) {
-        const assigneeObj = users.find(u => (u.id || u.userId) === activeTicket.assignedToUserId) || mockUsers.find(u => (u.id || u.userId) === activeTicket.assignedToUserId);
+        const assigneeObj = (users || []).find(u => String(u.id || u.userId) === String(activeTicket.assignedToUserId));
         if (assigneeObj?.role === 'ProjectManager') {
+          console.warn('[Kanban DragEnd] Blocked: Team Lead dragging PM-assigned ticket.');
           message.error('Team Leads cannot move tickets assigned to the Project Manager.');
           return;
         }
@@ -601,7 +777,7 @@ const KanbanBoard = () => {
       toCol = overId;
     } else {
       for (const col of allColKeys) {
-        if (localColumns[col]?.find(t => t.id === overId)) {
+        if (localColumns[col]?.find(t => String(t.id) === String(overId))) {
           toCol = col;
           break;
         }
@@ -610,34 +786,83 @@ const KanbanBoard = () => {
 
     let fromCol = '';
     for (const col of allColKeys) {
-      if (localColumns[col]?.find(t => t.id === ticketId)) {
+      if (localColumns[col]?.find(t => String(t.id) === String(ticketId))) {
         fromCol = col;
         break;
       }
     }
 
-    if (fromCol && toCol && fromCol !== toCol) {
-      const ticket = allTickets.find(t => t.id === ticketId);
+    console.log('[Kanban DragEnd] Resolved columns - From:', fromCol, 'To:', toCol);
 
-      if (fromCol === 'Done' && toCol !== 'Done') {
+    if (fromCol && toCol && fromCol !== toCol) {
+      const ticket = allTickets.find(t => String(t.id) === String(ticketId));
+
+      if (fromCol === lastColKey && toCol !== lastColKey) {
         const userRole = authRole || authUser?.role;
         if (userRole === 'Employee' || userRole === 'TeamLead') {
           if (ticket && !ticket.approvedForInProgress) {
-            message.error('Approval from Project Manager is required to move this ticket out of the Done stage.');
+            console.warn('[Kanban DragEnd] Blocked: PM approval required to move ticket out of last column.');
+            message.error(`Approval from Project Manager is required to move this ticket out of the ${effectiveColumnList.find(c => c.key === lastColKey)?.title || 'Completed'} stage.`);
             return;
           }
         }
       }
 
       // Optimistic update
-      setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: toCol } : t));
+      console.log('[Kanban DragEnd] Performing optimistic update. Target column:', toCol);
+      setAllTickets(prev => prev.map(t => String(t.id) === String(ticketId) ? { ...t, status: toCol } : t));
       try {
         await ticketService.updateTicketStatus(ticketId, toCol);
+        console.log('[Kanban DragEnd] API update succeeded.');
       } catch (err) {
+        console.error('[Kanban DragEnd] API update failed:', err);
         // Revert on failure
-        setAllTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: fromCol } : t));
+        setAllTickets(prev => prev.map(t => String(t.id) === String(ticketId) ? { ...t, status: fromCol } : t));
         message.error(err.response?.data?.message || 'Failed to move ticket.');
       }
+    } else {
+      console.warn('[Kanban DragEnd] Action ignored. From/To columns unresolved or identical.');
+    }
+  };
+
+  // Native HTML5 drop handler — called by DroppableColumn's onDrop
+  const handleTicketDrop = async (ticketId, fromCol, toCol) => {
+    console.log('[Kanban Drop] Moving ticket', ticketId, 'from', fromCol, 'to', toCol);
+
+    // Block TeamLead from moving PM-assigned tickets
+    if (authRole === 'TeamLead') {
+      const activeTicket = allTickets.find(t => String(t.id) === String(ticketId));
+      if (activeTicket) {
+        const assigneeObj = (users || []).find(u => String(u.id || u.userId) === String(activeTicket.assignedToUserId));
+        if (assigneeObj?.role === 'ProjectManager') {
+          message.error('Team Leads cannot move tickets assigned to the Project Manager.');
+          return;
+        }
+      }
+    }
+
+    // Block moving out of last column without PM approval (for Employee/TeamLead)
+    if (fromCol === lastColKey && toCol !== lastColKey) {
+      const userRole = authRole || authUser?.role;
+      if (userRole === 'Employee' || userRole === 'TeamLead') {
+        const ticket = allTickets.find(t => String(t.id) === String(ticketId));
+        if (ticket && !ticket.approvedForInProgress) {
+          message.error(`Approval from Project Manager is required to move this ticket out of the ${effectiveColumnList.find(c => c.key === lastColKey)?.title || 'Completed'} stage.`);
+          return;
+        }
+      }
+    }
+
+    // Optimistic update
+    setAllTickets(prev => prev.map(t => String(t.id) === String(ticketId) ? { ...t, status: toCol } : t));
+    try {
+      await ticketService.updateTicketStatus(ticketId, toCol);
+      console.log('[Kanban Drop] API update succeeded.');
+      message.success('Ticket moved successfully.');
+    } catch (err) {
+      console.error('[Kanban Drop] API update failed:', err);
+      setAllTickets(prev => prev.map(t => String(t.id) === String(ticketId) ? { ...t, status: fromCol } : t));
+      message.error(err.response?.data?.message || 'Failed to move ticket.');
     }
   };
 
@@ -955,9 +1180,262 @@ const KanbanBoard = () => {
     }
   };
 
+  const downloadExcelTemplate = () => {
+    const templateData = [
+      {
+        "Task": "Design database schema",
+        "Description": "Create database tables and relationships",
+        "Task Type": "new",
+        "Status": "todo",
+        "Start Date": "2026-07-01",
+        "End Date": "2026-07-05",
+        "Developer": "John Doe",
+        "Hours": 10
+      },
+      {
+        "Task": "Design database schema",
+        "Description": "Create database tables and relationships",
+        "Task Type": "new",
+        "Status": "todo",
+        "Start Date": "2026-07-01",
+        "End Date": "2026-07-05",
+        "Developer": "Jane Smith",
+        "Hours": 8
+      },
+      {
+        "Task": "API integration",
+        "Description": "Integrate backend endpoints with frontend forms",
+        "Task Type": "bug",
+        "Status": "inprogress",
+        "Start Date": "2026-07-06",
+        "End Date": "2026-07-12",
+        "Developer": "John Doe",
+        "Hours": 15
+      }
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks Template");
+    XLSX.writeFile(workbook, "task_import_template.xlsx");
+  };
+
+  // Normalise task type value from Excel to 'New' or 'Bug'
+  const normalizeTaskType = (val) => {
+    if (!val) return 'New';
+    const clean = String(val).trim().toLowerCase().replace(/[\s_-]/g, '');
+    if (clean === 'bug' || clean === 'bugfix' || clean === 'fix') return 'Bug';
+    return 'New';
+  };
+
+  // Normalise status value from Excel to one of the kanban column keys
+  const normalizeStatus = (val, cols) => {
+    if (!val) return cols[0]?.key || 'ToDo';
+    const clean = String(val).trim().toLowerCase().replace(/[\s_-]/g, '');
+    // Try to match against column keys / titles
+    const match = cols.find(c =>
+      c.key.toLowerCase().replace(/[\s_-]/g, '') === clean ||
+      (c.title || '').toLowerCase().replace(/[\s_-]/g, '') === clean
+    );
+    if (match) return match.key;
+    // Common aliases
+    if (clean === 'todo' || clean === 'backlog') return cols[0]?.key || 'ToDo';
+    if (clean === 'pending') return cols.find(c => c.key === 'Pending')?.key || cols[1]?.key || 'Pending';
+    if (clean === 'inprogress' || clean === 'progress') return cols.find(c => c.key === 'InProgress')?.key || 'InProgress';
+    if (clean === 'internaltesting' || clean === 'internal' || clean === 'internaltseting') return cols.find(c => c.key === 'InternalTesting' || c.key === 'InternalTseting')?.key || 'InternalTesting';
+    if (clean === 'devtesting' || clean === 'testing') return cols.find(c => c.key === 'DevTesting')?.key || 'DevTesting';
+    if (clean === 'completed' || clean === 'done') return cols[cols.length - 1]?.key || 'Completed';
+    return cols[0]?.key || 'ToDo';
+  };
+
   const parseExcelData = (jsonData) => {
-    return jsonData.map(row => {
-      // Find keys case-insensitively
+    const ticketsMap = {};
+    const unregisteredDevs = new Set();
+
+    const findRowValue = (r, keys) => {
+      const foundKey = Object.keys(r).find(k => 
+        keys.some(key => k.toLowerCase().replace(/[\s_-]/g, '') === key.toLowerCase().replace(/[\s_-]/g, ''))
+      );
+      return foundKey ? r[foundKey] : null;
+    };
+
+    // Deep copy rows to avoid mutating original JSON data
+    const rows = jsonData.map(r => ({ ...r }));
+
+    // 1. Backward fill: if row i has empty task name but row i+1 has task name
+    for (let i = rows.length - 2; i >= 0; i--) {
+      const taskVal = findRowValue(rows[i], ['task', 'title', 'name', 'ticket']);
+      const nextTaskVal = findRowValue(rows[i+1], ['task', 'title', 'name', 'ticket']);
+      
+      if (!taskVal && nextTaskVal) {
+        const keysToCopy = [
+          ['task', 'title', 'name', 'ticket'],
+          ['description', 'desc', 'work', 'details'],
+          ['milestone', 'mileston'],
+          ['startdate', 'start', 'start_date'],
+          ['enddate', 'end', 'end_date', 'duedate', 'due', 'due_date']
+        ];
+        
+        keysToCopy.forEach(aliases => {
+          const keyInNext = Object.keys(rows[i+1]).find(k => 
+            aliases.some(alias => k.toLowerCase().replace(/[\s_-]/g, '') === alias.toLowerCase().replace(/[\s_-]/g, ''))
+          );
+          if (keyInNext && rows[i+1][keyInNext] !== null && rows[i+1][keyInNext] !== undefined) {
+            const keyInCurr = Object.keys(rows[i]).find(k => 
+              aliases.some(alias => k.toLowerCase().replace(/[\s_-]/g, '') === alias.toLowerCase().replace(/[\s_-]/g, ''))
+            ) || keyInNext;
+            rows[i][keyInCurr] = rows[i+1][keyInNext];
+          }
+        });
+      }
+    }
+
+    // 2. Forward fill: if row i has empty task name but row i-1 has task name
+    for (let i = 1; i < rows.length; i++) {
+      const taskVal = findRowValue(rows[i], ['task', 'title', 'name', 'ticket']);
+      const prevTaskVal = findRowValue(rows[i-1], ['task', 'title', 'name', 'ticket']);
+      
+      if (!taskVal && prevTaskVal) {
+        const keysToCopy = [
+          ['task', 'title', 'name', 'ticket'],
+          ['description', 'desc', 'work', 'details'],
+          ['milestone', 'mileston'],
+          ['startdate', 'start', 'start_date'],
+          ['enddate', 'end', 'end_date', 'duedate', 'due', 'due_date']
+        ];
+        
+        keysToCopy.forEach(aliases => {
+          const keyInPrev = Object.keys(rows[i-1]).find(k => 
+            aliases.some(alias => k.toLowerCase().replace(/[\s_-]/g, '') === alias.toLowerCase().replace(/[\s_-]/g, ''))
+          );
+          if (keyInPrev && rows[i-1][keyInPrev] !== null && rows[i-1][keyInPrev] !== undefined) {
+            const keyInCurr = Object.keys(rows[i]).find(k => 
+              aliases.some(alias => k.toLowerCase().replace(/[\s_-]/g, '') === alias.toLowerCase().replace(/[\s_-]/g, ''))
+            ) || keyInPrev;
+            rows[i][keyInCurr] = rows[i-1][keyInPrev];
+          }
+        });
+      }
+    }
+
+    const formatExcelDate = (val) => {
+      if (!val) return null;
+
+      // Numeric Excel serial date (most common case when cellDates is not set)
+      if (typeof val === 'number') {
+        if (isNaN(val)) return null;
+        // Excel serial: days since 1900-01-00 (with leap-year bug offset)
+        // Multiply by ms-per-day; subtract the 25569 days between 1900-01-01 and 1970-01-01
+        const ms = Math.round((val - 25569) * 86400 * 1000);
+        const d = new Date(ms);
+        if (isNaN(d.getTime())) return null;
+        // Use local date parts to avoid UTC midnight shifting the day in IST (UTC+5:30)
+        const y = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${mo}-${day}`;
+      }
+
+      // JS Date object — use local time (not UTC) to avoid IST timezone shift
+      if (val instanceof Date || Object.prototype.toString.call(val) === '[object Date]') {
+        if (isNaN(val.getTime())) return null;
+        const y = val.getFullYear();
+        const mo = String(val.getMonth() + 1).padStart(2, '0');
+        const d = String(val.getDate()).padStart(2, '0');
+        return `${y}-${mo}-${d}`;
+      }
+
+      if (typeof val === 'string') {
+        const str = val.trim();
+
+        // YYYY-MM-DD or YYYY/MM/DD — already in ISO order, keep as-is
+        const matchYMD = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+        if (matchYMD) {
+          const year = matchYMD[1];
+          const month = matchYMD[2].padStart(2, '0');
+          const day = matchYMD[3].padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        }
+
+        // D/M/Y  or  D-M-Y  or  D.M.Y  — always treat first part as DAY
+        const matchDMY = str.match(/^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{2}|\d{4})$/);
+        if (matchDMY) {
+          const day = matchDMY[1].padStart(2, '0');
+          const month = matchDMY[2].padStart(2, '0');
+          let year = matchDMY[3];
+          if (year.length === 2) year = '20' + year;
+          return `${year}-${month}-${day}`;
+        }
+
+        // Custom parser for named month formats: "24-Jun-26", "1-Jul-26", "24 Jun 26", "Jun-24-26", "10 Jul 2026", "Jul 10, 2026"
+        const monthsMap = {
+          jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+          jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+          january: '01', february: '02', march: '03', april: '04', june: '06',
+          july: '07', august: '08', september: '09', october: '10', november: '11', december: '12'
+        };
+
+        // Format: Day NamedMonth Year (e.g. 24-Jun-26, 1-Jul-26, 24 Jun 2026)
+        const matchNamedDMY = str.match(/^(\d{1,2})[-/. ]([A-Za-z]{3,9})[-/. ](\d{2}|\d{4})$/);
+        if (matchNamedDMY) {
+          const day = matchNamedDMY[1].padStart(2, '0');
+          const monthName = matchNamedDMY[2].toLowerCase();
+          let year = matchNamedDMY[3];
+          const month = monthsMap[monthName];
+          if (month) {
+            if (year.length === 2) year = '20' + year;
+            return `${year}-${month}-${day}`;
+          }
+        }
+
+        // Format: NamedMonth Day Year (e.g. Jun-24-26, Jul 1, 26, July 10, 2026)
+        const matchNamedMDY = str.match(/^([A-Za-z]{3,9})[-/. ](\d{1,2})[-/. ,]+(\d{2}|\d{4})$/);
+        if (matchNamedMDY) {
+          const monthName = matchNamedMDY[1].toLowerCase();
+          const day = matchNamedMDY[2].padStart(2, '0');
+          let year = matchNamedMDY[3];
+          const month = monthsMap[monthName];
+          if (month) {
+            if (year.length === 2) year = '20' + year;
+            return `${year}-${month}-${day}`;
+          }
+        }
+
+        // Named month formats fallback: "10 Jul 2026", "Jul 10, 2026" etc.
+        const parsed = dayjs(str, ['DD MMM YYYY', 'D MMM YYYY', 'MMM D YYYY', 'MMM DD YYYY', 'MMMM D YYYY'], true);
+        if (parsed.isValid()) return parsed.format('YYYY-MM-DD');
+      }
+
+      return null;
+    };
+
+    const findMatchedUser = (devNameStr) => {
+      const devName = devNameStr.toLowerCase().trim();
+      if (!devName) return null;
+
+      const checkMatch = (u) => {
+        const uName = (u.name || u.fullName || '').toLowerCase().trim();
+        if (uName === devName) return true;
+
+        const uNameWords = uName.split(/[\s.]+/).filter(Boolean);
+        const devWords = devName.split(/[\s.]+/).filter(Boolean);
+
+        // Check for conflicting single-letter initials (e.g. S vs R)
+        const devInitials = devWords.filter(w => w.length === 1);
+        const uInitials = uNameWords.filter(w => w.length === 1);
+        if (devInitials.length > 0 && uInitials.length > 0) {
+          const hasOverlap = devInitials.some(i => uInitials.includes(i));
+          if (!hasOverlap) return false;
+        }
+
+        // Word-level exact match: check if any full word (length > 1) matches exactly
+        return uNameWords.some(w => w.length > 1 && devWords.includes(w)) || 
+               devWords.some(w => w.length > 1 && uNameWords.includes(w));
+      };
+
+      return (users || []).find(checkMatch);
+    };
+
+    rows.forEach(row => {
       const findValue = (keys) => {
         const foundKey = Object.keys(row).find(k => 
           keys.some(key => k.toLowerCase().replace(/[\s_-]/g, '') === key.toLowerCase().replace(/[\s_-]/g, ''))
@@ -965,35 +1443,113 @@ const KanbanBoard = () => {
         return foundKey ? row[foundKey] : null;
       };
 
-      const milestone = findValue(['milestone', 'mileston']);
-      const title = findValue(['title', 'name', 'ticket']) || milestone || 'Untitled Ticket';
+      const milestone = findValue(['milestone', 'mileston']) || '';
+      const taskName = findValue(['task', 'title', 'name', 'ticket']);
+      const title = taskName ? String(taskName).trim() : (milestone ? String(milestone).trim() : 'Untitled Task');
       const description = findValue(['description', 'desc', 'work', 'details']) || '';
       
-      // Parse Dates resiliently
-      let startDateVal = findValue(['startdate', 'start', 'start_date']);
-      let endDateVal = findValue(['enddate', 'end', 'end_date', 'duedate', 'due', 'due_date']);
+      const startDateVal = findValue(['startdate', 'start', 'start_date']);
+      const endDateVal = findValue(['enddate', 'end', 'end_date', 'duedate', 'due', 'due_date']);
+      
+      const taskTypeRaw = findValue(['tasktype', 'type', 'issuetype']);
+      const statusRaw = findValue(['status', 'state', 'column']);
 
-      // Convert SheetJS serial dates to format YYYY-MM-DD
-      const formatExcelDate = (val) => {
-        if (!val) return null;
-        if (typeof val === 'number') {
-          const date = new Date((val - 25569) * 86400 * 1000);
-          return dayjs(date).format('YYYY-MM-DD');
+      const developerVal = findValue(['developer', 'dev', 'assignedto', 'user', 'assignee']);
+      const hoursRaw = findValue(['hours', 'hour', 'allocatedhours', 'assignedhours', 'estimatedhours']);
+
+      let hoursList = [];
+      if (hoursRaw !== null && hoursRaw !== undefined) {
+        const hoursStr = String(hoursRaw).trim();
+        // Support splitting by comma, newline, semicolon, or slash
+        const parts = hoursStr.split(/[,\n\r;/]+/).map(h => h.trim()).filter(Boolean);
+        if (parts.length > 0) {
+          hoursList = parts.map(h => parseFloat(h) || 0);
+        } else {
+          hoursList = [parseFloat(hoursStr) || 0];
         }
-        const parsed = dayjs(val);
-        return parsed.isValid() ? parsed.format('YYYY-MM-DD') : null;
-      };
+      } else {
+        hoursList = [0];
+      }
 
-      return {
-        title: String(title),
-        milestone: milestone ? String(milestone) : '',
-        description: String(description),
-        startDate: formatExcelDate(startDateVal),
-        dueDate: formatExcelDate(endDateVal),
-        priority: 'Medium',
-        estimatedHours: 0
-      };
+      const startDate = formatExcelDate(startDateVal);
+      const dueDate = formatExcelDate(endDateVal);
+
+      const parsedTaskType = normalizeTaskType(taskTypeRaw);
+      const parsedStatus = normalizeStatus(statusRaw, effectiveColumnList);
+
+      // Group key to consolidate same tasks assigned to different users
+      const groupKey = `${title.toLowerCase()}||${description.toLowerCase()}||${startDate || ''}||${dueDate || ''}`;
+
+      let ticket = ticketsMap[groupKey];
+      if (!ticket) {
+        ticket = {
+          title,
+          milestone: milestone ? String(milestone) : '',
+          description: String(description),
+          startDate,
+          dueDate,
+          priority: 'Medium',
+          taskType: parsedTaskType,
+          status: parsedStatus,
+          estimatedHours: 0,
+          assignedEmployees: [],
+          assignedToUserId: null
+        };
+        ticketsMap[groupKey] = ticket;
+      }
+
+      if (developerVal) {
+        // Split by comma, newline, semicolon, or slash to support multiple developers
+        const devNames = String(developerVal).split(/[,\n\r;/]+/).map(d => d.trim()).filter(Boolean);
+        
+        devNames.forEach((devNameStr, idx) => {
+          const matchedUser = findMatchedUser(devNameStr);
+          // If we have hoursList[idx], use it. Otherwise fallback to hoursList[0] || 0.
+          const currentHoursVal = (hoursList.length > idx) ? hoursList[idx] : (hoursList[0] || 0);
+
+          if (matchedUser) {
+            const userId = matchedUser.id || matchedUser.userId;
+            const userName = matchedUser.name || matchedUser.fullName;
+
+            const existingEmp = ticket.assignedEmployees.find(emp => String(emp.userId) === String(userId));
+            if (existingEmp) {
+              existingEmp.hours += currentHoursVal;
+            } else {
+              ticket.assignedEmployees.push({
+                userId: userId,
+                name: userName,
+                hours: currentHoursVal
+              });
+            }
+
+            ticket.estimatedHours += currentHoursVal;
+            if (!ticket.assignedToUserId) {
+              ticket.assignedToUserId = userId;
+            }
+          } else {
+            unregisteredDevs.add(devNameStr);
+            const existingEmp = ticket.assignedEmployees.find(emp => emp.isMissing && emp.name.toLowerCase() === devNameStr.toLowerCase());
+            if (existingEmp) {
+              existingEmp.hours += currentHoursVal;
+            } else {
+              ticket.assignedEmployees.push({
+                userId: null,
+                name: devNameStr,
+                hours: currentHoursVal,
+                isMissing: true
+              });
+            }
+            ticket.estimatedHours += currentHoursVal;
+          }
+        });
+      } else {
+        const fallbackHours = hoursList[0] || 0;
+        ticket.estimatedHours += fallbackHours;
+      }
     });
+
+    setMissingDevelopers(Array.from(unregisteredDevs));
+    return Object.values(ticketsMap);
   };
 
   const handleExcelUpload = (file) => {
@@ -1004,7 +1560,10 @@ const KanbanBoard = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        // raw:false → every cell comes back as its DISPLAYED text (e.g. "10/7/2026")
+        // This avoids XLSX interpreting date serials with US locale (M/D/Y) instead of D/M/Y.
+        // defval:'' ensures empty cells return '' instead of undefined.
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
         
         if (jsonData.length === 0) {
           message.error("The uploaded Excel sheet is empty.");
@@ -1027,22 +1586,31 @@ const KanbanBoard = () => {
     if (!projectId) return;
     setImportingLoading(true);
     try {
-      await Promise.all(importedTickets.map(t => 
-        ticketService.createTicket(projectId, {
+      await Promise.all(importedTickets.map(t => {
+        const validEmployees = (t.assignedEmployees || []).filter(emp => !emp.isMissing);
+        const validAssignedToUserId = validEmployees[0]?.userId || null;
+        const validEstimatedHours = validEmployees.reduce((sum, emp) => sum + emp.hours, 0) || t.estimatedHours || 0;
+
+        return ticketService.createTicket(projectId, {
           title: t.title,
           description: t.description,
           priority: t.priority,
-          estimatedHours: t.estimatedHours || 0,
+          taskType: t.taskType || 'New',
+          status: t.status || effectiveColumnList[0]?.key || 'ToDo',
+          estimatedHours: validEstimatedHours,
           milestone: t.milestone,
           startDate: t.startDate || null,
           dueDate: t.dueDate || null,
-          assignedToUserId: null,
-          assignedEmployees: []
-        })
-      ));
+          assignedToUserId: validAssignedToUserId,
+          assignedEmployees: validEmployees
+        });
+      }));
       message.success(`Successfully generated ${importedTickets.length} tickets from the uploaded Excel sheet!`);
       setIsImportModalOpen(false);
       setImportedTickets([]);
+      setMissingDevelopers([]);
+      setImportCurrentPage(1);
+      setImportPageSize(5);
       loadTickets(projectId);
     } catch (err) {
       console.error(err);
@@ -1053,7 +1621,7 @@ const KanbanBoard = () => {
   };
 
   const currentAssignee = selectedTicket
-    ? (users.find(u => u.id === selectedTicket.assignedToUserId) || mockUsers.find(u => u.id === selectedTicket.assignedToUserId))
+    ? (users || []).find(u => u.id === selectedTicket.assignedToUserId)
     : null;
 
   return (
@@ -1068,6 +1636,8 @@ const KanbanBoard = () => {
                   <Button icon={<UploadOutlined />} onClick={() => {
                     setImportedTickets([]);
                     setIsImportModalOpen(true);
+                    setImportCurrentPage(1);
+                    setImportPageSize(5);
                   }}>
                     Import Excel
                   </Button>
@@ -1100,11 +1670,16 @@ const KanbanBoard = () => {
           <Space direction="vertical" size={4}>
             <Text type="secondary" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</Text>
             <Select
+              showSearch
               placeholder="Select Project"
               style={{ width: 250 }}
               value={projectId ? String(projectId) : undefined}
               onChange={handleProjectChange}
               options={allProjects.map(p => ({ label: p.name, value: String(p.id) }))}
+              optionFilterProp="label"
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             />
           </Space>
 
@@ -1112,10 +1687,15 @@ const KanbanBoard = () => {
             <Space direction="vertical" size={4}>
               <Text type="secondary" style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team Member Filter</Text>
               <Select
+                showSearch
                 placeholder="Filter by Team Member"
                 style={{ width: 230 }}
                 value={selectedAssigneeId}
                 onChange={setSelectedAssigneeId}
+                optionFilterProp="label"
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
                 options={(() => {
                   const myUserId = authUser?.id || authUser?.userId;
                   let filteredUsers = users.filter(u => u.isActive !== false && u.status !== 'Inactive');
@@ -1167,10 +1747,15 @@ const KanbanBoard = () => {
               </p>
               <Space>
                 <Select
+                  showSearch
                   placeholder="Select Team Lead"
                   style={{ width: 250 }}
                   onChange={setSelectedTLForSubmit}
-                  options={users.filter(u => u.role === 'TeamLead').map(u => ({ label: u.name || u.fullName, value: u.id }))}
+                  options={users.filter(u => u.role === 'TeamLead').map(u => ({ label: u.name || u.fullName || '', value: u.id }))}
+                  optionFilterProp="label"
+                  filterOption={(input, option) =>
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
                 />
                 <Button 
                   type="primary" icon={<TeamOutlined />} 
@@ -1214,11 +1799,16 @@ const KanbanBoard = () => {
               ) : (
                 <Space>
                   <Select
+                    showSearch
                     placeholder="Select Team Lead"
                     style={{ width: 250 }}
                     value={tempSelectedTL}
                     onChange={setTempSelectedTL}
-                    options={users.filter(u => u.role === 'TeamLead').map(u => ({ label: u.name || u.fullName, value: u.id }))}
+                    options={users.filter(u => u.role === 'TeamLead').map(u => ({ label: u.name || u.fullName || '', value: u.id }))}
+                    optionFilterProp="label"
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
                   />
                   <Button 
                     type="primary" 
@@ -1287,28 +1877,32 @@ const KanbanBoard = () => {
       )}
 
       {projectId ? (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-          <div className="kanban-board-container" style={{ display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16 }}>
-             {effectiveColumnList.map(({ key: colId, title }) => (
-              <DroppableColumn
-                key={colId}
-                colId={colId}
-                displayTitle={title}
-                tickets={localColumns[colId] || []}
-                openTicketDetail={openTicketDetail}
-                onDeleteTicket={handleDeleteTicket}
-                onEditTicket={handleEditTicket}
-                isDarkMode={isDarkMode}
-                token={token}
-                users={users}
-                canEdit={canEdit}
-                authRole={authRole}
-                isTLOrPM={isTLOrPM}
-                onApproveToggle={handleApproveToggle}
-              />
-            ))}
-          </div>
-        </DndContext>
+        <div className="kanban-board-container" style={{ display: 'flex', gap: 16, overflowX: 'auto', flex: 1, paddingBottom: 16 }}>
+           {effectiveColumnList.map(({ key: colId, title }) => (
+            <DroppableColumn
+              key={colId}
+              colId={colId}
+              displayTitle={title}
+              tickets={localColumns[colId] || []}
+              openTicketDetail={openTicketDetail}
+              onDeleteTicket={handleDeleteTicket}
+              onEditTicket={handleEditTicket}
+              isDarkMode={isDarkMode}
+              token={token}
+              users={users}
+              canEdit={canEdit}
+              authRole={authRole}
+              isTLOrPM={isTLOrPM}
+              onApproveToggle={handleApproveToggle}
+              reviewColKey={reviewColKey}
+              lastColKey={lastColKey}
+              onTicketDrop={handleTicketDrop}
+              draggedTicket={draggedTicket}
+              setDraggedTicket={setDraggedTicket}
+              columns={effectiveColumnList}
+            />
+          ))}
+        </div>
       ) : (
         <Card style={{ textAlign: 'center', padding: '40px 0' }}>
           <Text type="secondary">Please select a project to load the Kanban board.</Text>
@@ -1326,25 +1920,52 @@ const KanbanBoard = () => {
         {selectedTicket && (
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
             <div>
-              <Title level={4}>{selectedTicket.title}</Title>
-              <Text type="secondary">{selectedTicket.description}</Text>
+              <Title level={4} style={{ margin: 0 }}>{selectedTicket.title}</Title>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <Space direction="vertical">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <Space direction="vertical" size={2}>
                 <Text strong>Priority</Text>
                 <PriorityBadge priority={selectedTicket.priority} />
               </Space>
-              <Space direction="vertical">
+              {selectedTicket.taskType && (
+                <Space direction="vertical" size={2}>
+                  <Text strong>Task Type</Text>
+                  <Tag
+                    color={selectedTicket.taskType === 'Bug' ? 'red' : 'green'}
+                    style={{ fontWeight: 700, fontSize: 11, borderRadius: 4, margin: 0, textTransform: 'uppercase' }}
+                  >
+                    {selectedTicket.taskType === 'Bug' ? '🐛 Bug' : '✨ New'}
+                  </Tag>
+                </Space>
+              )}
+              <Space direction="vertical" size={2}>
                 <Text strong>Status</Text>
                 <StatusBadge status={selectedTicket.status} />
               </Space>
             </div>
-            <Space direction="vertical">
-              <Text strong>Assignee</Text>
-              <Space>
-                <Avatar src={currentAssignee?.avatar} icon={<UserOutlined />} />
-                <Text>{currentAssignee?.name || 'Unassigned'}</Text>
-              </Space>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Text strong>Assigned Employees</Text>
+              {selectedTicket.assignedEmployees && Array.isArray(selectedTicket.assignedEmployees) && selectedTicket.assignedEmployees.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+                  {selectedTicket.assignedEmployees.map((emp, index) => {
+                    const empUser = (users || []).find(u => String(u.id || u.userId) === String(emp.userId));
+                    return (
+                      <div key={emp.userId || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 8, border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` }}>
+                        <Space size={8}>
+                          <Avatar size="small" src={empUser?.avatar} icon={<UserOutlined />} />
+                          <Text style={{ fontSize: '13px' }}>{emp.name || empUser?.fullName || 'Employee'}</Text>
+                        </Space>
+                        <Text strong style={{ color: '#4f46e5', fontSize: '13px' }}>{emp.hours}h</Text>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Space>
+                  <Avatar src={currentAssignee?.avatar} icon={<UserOutlined />} />
+                  <Text>{currentAssignee?.name || 'Unassigned'}</Text>
+                </Space>
+              )}
             </Space>
 
              <Space direction="vertical">
@@ -1367,17 +1988,14 @@ const KanbanBoard = () => {
               </Text>
             </Space>
 
-            <Space direction="vertical">
-              <Text strong>In Progress Date</Text>
-              <Text style={{ color: '#16a34a', fontWeight: 600 }}>
-                {selectedTicket.inProgressDate 
-                  ? dayjs(selectedTicket.inProgressDate).format('DD MMM YYYY HH:mm') 
-                  : 'Not Started'
-                }
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Text strong>Description</Text>
+              <Text style={{ display: 'block', whiteSpace: 'pre-wrap', color: isDarkMode ? '#d1d5db' : '#374151' }}>
+                {selectedTicket.description || 'No Description'}
               </Text>
             </Space>
 
-            {isTLOrPM && selectedTicket.status === 'InReview' && (
+            {isTLOrPM && selectedTicket.status === reviewColKey && (
               <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
                 <Text strong>Team Leader Approval</Text>
                 <Button 
@@ -1390,12 +2008,12 @@ const KanbanBoard = () => {
                   }}
                   block
                 >
-                  {selectedTicket.approvedForDone ? 'Revoke Done Approval' : 'Approve for Done Stage'}
+                  {selectedTicket.approvedForDone ? 'Revoke Approval' : `Approve for ${effectiveColumnList.find(c => c.key === lastColKey)?.title || 'Completed'} Stage`}
                 </Button>
               </Space>
             )}
 
-            {isManager && selectedTicket.status === 'Done' && (
+            {isManager && selectedTicket.status === lastColKey && (
               <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
                 <Text strong>PM In-Progress Approval</Text>
                 <Button 
@@ -1511,9 +2129,11 @@ const KanbanBoard = () => {
 
           <Form.Item name="assignedTo" label="Assign Employees" rules={[{ required: true, message: 'Please assign at least one employee' }]}>
             <Select 
+              showSearch
               mode="multiple"
               style={{ width: '100%' }} 
               placeholder="Select employees"
+              optionFilterProp="children"
               onChange={(val) => {
                 const newAssigned = val.map(id => {
                   const existing = editAssignedEmployees.find(emp => String(emp.userId) === String(id));
@@ -1888,10 +2508,27 @@ const KanbanBoard = () => {
       <Modal
         title={<span style={{ fontWeight: 800, fontSize: '18px', color: isDarkMode ? '#f1f5f9' : '#0f172a' }}>Import Tickets from Excel/CSV</span>}
         open={isImportModalOpen}
-        onCancel={() => setIsImportModalOpen(false)}
-        width={750}
+        onCancel={() => {
+          setIsImportModalOpen(false);
+          setImportedTickets([]);
+          setMissingDevelopers([]);
+          setImportCurrentPage(1);
+          setImportPageSize(5);
+        }}
+        width={1000}
         footer={[
-          <Button key="cancel" onClick={() => setIsImportModalOpen(false)} size="large" style={{ borderRadius: 8 }}>
+          <Button
+            key="cancel"
+            onClick={() => {
+              setIsImportModalOpen(false);
+              setImportedTickets([]);
+              setMissingDevelopers([]);
+              setImportCurrentPage(1);
+              setImportPageSize(5);
+            }}
+            size="large"
+            style={{ borderRadius: 8 }}
+          >
             Cancel
           </Button>,
           <Button 
@@ -1909,6 +2546,39 @@ const KanbanBoard = () => {
         destroyOnClose
       >
         <div style={{ marginTop: 16 }}>
+          {missingDevelopers.length > 0 && (
+            <Alert
+              message="Unregistered Users Detected"
+              description={
+                <div>
+                  The following developers listed in the Excel sheet are not registered in the system:
+                  <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {missingDevelopers.map(dev => (
+                      <Tag color="red" key={dev} style={{ margin: 0 }}>{dev}</Tag>
+                    ))}
+                  </div>
+                  Please create these users in the system, or they will not be assigned.
+                </div>
+              }
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16, borderRadius: 8 }}
+            />
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <span style={{ fontSize: 13, color: t2 }}>
+              Download our template to format your tasks sheet correctly.
+            </span>
+            <Button 
+              icon={<DownloadOutlined />} 
+              onClick={downloadExcelTemplate}
+              style={{ borderRadius: 8 }}
+            >
+              Download Template
+            </Button>
+          </div>
+
           <Upload.Dragger
             accept=".xlsx,.xls,.csv"
             beforeUpload={handleExcelUpload}
@@ -1926,7 +2596,7 @@ const KanbanBoard = () => {
             </p>
             <p className="ant-upload-text" style={{ fontWeight: 700, fontSize: 15, color: t1 }}>Click or drag Excel/CSV file to this area to upload</p>
             <p className="ant-upload-hint" style={{ fontSize: 12, color: t2, marginTop: 4 }}>
-              The sheet should contain columns for <strong>Milestone</strong>, <strong>Description</strong>, <strong>Start Date</strong>, and <strong>End Date</strong> (or Due Date).
+              The sheet should contain columns for <strong>Task</strong>, <strong>Description</strong>, <strong>Task Type</strong> (new/bug), <strong>Status</strong> (todo/pending/inprogress/internal testing/dev testing/completed), <strong>Start Date</strong>, <strong>End Date</strong>, <strong>Developer</strong>, and <strong>Hours</strong>.
             </p>
           </Upload.Dragger>
 
@@ -1939,24 +2609,70 @@ const KanbanBoard = () => {
                 size="small"
                 dataSource={importedTickets}
                 rowKey={(record, index) => index}
-                pagination={{ pageSize: 5 }}
+                pagination={{
+                  current: importCurrentPage,
+                  pageSize: importPageSize,
+                  showSizeChanger: true,
+                  pageSizeOptions: ['5', '10', '20', '50', '100'],
+                  onChange: (page, pageSize) => {
+                    setImportCurrentPage(page);
+                    setImportPageSize(pageSize);
+                  }
+                }}
                 bordered
                 style={{ borderRadius: 8, overflow: 'hidden' }}
+                scroll={{ x: 950 }}
                 columns={[
-                  { title: 'Milestone / Title', dataIndex: 'title', ellipsis: true },
-                  { title: 'Description', dataIndex: 'description', ellipsis: true },
+                  { title: 'Task / Title', dataIndex: 'title', ellipsis: true, width: 180 },
+                  { title: 'Description', dataIndex: 'description', ellipsis: true, width: 180 },
+                  {
+                    title: 'Task Type',
+                    dataIndex: 'taskType',
+                    width: 90,
+                    render: t => t ? (
+                      <Tag color={t === 'Bug' ? 'red' : 'green'} style={{ margin: 0, fontWeight: 700, fontSize: 11 }}>
+                        {t === 'Bug' ? '🐛 Bug' : '✨ New'}
+                      </Tag>
+                    ) : '-'
+                  },
+                  {
+                    title: 'Status',
+                    dataIndex: 'status',
+                    width: 100,
+                    render: s => s ? <Tag color="purple" style={{ margin: 0 }}>{s}</Tag> : '-'
+                  },
                   { 
                     title: 'Start Date', 
                     dataIndex: 'startDate', 
-                    width: 130, 
-                    render: d => d ? <Tag color="blue">{d}</Tag> : '-' 
+                    width: 110, 
+                    render: d => d ? <Tag color="blue" style={{ margin: 0 }}>{d}</Tag> : '-' 
                   },
                   { 
-                    title: 'End Date / Due', 
+                    title: 'End Date', 
                     dataIndex: 'dueDate', 
-                    width: 130, 
-                    render: d => d ? <Tag color="cyan">{d}</Tag> : '-' 
+                    width: 110, 
+                    render: d => d ? <Tag color="cyan" style={{ margin: 0 }}>{d}</Tag> : '-' 
                   },
+                  {
+                    title: 'Assigned Developers',
+                    dataIndex: 'assignedEmployees',
+                    width: 180,
+                    render: emps => emps && emps.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {emps.map((emp, idx) => (
+                          <Tag key={emp.userId || idx} color={emp.isMissing ? "error" : "purple"} style={{ margin: 0, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {emp.name}: {emp.hours}h {emp.isMissing ? "(Not Found - Please Create User)" : ""}
+                          </Tag>
+                        ))}
+                      </div>
+                    ) : '-'
+                  },
+                  {
+                    title: 'Total Hours',
+                    dataIndex: 'estimatedHours',
+                    width: 100,
+                    render: h => <span style={{ fontWeight: 600 }}>{h}h</span>
+                  }
                 ]}
               />
             </div>

@@ -36,12 +36,18 @@ export const adminService = {
       return { data: mapped };
     }
     const response = await apiClient.get('/users');
-    let mapped = response.data.data.map(u => ({
-      ...u,
-      id: u.id || u.userId,
-      name: u.name || u.fullName,
-      fullName: u.fullName || u.name
-    }));
+    let mapped = response.data.data.map(u => {
+      let normRole = u.role;
+      if (normRole === 'TL') normRole = 'TeamLead';
+      else if (normRole === 'PM') normRole = 'ProjectManager';
+      return {
+        ...u,
+        id: u.id || u.userId,
+        name: u.name || u.fullName,
+        fullName: u.fullName || u.name,
+        role: normRole
+      };
+    });
     if (isPM && pmId) {
       const associatedTLs = mapped.filter(u => u.role === 'TeamLead' && String(u.projectManagerId) === String(pmId));
       const associatedTLIds = new Set(associatedTLs.map(tl => String(tl.id)));
@@ -62,6 +68,7 @@ export const adminService = {
     const isPM = authState.role === 'ProjectManager';
     const pmId = authState.user?.id || authState.user?.userId;
     const finalPMId = isPM ? pmId : data.projectManagerId;
+    const formattedRole = Array.isArray(data.role) ? data.role.join(', ') : data.role;
 
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -71,13 +78,14 @@ export const adminService = {
         name: data.fullName || data.email.split('@')[0],
         fullName: data.fullName,
         email: data.email,
-        role: data.role,
+        role: formattedRole,
         costPerHour: data.costPerHour || 0,
         teamLeadId: data.teamLeadId,
         projectManagerId: finalPMId,
         tenantCode: tenantCode,
         status: 'Active',
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.email}`
+        designation: data.designation,
+        permissions: data.permissions || null
       };
       mockUsers.push(newUser);
       return { data: newUser };
@@ -87,22 +95,45 @@ export const adminService = {
       fullName: data.fullName || data.email.split('@')[0],
       email: data.email,
       password: data.password || 'Rabbit@123', // Default password for new invites
-      role: data.role,
+      role: formattedRole,
       costPerHour: data.costPerHour,
       teamLeadId: data.teamLeadId,
-      projectManagerId: finalPMId
+      projectManagerId: finalPMId,
+      designation: data.designation,
+      permissions: data.permissions || null
     };
     return apiClient.post('/users', payload);
   },
 
+  updateUserPermissions: async (id, permissions) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const user = mockUsers.find(u => u.id === id || u.userId === id);
+      if (user) user.permissions = permissions;
+      return { data: { success: true } };
+    }
+    return apiClient.put(`/users/${id}/permissions`, { permissions });
+  },
+
+  updateUserDesignation: async (id, designation) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const user = mockUsers.find(u => u.id === id || u.userId === id);
+      if (user) user.designation = designation;
+      return { data: { success: true } };
+    }
+    return apiClient.put(`/users/${id}/designation`, { designation });
+  },
+
   updateUserRole: async (id, role) => {
+    const formattedRole = Array.isArray(role) ? role.join(', ') : role;
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 500));
       const user = mockUsers.find(u => u.id === id);
-      if (user) user.role = role;
+      if (user) user.role = formattedRole;
       return { data: { success: true } };
     }
-    return apiClient.put(`/users/${id}/role`, { role });
+    return apiClient.put(`/users/${id}/role`, { role: formattedRole });
   },
 
   updateCostPerHour: async (id, costPerHour) => {
@@ -155,6 +186,14 @@ export const adminService = {
       return { data: { success: true } };
     }
     return apiClient.delete(`/users/${id}`);
+  },
+
+  resetUserPassword: async (id, newPassword) => {
+    if (useMock) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { data: { success: true } };
+    }
+    return apiClient.put(`/users/${id}/password`, { newPassword });
   },
 
   getSubscription: async () => {

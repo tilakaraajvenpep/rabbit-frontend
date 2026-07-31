@@ -5,16 +5,21 @@ import { logger } from '../utils/logger';
 const useMock = import.meta.env.VITE_USE_MOCK === 'true';
 
 const mapProject = (p) => {
-  const approvedHours = Number(p.approvedHours) || 0;
-  const availableHours = p.totalHours !== undefined ? Number(p.totalHours) : Math.max(0, approvedHours - (Number(p.consumedHours) || 0));
-  const consumedHours = p.consumedHours !== undefined ? Number(p.consumedHours) : Math.max(0, approvedHours - availableHours);
+  const rawApproved = Number(p.approvedHours);
+  const rawTotal = Number(p.totalHours);
+  const approvedHours = rawApproved > 0 ? rawApproved : (rawTotal > 0 ? rawTotal : 0);
+  const availableHours = rawTotal > 0 ? rawTotal : approvedHours;
+  const consumedHours = p.consumedHours !== undefined ? Number(p.consumedHours) : 0;
+  const remainingHours = p.remainingHours !== undefined ? Number(p.remainingHours) : 0;
   return {
     ...p,
-    id: p.projectId,
-    name: p.projectName,
-    code: p.projectCode,
+    id: p.projectId || p.id,
+    name: p.projectName || p.name,
+    code: p.projectCode || p.code,
+    approvedHours: approvedHours,
+    totalHours: availableHours,
     consumedHours: consumedHours,
-    totalHours: availableHours
+    remainingHours: remainingHours
   };
 };
 
@@ -56,17 +61,28 @@ export const projectService = {
       projectName: projectData.name,
       client: projectData.client,
       description: projectData.description,
-      startDate: projectData.expectedStart,
-      endDate: projectData.expectedEnd,
+      startDate: projectData.expectedStart || projectData.startDate,
+      endDate: projectData.expectedEnd || projectData.endDate,
       budgetTable: projectData.budgetTable,
       milestones: projectData.milestones,
       status: projectData.status,
-      projectCategory: projectData.projectCategory
+      projectCategory: projectData.projectCategory,
+      assignedProjectManagerId: projectData.assignedProjectManagerId,
+      assignedTeamLeadId: projectData.assignedTeamLeadId,
+      totalHours: projectData.totalHours || projectData.approvedHours,
+      approvedHours: projectData.approvedHours || projectData.totalHours,
+      consumedHours: projectData.consumedHours,
+      remainingHours: projectData.remainingHours,
+      bufferHours: projectData.bufferHours,
+      assignedEmployeeIds: projectData.assignedEmployeeIds,
+      employeeAllocatedHours: projectData.employeeAllocatedHours,
+      costCalculationType: projectData.costCalculationType,
+      billingType: projectData.billingType
     };
     const response = await apiClient.post('/projects', mappedPayload);
     return { data: mapProject(response.data.data) };
   },
-
+ 
   updateProject: async (projectId, projectData) => {
     if (useMock) {
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -85,12 +101,23 @@ export const projectService = {
       projectName: projectData.name,
       client: projectData.client,
       description: projectData.description,
-      startDate: projectData.expectedStart,
-      endDate: projectData.expectedEnd,
+      startDate: projectData.expectedStart || projectData.startDate,
+      endDate: projectData.expectedEnd || projectData.endDate,
       budgetTable: projectData.budgetTable,
       milestones: projectData.milestones,
       status: projectData.status,
-      projectCategory: projectData.projectCategory
+      projectCategory: projectData.projectCategory,
+      assignedProjectManagerId: projectData.assignedProjectManagerId,
+      assignedTeamLeadId: projectData.assignedTeamLeadId,
+      totalHours: projectData.totalHours || projectData.approvedHours,
+      approvedHours: projectData.approvedHours || projectData.totalHours,
+      consumedHours: projectData.consumedHours,
+      remainingHours: projectData.remainingHours,
+      bufferHours: projectData.bufferHours,
+      assignedEmployeeIds: projectData.assignedEmployeeIds,
+      employeeAllocatedHours: projectData.employeeAllocatedHours,
+      costCalculationType: projectData.costCalculationType,
+      billingType: projectData.billingType
     };
     const response = await apiClient.put(`/projects/${projectId}`, mappedPayload);
     return { data: mapProject(response.data.data) };

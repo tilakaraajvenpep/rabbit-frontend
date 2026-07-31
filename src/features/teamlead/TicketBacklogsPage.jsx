@@ -34,6 +34,7 @@ const TicketBacklogsPage = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [pageSize, setPageSize] = useState(8);
 
   useEffect(() => {
     fetchInitialData();
@@ -105,9 +106,14 @@ const TicketBacklogsPage = () => {
     }
   };
 
-  // Backlog criteria: dueDate is in the past (before today) and status !== 'Done'
+  // Backlog criteria: dueDate is in the past (before today) and status is not completed/done
   const backlogTickets = tickets.filter(t => {
-    const isOverdue = t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && t.status !== 'Done';
+    const proj = projects.find(p => String(p.id) === String(t.projectId));
+    if (!proj || !proj.assignedTeamLeadId) return false;
+    const columns = proj?.kanbanColumns ? (Array.isArray(proj.kanbanColumns) ? proj.kanbanColumns : Object.entries(proj.kanbanColumns).map(([key, title]) => ({ key, title }))) : [];
+    const lastColKey = columns.length > 0 ? columns[columns.length - 1].key : 'Completed';
+    const isCompleted = t.status === lastColKey || t.status === 'Completed' || t.status === 'Done';
+    const isOverdue = t.dueDate && dayjs(t.dueDate).isBefore(dayjs(), 'day') && !isCompleted;
     return isOverdue;
   });
 
@@ -132,9 +138,19 @@ const TicketBacklogsPage = () => {
       key: 'title',
       render: (title, record) => (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <a onClick={() => { setSelectedTicket(record); setIsDrawerOpen(true); }} style={{ fontWeight: 600, fontSize: '14px', color: '#dc2626' }}>
-            {title}
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <a onClick={() => { setSelectedTicket(record); setIsDrawerOpen(true); }} style={{ fontWeight: 600, fontSize: '14px', color: '#dc2626' }}>
+              {title}
+            </a>
+            {record.taskType && (
+              <Tag
+                color={record.taskType === 'Bug' ? 'red' : 'green'}
+                style={{ fontWeight: 700, fontSize: 9, borderRadius: 4, padding: '0 4px', textTransform: 'uppercase', lineHeight: '1.5em' }}
+              >
+                {record.taskType === 'Bug' ? '🐛 Bug' : '✨ New'}
+              </Tag>
+            )}
+          </div>
           <Text type="secondary" style={{ fontSize: '11px', marginTop: 4 }}>
             Project: <Tag style={{ borderRadius: 4, margin: 0, fontSize: 10 }}>{record.projectName || 'General'}</Tag>
           </Text>
@@ -256,7 +272,13 @@ const TicketBacklogsPage = () => {
               columns={tableColumns} 
               dataSource={filteredTickets} 
               rowKey="id" 
-              pagination={{ pageSize: 8, showSizeChanger: true }}
+              pagination={{ 
+                pageSize: pageSize, 
+                showSizeChanger: true,
+                pageSizeOptions: ['8', '10', '20', '50', '100'],
+                onChange: (page, size) => setPageSize(size),
+                onShowSizeChange: (current, size) => setPageSize(size)
+              }}
               locale={{ emptyText: 'No backlog tickets found.' }}
             />
           </Card>
@@ -282,11 +304,22 @@ const TicketBacklogsPage = () => {
             </div>
 
             <Row gutter={[16, 16]}>
-              <Col span={12}>
+              <Col span={8}>
                 <Text type="secondary" block>Priority</Text>
                 <PriorityBadge priority={selectedTicket.priority} />
               </Col>
-              <Col span={12}>
+              {selectedTicket.taskType && (
+                <Col span={8}>
+                  <Text type="secondary" block>Task Type</Text>
+                  <Tag
+                    color={selectedTicket.taskType === 'Bug' ? 'red' : 'green'}
+                    style={{ fontWeight: 700, fontSize: 11, borderRadius: 4, margin: 0, textTransform: 'uppercase' }}
+                  >
+                    {selectedTicket.taskType === 'Bug' ? '🐛 Bug' : '✨ New'}
+                  </Tag>
+                </Col>
+              )}
+              <Col span={8}>
                 <Text type="secondary" block>Status</Text>
                 <StatusBadge status={selectedTicket.status} />
               </Col>

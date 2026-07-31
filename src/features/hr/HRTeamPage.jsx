@@ -8,12 +8,13 @@ import {
   UserOutlined, TeamOutlined, MailOutlined, 
   SearchOutlined, UserAddOutlined, DeleteOutlined, KeyOutlined, 
   DollarOutlined, EditOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  ProjectOutlined, CrownOutlined, SafetyCertificateOutlined
+  ProjectOutlined, CrownOutlined, SafetyCertificateOutlined, LockOutlined
 } from '@ant-design/icons';
 import { adminService } from '../../services/adminService';
 import { projectService } from '../../services/projectService';
 import PageHeader from '../../components/common/PageHeader';
 import { useThemeStore } from '../../store/themeStore';
+import { getFeaturesForRoles } from '../../utils/permissionUtils';
 
 const { Title, Text } = Typography;
 
@@ -46,6 +47,16 @@ const HRTeamPage = () => {
   const [editForm] = Form.useForm();
   const [savingEdit, setSavingEdit]     = useState(false);
 
+  // Permission states
+  const [permissionForm] = Form.useForm();
+  const [permissionUser, setPermissionUser] = useState(null);
+  const [permissionModalFeatures, setPermissionModalFeatures] = useState([]);
+  const [addModalFeatures, setAddModalFeatures] = useState([]);
+
+  // Reset password states
+  const [resetPasswordUser, setResetPasswordUser] = useState(null);
+  const [resetForm] = Form.useForm();
+
   const { isDarkMode } = useThemeStore();
 
   useEffect(() => { fetchUsers(); }, []);
@@ -67,6 +78,47 @@ const HRTeamPage = () => {
     }
   };
 
+  const handleResetPassword = async (values) => {
+    try {
+      await adminService.resetUserPassword(resetPasswordUser.id, values.newPassword);
+      notification.success({ 
+        message: 'Password Reset', 
+        description: `Successfully reset password for ${resetPasswordUser.name || resetPasswordUser.fullName || 'user'}.` 
+      });
+      setResetPasswordUser(null);
+      resetForm.resetFields();
+    } catch (error) {
+      notification.error({ 
+        message: 'Reset Failed', 
+        description: error.response?.data?.message || 'Failed to reset password.' 
+      });
+    }
+  };
+
+  const handleSavePermissions = async (values) => {
+    try {
+      await Promise.all([
+        adminService.updateUserRole(permissionUser.id, values.role),
+        adminService.updateUserPermissions(permissionUser.id, values.permissions)
+      ]);
+      
+      notification.success({
+        message: 'Permissions Updated',
+        description: `Successfully updated role and permissions for ${permissionUser.name || permissionUser.fullName}.`
+      });
+      
+      setPermissionUser(null);
+      permissionForm.resetFields();
+      setPermissionModalFeatures([]);
+      fetchUsers();
+    } catch (error) {
+      notification.error({
+        message: 'Update Failed',
+        description: error.response?.data?.message || 'Failed to update user permissions.'
+      });
+    }
+  };
+
   /* ── Create user ── */
   const handleInvite = async (values) => {
     try {
@@ -74,6 +126,7 @@ const HRTeamPage = () => {
       notification.success({ message: 'User Created', description: `Created ${values.fullName} successfully.` });
       setIsModalOpen(false);
       form.resetFields();
+      setAddModalFeatures([]);
       fetchUsers();
     } catch (error) {
       notification.error({ message: 'Error', description: error.response?.data?.message || 'Failed to create user.' });
@@ -94,8 +147,11 @@ const HRTeamPage = () => {
   /* ── Open edit drawer ── */
   const openEdit = (record) => {
     setEditingUser(record);
+    const rolesArray = typeof record.role === 'string' 
+      ? record.role.split(',').map(r => r.trim()).filter(Boolean) 
+      : (Array.isArray(record.role) ? record.role : []);
     editForm.setFieldsValue({
-      role:             record.role,
+      role:             rolesArray,
       teamLeadId:       record.teamLeadId || undefined,
       projectManagerId: record.projectManagerId || undefined,
     });
@@ -143,18 +199,19 @@ const HRTeamPage = () => {
   const filteredUsers = users.filter(u => {
     const nameStr  = (u.name || u.fullName || '').toLowerCase();
     const emailStr = (u.email || '').toLowerCase();
+    const roleStr  = (u.role || '').toLowerCase();
     const query    = searchText.toLowerCase();
     const matchesSearch  = nameStr.includes(query) || emailStr.includes(query);
     const matchesStatus  = statusFilter === 'all' ||
                            (statusFilter === 'active'   && u.isActive !== false) ||
                            (statusFilter === 'inactive' && u.isActive === false);
-    const matchesRole    = roleFilter === 'all' || u.role === roleFilter;
+    const matchesRole    = roleFilter === 'all' || roleStr.includes(roleFilter.toLowerCase());
     return matchesSearch && matchesStatus && matchesRole;
   });
 
-  const totalTL  = users.filter(u => u.role === 'TeamLead').length;
-  const totalEmp = users.filter(u => u.role === 'Employee').length;
-  const totalPM  = users.filter(u => u.role === 'ProjectManager').length;
+  const totalTL  = users.filter(u => (u.role || '').includes('TeamLead')).length;
+  const totalEmp = users.filter(u => (u.role || '').includes('Employee')).length;
+  const totalPM  = users.filter(u => (u.role || '').includes('ProjectManager')).length;
   const totalAll = users.length;
 
   if (loading) {
@@ -266,7 +323,6 @@ const HRTeamPage = () => {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filteredUsers.map(user => {
-            const rc      = getRoleConfig(user.role);
             const isActive = user.isActive !== false;
             const tl      = users.find(u => String(u.id) === String(user.teamLeadId));
             const pm      = users.find(u => String(u.id) === String(user.projectManagerId));
@@ -289,7 +345,7 @@ const HRTeamPage = () => {
                   <Avatar
                     size={44}
                     icon={<UserOutlined />}
-                    style={{ background: rc.color, flexShrink: 0, fontSize: 18, boxShadow: `0 2px 8px ${rc.color}40` }}
+                    style={{ background: getRoleConfig(user.role?.split(',')[0]).color, flexShrink: 0, fontSize: 18, boxShadow: `0 2px 8px ${getRoleConfig(user.role?.split(',')[0]).color}40` }}
                   />
                   <div style={{ flex: 1, minWidth: 140 }}>
                     <Text strong style={{ fontSize: 14, display: 'block' }}>{user.name || user.fullName}</Text>
@@ -297,22 +353,35 @@ const HRTeamPage = () => {
                       <MailOutlined style={{ fontSize: 11, color: '#8c8c8c' }} />
                       <Text type="secondary" style={{ fontSize: 12 }}>{user.email}</Text>
                     </div>
+                    {user.designation && (
+                      <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: 2, fontStyle: 'italic' }}>
+                        {user.designation}
+                      </Text>
+                    )}
                   </div>
 
-                  {/* Role tag */}
-                  <Tag
-                    style={{
-                      background: rc.bg,
-                      color: rc.color,
-                      border: `1px solid ${rc.color}40`,
-                      borderRadius: 20,
-                      padding: '2px 12px',
-                      fontWeight: 600,
-                      fontSize: 12,
-                    }}
-                  >
-                    {rc.icon} &nbsp;{rc.label}
-                  </Tag>
+                  {/* Role tags */}
+                  <Space wrap size={4}>
+                    {(typeof user.role === 'string' ? user.role.split(',').map(r => r.trim()).filter(Boolean) : (Array.isArray(user.role) ? user.role : [user.role])).map(roleVal => {
+                      const rc = getRoleConfig(roleVal);
+                      return (
+                        <Tag
+                          key={roleVal}
+                          style={{
+                            background: rc.bg,
+                            color: rc.color,
+                            border: `1px solid ${rc.color}40`,
+                            borderRadius: 20,
+                            padding: '2px 12px',
+                            fontWeight: 600,
+                            fontSize: 12,
+                          }}
+                        >
+                          {rc.icon} &nbsp;{rc.label}
+                        </Tag>
+                      );
+                    })}
+                  </Space>
 
                   {/* Reporting chain */}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1, justifyContent: 'center' }}>
@@ -326,7 +395,7 @@ const HRTeamPage = () => {
                         PM: {pm.name || pm.fullName}
                       </Tag>
                     )}
-                    {!tl && !pm && user.role === 'Employee' && (
+                    {!tl && !pm && (user.role || '').includes('Employee') && (
                       <Tag color="default" style={{ borderRadius: 20, fontSize: 11 }}>No reporting line</Tag>
                     )}
                   </div>
@@ -350,6 +419,41 @@ const HRTeamPage = () => {
 
                   {/* Actions */}
                   <Space size={6} style={{ flexShrink: 0 }}>
+                    <Button 
+                      type="default"
+                      size="small"
+                      icon={<SafetyCertificateOutlined style={{ color: '#10b981' }} />}
+                      onClick={() => {
+                        setPermissionUser(user);
+                        const rolesArray = typeof user.role === 'string' 
+                          ? user.role.split(',').map(r => r.trim()).filter(Boolean) 
+                          : (Array.isArray(user.role) ? user.role : []);
+                        
+                        const features = getFeaturesForRoles(rolesArray);
+                        setPermissionModalFeatures(features);
+
+                        const dbPermissions = user.permissions || {};
+                        const formPermissions = {};
+                        features.forEach(f => {
+                          formPermissions[f.key] = dbPermissions[f.key] !== false;
+                        });
+
+                        permissionForm.setFieldsValue({
+                          role: rolesArray,
+                          permissions: formPermissions
+                        });
+                      }}
+                      title="Manage Permissions"
+                      style={{ borderRadius: 8 }}
+                    />
+                    <Button 
+                      type="default"
+                      size="small"
+                      icon={<LockOutlined style={{ color: '#8b5cf6' }} />}
+                      onClick={() => setResetPasswordUser(user)}
+                      title="Reset Password"
+                      style={{ borderRadius: 8 }}
+                    />
                     <Button
                       type="default"
                       icon={<EditOutlined />}
@@ -381,7 +485,7 @@ const HRTeamPage = () => {
             <Avatar
               size={32}
               icon={<UserOutlined />}
-              style={{ background: getRoleConfig(editingUser?.role).color }}
+              style={{ background: getRoleConfig(editingUser?.role?.split(',')[0]).color }}
             />
             <span style={{ fontWeight: 700 }}>{editingUser?.name || editingUser?.fullName}</span>
           </Space>
@@ -396,8 +500,8 @@ const HRTeamPage = () => {
         }
       >
         <Form form={editForm} layout="vertical">
-          <Form.Item name="role" label="Role" rules={[{ required: true }]}>
-            <Select>
+          <Form.Item name="role" label="Role" rules={[{ required: true, message: 'Select at least one role' }]}>
+            <Select mode="multiple" placeholder="Select roles">
               <Select.Option value="Sales">Sales</Select.Option>
               <Select.Option value="Accounts">Accounts</Select.Option>
               <Select.Option value="TeamLead">Team Lead</Select.Option>
@@ -411,7 +515,7 @@ const HRTeamPage = () => {
 
           <Form.Item name="teamLeadId" label="Reporting Team Lead">
             <Select placeholder="Select Team Lead" allowClear>
-              {users.filter(u => u.role === 'TeamLead' && String(u.id) !== String(editingUser?.id)).map(tl => (
+              {users.filter(u => (u.role || '').includes('TeamLead') && String(u.id) !== String(editingUser?.id)).map(tl => (
                 <Select.Option key={tl.id} value={tl.id}>{tl.name || tl.fullName}</Select.Option>
               ))}
             </Select>
@@ -419,7 +523,7 @@ const HRTeamPage = () => {
 
           <Form.Item name="projectManagerId" label="Reporting Project Manager">
             <Select placeholder="Select PM" allowClear>
-              {users.filter(u => (u.role === 'ProjectManager' || u.role === 'TenantAdmin') && String(u.id) !== String(editingUser?.id)).map(pm => (
+              {users.filter(u => ((u.role || '').includes('ProjectManager') || (u.role || '').includes('TenantAdmin')) && String(u.id) !== String(editingUser?.id)).map(pm => (
                 <Select.Option key={pm.id} value={pm.id}>{pm.name || pm.fullName}</Select.Option>
               ))}
             </Select>
@@ -436,14 +540,35 @@ const HRTeamPage = () => {
           </Space>
         }
         open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={() => {
+          setIsModalOpen(false);
+          form.resetFields();
+          setAddModalFeatures([]);
+        }}
         onOk={() => form.submit()}
         okText="Create User"
         okButtonProps={{ style: { background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', border: 'none', borderRadius: 8 } }}
         width={520}
         style={{ top: 60 }}
       >
-        <Form form={form} layout="vertical" onFinish={handleInvite} style={{ marginTop: 12 }}>
+        <Form 
+          form={form} 
+          layout="vertical" 
+          onFinish={handleInvite} 
+          style={{ marginTop: 12 }}
+          onValuesChange={(changedValues, allValues) => {
+            if (changedValues.role) {
+              const features = getFeaturesForRoles(changedValues.role);
+              setAddModalFeatures(features);
+              // pre-initialize permissions to true
+              const newPerms = {};
+              features.forEach(f => {
+                newPerms[f.key] = true;
+              });
+              form.setFieldsValue({ permissions: newPerms });
+            }
+          }}
+        >
           <Form.Item name="fullName" label="Full Name" rules={[{ required: true, message: 'Please enter a name' }]}>
             <Input placeholder="Enter full name" prefix={<UserOutlined style={{ color: '#bfbfbf' }} />} />
           </Form.Item>
@@ -458,8 +583,8 @@ const HRTeamPage = () => {
 
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="role" label="Role" rules={[{ required: true }]}>
-                <Select placeholder="Select a role">
+              <Form.Item name="role" label="Assigned Role(s)" rules={[{ required: true, message: 'Please select at least one role' }]}>
+                <Select mode="multiple" placeholder="Select roles" allowClear>
                   <Select.Option value="Sales">Sales</Select.Option>
                   <Select.Option value="Accounts">Accounts</Select.Option>
                   <Select.Option value="TeamLead">Team Lead</Select.Option>
@@ -476,9 +601,32 @@ const HRTeamPage = () => {
             </Col>
           </Row>
 
+          {addModalFeatures.length > 0 && (
+            <div style={{ marginTop: 16, marginBottom: 16 }}>
+              <Text strong style={{ display: 'block', marginBottom: 12 }}>Feature Access (ON / OFF)</Text>
+              <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 8, padding: 12, background: '#fafafa' }}>
+                {addModalFeatures.map(f => (
+                  <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid #f0f0f0', paddingBottom: 8 }}>
+                    <div>
+                      <Text style={{ display: 'block', fontWeight: 500, fontSize: '13px' }}>{f.label}</Text>
+                      <Text type="secondary" style={{ fontSize: '11px' }}>{f.key}</Text>
+                    </div>
+                    <Form.Item name={['permissions', f.key]} valuePropName="checked" initialValue={true} style={{ margin: 0 }}>
+                      <Switch checkedChildren="ON" unCheckedChildren="OFF" />
+                    </Form.Item>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <Form.Item name="designation" label="Designation">
+            <Input placeholder="Enter designation (e.g. Software Engineer)" prefix={<UserOutlined style={{ color: '#bfbfbf' }} />} />
+          </Form.Item>
+
           <Form.Item name="teamLeadId" label="Reporting Team Lead">
             <Select placeholder="Select Team Lead" allowClear>
-              {users.filter(u => u.role === 'TeamLead').map(tl => (
+              {users.filter(u => (u.role || '').includes('TeamLead')).map(tl => (
                 <Select.Option key={tl.id} value={tl.id}>{tl.name || tl.fullName} ({tl.email})</Select.Option>
               ))}
             </Select>
@@ -486,7 +634,7 @@ const HRTeamPage = () => {
 
           <Form.Item name="projectManagerId" label="Reporting Project Manager">
             <Select placeholder="Select PM" allowClear>
-              {users.filter(u => u.role === 'ProjectManager' || u.role === 'TenantAdmin').map(pm => (
+              {users.filter(u => (u.role || '').includes('ProjectManager') || (u.role || '').includes('TenantAdmin')).map(pm => (
                 <Select.Option key={pm.id} value={pm.id}>{pm.name || pm.fullName} ({pm.email})</Select.Option>
               ))}
             </Select>
@@ -499,6 +647,111 @@ const HRTeamPage = () => {
               ))}
             </Select>
           </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* ── Reset Password Modal ── */}
+      <Modal
+        title={
+          <Space>
+            <LockOutlined style={{ color: '#8b5cf6' }} />
+            <span style={{ fontWeight: 700 }}>Reset Password</span>
+          </Space>
+        }
+        open={!!resetPasswordUser}
+        onCancel={() => {
+          setResetPasswordUser(null);
+          resetForm.resetFields();
+        }}
+        onOk={() => resetForm.submit()}
+        okText="Reset Password"
+        okButtonProps={{ style: { background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', borderColor: '#7c3aed' } }}
+      >
+        <Form form={resetForm} layout="vertical" onFinish={handleResetPassword}>
+          <div style={{ marginBottom: 16 }}>
+            Resetting password for: <Text strong>{resetPasswordUser?.name || resetPasswordUser?.fullName}</Text> (<Text type="secondary">{resetPasswordUser?.email}</Text>)
+          </div>
+          <Form.Item
+            name="newPassword"
+            label="New Password"
+            rules={[
+              { required: true, message: 'Please enter new password' },
+              { min: 6, message: 'Password must be at least 6 characters long' }
+            ]}
+          >
+            <Input.Password placeholder="Enter new password" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* ── Manage Permissions Modal ── */}
+      <Modal
+        title={
+          <Space>
+            <SafetyCertificateOutlined style={{ color: '#10b981' }} />
+            <span style={{ fontWeight: 700 }}>Manage User Permissions</span>
+          </Space>
+        }
+        open={!!permissionUser}
+        onCancel={() => {
+          setPermissionUser(null);
+          permissionForm.resetFields();
+          setPermissionModalFeatures([]);
+        }}
+        onOk={() => permissionForm.submit()}
+        okText="Save Permissions"
+        okButtonProps={{ style: { background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#10b981' } }}
+      >
+        <Form
+          form={permissionForm}
+          layout="vertical"
+          onFinish={handleSavePermissions}
+          onValuesChange={(changedValues, allValues) => {
+            if (changedValues.role) {
+              const newFeatures = getFeaturesForRoles(changedValues.role);
+              setPermissionModalFeatures(newFeatures);
+              const currentPerms = allValues.permissions || {};
+              const updatedPerms = {};
+              newFeatures.forEach(f => {
+                updatedPerms[f.key] = currentPerms[f.key] !== false;
+              });
+              permissionForm.setFieldsValue({ permissions: updatedPerms });
+            }
+          }}
+        >
+          <div style={{ marginBottom: 16 }}>
+            Managing permissions for: <Text strong>{permissionUser?.name || permissionUser?.fullName}</Text> (<Text type="secondary">{permissionUser?.email}</Text>)
+          </div>
+          
+          <Form.Item name="role" label="Assigned Role(s)" rules={[{ required: true, message: 'Please select at least one role' }]}>
+            <Select mode="multiple" placeholder="Select roles" allowClear>
+              <Select.Option value="Sales">Sales</Select.Option>
+              <Select.Option value="Accounts">Accounts</Select.Option>
+              <Select.Option value="TeamLead">Team Lead</Select.Option>
+              <Select.Option value="Employee">Employee</Select.Option>
+              <Select.Option value="ProjectManager">PM</Select.Option>
+              <Select.Option value="HR">HR</Select.Option>
+            </Select>
+          </Form.Item>
+
+          {permissionModalFeatures.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <Text strong style={{ display: 'block', marginBottom: 12 }}>Feature Access (ON / OFF)</Text>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 8, padding: 12, background: '#fafafa' }}>
+                {permissionModalFeatures.map(f => (
+                  <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1px solid #f0f0f0', paddingBottom: 8 }}>
+                    <div>
+                      <Text style={{ display: 'block', fontWeight: 500, fontSize: '13px' }}>{f.label}</Text>
+                      <Text type="secondary" style={{ fontSize: '11px' }}>{f.key}</Text>
+                    </div>
+                    <Form.Item name={['permissions', f.key]} valuePropName="checked" style={{ margin: 0 }}>
+                      <Switch checkedChildren="ON" unCheckedChildren="OFF" />
+                    </Form.Item>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Form>
       </Modal>
     </div>

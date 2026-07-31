@@ -289,7 +289,7 @@ const CreateProjectPage = () => {
                   showSearch
                   placeholder="Select project category"
                   size="large"
-                  dropdownRender={(menu) => (
+                  popupRender={(menu) => (
                     <>
                       {menu}
                       <Divider style={{ margin: '8px 0' }} />

@@ -40,7 +40,7 @@ const EODReportPage = () => {
   const isMobile = !screens.md;
 
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
-  const [baseDate, setBaseDate] = useState(dayjs().startOf('week').add(1, 'day'));
+  const [baseDate, setBaseDate] = useState(dayjs().day() === 0 ? dayjs().subtract(6, 'day') : dayjs().day(1));
   const [weekDates, setWeekDates] = useState([]);
   const [weeklyStatus, setWeeklyStatus] = useState({});
   const [loading, setLoading] = useState(true);
@@ -256,8 +256,9 @@ const EODReportPage = () => {
   const fetchCurrentWeekRemaining = async () => {
     try {
       const today = dayjs();
-      const start = today.startOf('week').add(1, 'day').format('YYYY-MM-DD');
-      const end = today.startOf('week').add(7, 'day').format('YYYY-MM-DD');
+      const monday = today.day() === 0 ? today.subtract(6, 'day') : today.day(1);
+      const start = monday.format('YYYY-MM-DD');
+      const end = monday.add(6, 'day').format('YYYY-MM-DD');
       const res = await reportService.getReportsByRange(currentUser.id, start, end);
       const reports = res.data || [];
       setCurrentRealWeekReports(reports);
@@ -292,7 +293,7 @@ const EODReportPage = () => {
   const handleGoToToday = () => {
     const today = dayjs();
     setSelectedDate(today.format('YYYY-MM-DD'));
-    setBaseDate(today.startOf('week').add(1, 'day'));
+    setBaseDate(today.day() === 0 ? today.subtract(6, 'day') : today.day(1));
   };
 
   useEffect(() => {
@@ -358,8 +359,9 @@ const EODReportPage = () => {
       } catch (_) {}
 
       const today = dayjs();
-      const currentWeekStart = today.startOf('week').add(1, 'day');
-      const currentWeekEnd = today.startOf('week').add(7, 'day');
+      const currentWeekMonday = today.day() === 0 ? today.subtract(6, 'day') : today.day(1);
+      const currentWeekStart = currentWeekMonday;
+      const currentWeekEnd = currentWeekMonday.add(7, 'day');
       const isCurrentWeek = dates[0].isSame(currentWeekStart, 'day') ||
                             (dates[0].isBefore(currentWeekEnd) && dates[6].isAfter(currentWeekStart));
 
@@ -427,8 +429,8 @@ const EODReportPage = () => {
 
       const isHoliday = dayjs(date).day() === 0;
       const today = dayjs();
-      const currentWeekMonday = today.startOf('week').add(1, 'day');
-      const currentWeekSunday = today.startOf('week').add(7, 'day');
+      const currentWeekMonday = today.day() === 0 ? today.subtract(6, 'day') : today.day(1);
+      const currentWeekSunday = currentWeekMonday.add(6, 'day');
       const dateObj = dayjs(date);
       const outsideCurrentWeek = dateObj.isBefore(currentWeekMonday, 'day') || dateObj.isAfter(currentWeekSunday, 'day');
       setIsOutsideCurrentWeek(outsideCurrentWeek);
@@ -484,24 +486,6 @@ const EODReportPage = () => {
       // Filter visible tickets for this EOD Page (only active tickets reportable for current date)
       const visibleFiltered = ticketsList.filter(ticket => {
         if (ticket.status === 'Done') return false;
-
-        const repDate = dayjs(date).startOf('day');
-        const start = ticket.startDate ? dayjs(ticket.startDate).startOf('day') : null;
-        const due = ticket.dueDate ? dayjs(ticket.dueDate).endOf('day') : null;
-        const isDateValid = !start || !due || (repDate.isAfter(start.subtract(1, 'day')) && repDate.isBefore(due.add(1, 'day')));
-        
-        let hasDatePermission = false;
-        if (!isDateValid) {
-          hasDatePermission = myTimerRequests.some(r => 
-            String(r.request?.ticketId) === String(ticket.id) && 
-            r.request?.requestType === 'DateRangeExtension' && 
-            (r.request?.status === 'Approved' || r.request?.status === 'AccountsApproved')
-          );
-        }
-        
-        if (!isDateValid && !hasDatePermission) {
-          return false;
-        }
 
         if (role === 'ProjectManager' || role === 'TeamLead' || role === 'TenantAdmin') {
           return true;
@@ -806,24 +790,7 @@ const EODReportPage = () => {
   };
 
   const isTicketDateBlocked = (ticketId) => {
-    if (!ticketId) return false;
-    const ticketObj = allMyTickets.find(t => String(t.id) === String(ticketId));
-    if (!ticketObj) return false;
-
-    const repDate = dayjs(selectedDate).startOf('day');
-    const start = ticketObj.startDate ? dayjs(ticketObj.startDate).startOf('day') : null;
-    const due = ticketObj.dueDate ? dayjs(ticketObj.dueDate).endOf('day') : null;
-    const isDateValid = !start || !due || (repDate.isAfter(start.subtract(1, 'day')) && repDate.isBefore(due.add(1, 'day')));
-    
-    if (isDateValid) return false;
-
-    const hasDatePermission = myTimerRequests.some(r => 
-      String(r.request?.ticketId) === String(ticketObj.id) && 
-      r.request?.requestType === 'DateRangeExtension' && 
-      (r.request?.status === 'Approved' || r.request?.status === 'AccountsApproved')
-    );
-
-    return !hasDatePermission;
+    return false;
   };
 
   const onSubmit = async (data) => {
@@ -850,6 +817,22 @@ const EODReportPage = () => {
       }
     }
 
+    // 2. Check if any row has workDone description but 0 hours/minutes logged
+    for (let i = 0; i < data.items.length; i++) {
+      const item = data.items[i];
+      const hrs = Number(item.hoursInput) || 0;
+      const mins = Number(item.minutesInput) || 0;
+      const workDoneTrimmed = (item.workDone || '').trim();
+
+      if (workDoneTrimmed.length > 0 && hrs === 0 && mins === 0) {
+        notification.error({
+          message: 'Validation Error',
+          description: 'Please log time (hours or minutes) for all tasks where you have entered a work description.'
+        });
+        return;
+      }
+    }
+
     const mappedItems = data.items
       .map(item => {
         const hrs = Number(item.hoursInput) || 0;
@@ -870,40 +853,16 @@ const EODReportPage = () => {
       return;
     }
 
-    const invalidItems = mappedItems.filter(item => !item.ticketId || !item.workDone);
+    const invalidItems = mappedItems.filter(item => !item.ticketId || !item.workDone || !item.workDone.trim());
     if (invalidItems.length > 0) {
       notification.error({
         message: 'Validation Error',
-        description: 'Please select a Ticket (Task Category) and enter a Message (Work Done) for all projects where you have logged hours.'
+        description: 'Please enter a Work Description for all tasks where you have logged hours.'
       });
       return;
     }
 
-    // Date Range Constraint Validation
-    const repDate = dayjs(selectedDate).startOf('day');
-    for (let i = 0; i < mappedItems.length; i++) {
-      const item = mappedItems[i];
-      const ticket = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-      if (ticket) {
-        const start = ticket.startDate ? dayjs(ticket.startDate).startOf('day') : null;
-        const due = ticket.dueDate ? dayjs(ticket.dueDate).endOf('day') : null;
-        const isDateValid = !start || !due || (repDate.isAfter(start.subtract(1, 'day')) && repDate.isBefore(due.add(1, 'day')));
-        if (!isDateValid) {
-          const hasDatePermission = myTimerRequests.some(r => 
-            String(r.request?.ticketId) === String(ticket.id) && 
-            r.request?.requestType === 'DateRangeExtension' && 
-            (r.request?.status === 'Approved' || r.request?.status === 'AccountsApproved')
-          );
-          if (!hasDatePermission) {
-            notification.error({
-              message: 'Action Blocked',
-              description: `Task #${i + 1}: Reporting date (${dayjs(selectedDate).format('DD MMM YYYY')}) is outside ticket "${ticket.code}"'s valid schedule (${dayjs(ticket.startDate).format('DD MMM YYYY')} to ${dayjs(ticket.dueDate).format('DD MMM YYYY')}). Please request date extension permission first.`
-            });
-            return;
-          }
-        }
-      }
-    }
+    // Date Range Constraint Validation Bypassed
 
     // Ticket Remaining Hours Validation Constraint
     for (let i = 0; i < mappedItems.length; i++) {
@@ -1223,13 +1182,13 @@ const EODReportPage = () => {
         {/* Date Selection */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Button shape="circle" size="small" icon={<LeftOutlined style={{ fontSize: 10 }} />}
-            onClick={() => { const d = dayjs(selectedDate).subtract(1, 'day'); setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); }} />
+            onClick={() => { const d = dayjs(selectedDate).subtract(1, 'day'); setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.day() === 0 ? d.subtract(6, 'day') : d.day(1)); }} />
           
           <DatePicker value={dayjs(selectedDate)} allowClear={false} size="small" style={{ width: 136 }}
-            onChange={d => { if (d) { setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); } }} />
+            onChange={d => { if (d) { setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.day() === 0 ? d.subtract(6, 'day') : d.day(1)); } }} />
           
           <Button shape="circle" size="small" icon={<RightOutlined style={{ fontSize: 10 }} />}
-            onClick={() => { const d = dayjs(selectedDate).add(1, 'day'); setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.startOf('week').add(1, 'day')); }} />
+            onClick={() => { const d = dayjs(selectedDate).add(1, 'day'); setSelectedDate(d.format('YYYY-MM-DD')); setBaseDate(d.day() === 0 ? d.subtract(6, 'day') : d.day(1)); }} />
         </div>
 
         {/* Current Date and Status Display */}
@@ -1308,7 +1267,7 @@ const EODReportPage = () => {
             const st = weeklyStatus[ds];
             const dotColors = { submitted: emerald, incomplete: '#ef4444', leave: '#3b82f6', half_leave: '#38bdf8', holiday: '#9ca3af', restricted: '#9ca3af', pending: '#f59e0b', optional: '#8b5cf6' };
             return (
-              <div key={i} onClick={() => { setSelectedDate(ds); setBaseDate(d.startOf('week').add(1, 'day')); }}
+              <div key={i} onClick={() => { setSelectedDate(ds); }}
                 style={{ flex: 1, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '4px 6px', borderRadius: 8,
                   background: sel ? `${accent}15` : 'transparent', border: `1px solid ${sel ? accent : 'transparent'}`, transition: 'all 0.2s' }}>
                 <span style={{ fontSize: 10, fontWeight: 600, color: sel ? accent : t2 }}>{d.format('dd').toUpperCase()}</span>
@@ -1420,7 +1379,11 @@ const EODReportPage = () => {
                                     const totalConsumed = ticketObj ? (Number(ticketObj.consumedHours) || 0) : 0;
                                     
                                     const dbReportTodayItem = existingReport?.items?.find(ri => String(ri.ticketId) === String(item.ticketId));
-                                    const dbTodayHours = dbReportTodayItem ? (Number(dbReportTodayItem.hoursSpent || dbReportTodayItem.hours) || 0) : 0;
+                                    const dbTodayHours = dbReportTodayItem 
+                                      ? (dbReportTodayItem.hoursInput !== undefined 
+                                          ? (Number(dbReportTodayItem.hoursInput) + Number(dbReportTodayItem.minutesInput) / 60)
+                                          : (Number(dbReportTodayItem.hoursSpent || dbReportTodayItem.hours) || 0))
+                                      : 0;
                                     const consumedOther = Math.max(0, totalConsumed - dbTodayHours);
 
                                     const curH = Number(watch(`items.${index}.hoursInput`)) || 0;
@@ -1480,7 +1443,7 @@ const EODReportPage = () => {
 
                               <Col xs={24} md={4}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>TIME LOGGED</span>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>TIME LOGGED <span style={{ color: '#ff4d4f' }}>*</span></span>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <Controller control={control} name={`items.${index}.hoursInput`} render={({ field: f }) => (
                                       <InputNumber {...f} min={0} size="small" style={{ width: '100%', borderRadius: 6 }} disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Hrs" />
@@ -1497,7 +1460,7 @@ const EODReportPage = () => {
 
                               <Col xs={24} md={7}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>WORK DESCRIPTION</span>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: t2 }}>WORK DESCRIPTION <span style={{ color: '#ff4d4f' }}>*</span></span>
                                   <Controller control={control} name={`items.${index}.workDone`} render={({ field: f }) => (
                                     <Input {...f} size="small" disabled={viewOnly || isTicketDateBlocked(item.ticketId)} placeholder="Describe work done..." style={{ fontSize: 12, borderRadius: 6, height: 32 }} />
                                   )} />
@@ -1577,63 +1540,6 @@ const EODReportPage = () => {
                                 );
                               }
                               return null;
-                            })()}
-
-                            {(() => {
-                              if (!item.ticketId) return null;
-                              const ticketObj = allMyTickets.find(t => String(t.id) === String(item.ticketId));
-                              if (!ticketObj) return null;
-
-                              const repDate = dayjs(selectedDate).startOf('day');
-                              const start = ticketObj.startDate ? dayjs(ticketObj.startDate).startOf('day') : null;
-                              const due = ticketObj.dueDate ? dayjs(ticketObj.dueDate).endOf('day') : null;
-                              const isDateValid = !start || !due || (repDate.isAfter(start.subtract(1, 'day')) && repDate.isBefore(due.add(1, 'day')));
-                              
-                              if (isDateValid) return null;
-
-                              const hasDatePermission = myTimerRequests.some(r => 
-                                String(r.request?.ticketId) === String(ticketObj.id) && 
-                                r.request?.requestType === 'DateRangeExtension' && 
-                                (r.request?.status === 'Approved' || r.request?.status === 'AccountsApproved')
-                              );
-
-                              if (hasDatePermission) {
-                                return (
-                                  <div style={{ color: '#10b981', fontSize: '11px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <CheckCircleOutlined />
-                                    <span>Date range extension approved by TL & PM.</span>
-                                  </div>
-                                );
-                              }
-
-                              const pendingRequest = myTimerRequests.find(r => 
-                                String(r.request?.ticketId) === String(ticketObj.id) && 
-                                r.request?.requestType === 'DateRangeExtension' && 
-                                (r.request?.status === 'PendingTL' || r.request?.status === 'PendingPM')
-                              );
-
-                              if (pendingRequest) {
-                                return (
-                                  <div style={{ color: '#eab308', fontSize: '11px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <ClockCircleOutlined />
-                                    <span>Request pending Team Leader / PM approval.</span>
-                                  </div>
-                                );
-                              }
-
-                              return (
-                                <div style={{ color: '#ef4444', fontSize: '11px', marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span>⚠️ Date Blocked: Selected date is outside valid ticket schedule ({start ? start.format('DD MMM YYYY') : ''} to {due ? due.format('DD MMM YYYY') : ''}).</span>
-                                  <Button 
-                                    type="primary" 
-                                    size="small" 
-                                    style={{ background: '#6366f1', borderColor: '#6366f1', fontSize: '10px', height: '20px', padding: '0 8px', borderRadius: 4 }}
-                                    onClick={() => handleOpenRequestModal('DateRangeExtension', ticketObj)}
-                                  >
-                                    Request Permission
-                                  </Button>
-                                </div>
-                              );
                             })()}
 
                             {(() => {

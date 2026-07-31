@@ -230,7 +230,7 @@ const Header = ({ collapsed, setCollapsed }) => {
           />
         )}
         
-        <Dropdown dropdownRender={() => notificationContent} trigger={['click']} placement="bottomRight">
+        <Dropdown popupRender={() => notificationContent} trigger={['click']} placement="bottomRight">
           <Badge count={unreadCount} size="small" style={{ cursor: 'pointer' }}>
             <Button type="text" icon={<BellOutlined />} style={{ fontSize: '18px' }} />
           </Badge>

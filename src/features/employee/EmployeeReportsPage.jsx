@@ -135,7 +135,30 @@ const EmployeeReportsPage = () => {
       const leavesData = leavesRes?.data || [];
       const reportsData = res?.data || [];
 
-      let reports = [];
+      // Group everything by userId and date
+      const groupedMap = new Map();
+
+      const getOrCreateGroup = (userId, dateStr, baseInfo) => {
+        const key = `${userId}-${dateStr}`;
+        if (!groupedMap.has(key)) {
+          groupedMap.set(key, {
+            key,
+            userId,
+            date: dateStr,
+            employeeName: baseInfo.employeeName,
+            userRole: baseInfo.userRole,
+            supervisorName: baseInfo.supervisorName,
+            hours: 0,
+            workHours: 0,
+            leaveHours: 0,
+            leaveLabel: null,
+            leaveReason: null,
+            workItems: [],
+            blockers: 'None'
+          });
+        }
+        return groupedMap.get(key);
+      };
 
       // Process reports
       reportsData.forEach(report => {
@@ -157,25 +180,30 @@ const EmployeeReportsPage = () => {
           }
         }
 
+        const dateStr = dayjs(report.date || report.reportDate).format('YYYY-MM-DD');
+        const group = getOrCreateGroup(targetUserId, dateStr, { employeeName, userRole, supervisorName });
+
+        if (report.blockers && report.blockers !== 'None') {
+          group.blockers = report.blockers;
+        }
+
         report.items.forEach(item => {
           const ticketInfo = tickets.find(t => Number(t.id) === Number(item.ticketId));
           const projectInfo = projects.find(p => Number(p.id) === Number(ticketInfo?.projectId || item.projectId));
-          reports.push({
-            userId: report.userId,
-            date: report.date || report.reportDate,
-            employeeName: employeeName,
-            userRole: userRole,
-            supervisorName: supervisorName,
+          const hrs = Number(item.hours || item.hoursSpent || 0);
+
+          group.hours += hrs;
+          group.workHours += hrs;
+          group.workItems.push({
             projectId: ticketInfo?.projectId || item.projectId || 'N/A',
             projectName: projectInfo?.name || projectInfo?.projectName || 'N/A',
             ticketId: item.ticketId,
             ticketCode: ticketInfo?.code || 'N/A',
             ticketTitle: ticketInfo?.title || 'Unknown',
-            hours: Number(item.hours || item.hoursSpent || 0),
-            workDone: item.workDone || '',
-            blockers: report.blockers || 'None',
-            isLeave: false,
-            key: `${report.userId}-${report.date || report.reportDate}-${item.ticketId || Math.random()}`
+            ticketStartDate: ticketInfo?.startDate || null,
+            ticketDueDate: ticketInfo?.dueDate || null,
+            hours: hrs,
+            workDone: item.workDone || ''
           });
         });
       });
@@ -221,23 +249,50 @@ const EmployeeReportsPage = () => {
         }
 
         const leaveLabel = leave.type === 'Permission' ? 'PERMISSION' : leave.type === 'HalfDay' ? 'HALF DAY LEAVE' : 'FULL DAY LEAVE';
+        const dateStr = dayjs(leave.leaveDate || leave.date).format('YYYY-MM-DD');
+        const group = getOrCreateGroup(targetUserId, dateStr, { employeeName, userRole, supervisorName });
 
-        reports.push({
-          userId: targetUserId,
-          date: leave.leaveDate || leave.date,
-          employeeName: employeeName,
-          userRole: userRole,
-          supervisorName: supervisorName,
-          ticketCode: 'LEAVE',
-          ticketTitle: leaveLabel,
-          projectName: 'Leave / Time Off',
-          hours: leaveHours,
-          workDone: `[Leave Reason] ${leave.reason || 'No reason provided'}`,
-          blockers: 'None',
-          isLeave: true,
-          leaveStatus: leave.status,
-          key: `leave-${leave.id || Math.random()}`
-        });
+        group.hours += leaveHours;
+        group.leaveHours += leaveHours;
+        group.leaveLabel = leaveLabel;
+        group.leaveReason = leave.reason || 'No reason provided';
+      });
+
+      // Construct flat reports array for state and CSV export
+      const reports = Array.from(groupedMap.values()).map(group => {
+        const pIds = group.workItems.map(item => item.projectId).filter(Boolean).join('; ');
+        const pNames = (group.leaveLabel ? `[Leave: ${group.leaveLabel}] ` : '') + (group.workItems.map(item => item.projectName).filter(Boolean).join('; ') || 'Leave / Time Off');
+        const tIds = group.workItems.map(item => item.ticketId).filter(Boolean).join('; ');
+        const tCodes = (group.leaveLabel ? 'LEAVE' : '') + (group.workItems.map(item => item.ticketCode).filter(Boolean).join('; ') ? `${group.leaveLabel ? '; ' : ''}${group.workItems.map(item => item.ticketCode).filter(Boolean).join('; ')}` : '');
+        const tTitles = (group.leaveLabel ? group.leaveLabel : '') + (group.workItems.map(item => item.ticketTitle).filter(Boolean).join('; ') ? `${group.leaveLabel ? '; ' : ''}${group.workItems.map(item => item.ticketTitle).filter(Boolean).join('; ')}` : '');
+        const tStarts = group.workItems.map(item => item.ticketStartDate).filter(Boolean).join('; ') || null;
+        const tDues = group.workItems.map(item => item.ticketDueDate).filter(Boolean).join('; ') || null;
+        const wDone = (group.leaveLabel ? `[Leave] ${group.leaveReason}` : '') + (group.workItems.map(item => `[Work] ${item.workDone}`).join('\n') ? `${group.leaveLabel ? '\n' : ''}${group.workItems.map(item => `[Work] ${item.workDone}`).join('\n')}` : '');
+
+        return {
+          key: group.key,
+          userId: group.userId,
+          date: group.date,
+          employeeName: group.employeeName,
+          userRole: group.userRole,
+          supervisorName: group.supervisorName,
+          projectId: pIds || 'N/A',
+          projectName: pNames,
+          ticketId: tIds || 'N/A',
+          ticketCode: tCodes || 'N/A',
+          ticketTitle: tTitles || 'N/A',
+          ticketStartDate: tStarts,
+          ticketDueDate: tDues,
+          hours: group.hours,
+          workHours: group.workHours,
+          leaveHours: group.leaveHours,
+          leaveLabel: group.leaveLabel,
+          leaveReason: group.leaveReason,
+          workDone: wDone,
+          blockers: group.blockers,
+          isLeave: !!group.leaveLabel,
+          workItems: group.workItems
+        };
       });
 
       const sorted = reports.sort((a, b) => dayjs(b.date).unix() - dayjs(a.date).unix());
@@ -317,34 +372,173 @@ const EmployeeReportsPage = () => {
     setIsDetailsModalOpen(true);
   };
 
-  // Columns for the Grouped Project summary table
+
+  // Columns for the Work Reports detailed entries table
   const columns = [
+    ...(isManager ? [{ 
+      title: 'Employee Name', 
+      dataIndex: 'employeeName', 
+      key: 'employeeName', 
+      width: 160,
+      render: (name) => <span style={{ fontWeight: 600, color: t1 }}>{name}</span>
+    }] : []),
     { 
-      title: 'Project Name', 
+      title: 'Project / Task', 
       dataIndex: 'projectName', 
       key: 'projectName', 
-      render: (name, record) => (
-        <Button 
-          type="link" 
-          onClick={() => handleShowTicketDetails(record)}
-          style={{ padding: 0, fontWeight: 700, color: '#4f46e5', fontSize: '14px', textAlign: 'left', height: 'auto', whiteSpace: 'normal' }}
-        >
-          {name}
-        </Button>
+      render: (_, record) => {
+        return (
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            {record.leaveLabel && (
+              <div>
+                <div style={{ fontWeight: 700, color: t1 }}>Leave / Time Off</div>
+                <Tag color={record.leaveLabel.includes('PERMISSION') ? 'cyan' : record.leaveLabel.includes('HALF') ? 'purple' : 'magenta'} style={{ fontWeight: 600, marginTop: 2 }}>
+                  {record.leaveLabel}
+                </Tag>
+              </div>
+            )}
+            {record.workItems && record.workItems.map((item, idx) => (
+              <div key={idx} style={{ marginTop: idx > 0 || record.leaveLabel ? 4 : 0 }}>
+                <div style={{ fontWeight: 700, color: t1 }}>{item.projectName}</div>
+                <div style={{ fontSize: '11px', color: '#6366f1', marginTop: 1 }}>
+                  {item.ticketCode} - {item.ticketTitle}
+                </div>
+              </div>
+            ))}
+          </Space>
+        );
+      }
+    },
+    {
+      title: 'Ticket Schedule',
+      key: 'ticketSchedule',
+      width: 200,
+      render: (_, record) => {
+        const schedules = [];
+        if (record.workItems) {
+          record.workItems.forEach(item => {
+            if (item.ticketStartDate || item.ticketDueDate) {
+              const start = item.ticketStartDate ? dayjs(item.ticketStartDate).format('DD MMM YYYY') : 'N/A';
+              const end = item.ticketDueDate ? dayjs(item.ticketDueDate).format('DD MMM YYYY') : 'N/A';
+              schedules.push({ code: item.ticketCode, start, end });
+            }
+          });
+        }
+        if (schedules.length === 0) return <span style={{ color: t2 }}>-</span>;
+        return (
+          <div style={{ fontSize: '12px', color: t2 }}>
+            {schedules.map((s, idx) => (
+              <div key={idx} style={{ marginTop: idx > 0 ? 4 : 0 }}>
+                {schedules.length > 1 && <strong>{s.code}: </strong>}
+                Start: {s.start} <br /> End: {s.end}
+              </div>
+            ))}
+          </div>
+        );
+      }
+    },
+    {
+      title: 'Reporting Date',
+      dataIndex: 'date',
+      key: 'reportingDate',
+      width: 140,
+      render: (date) => (
+        <span style={{ fontWeight: 600, color: '#4f46e5' }}>
+          {dayjs(date).format('DD MMM YYYY')}
+        </span>
       )
     },
     { 
-      title: 'Total Hours Worked', 
-      dataIndex: 'totalHours', 
-      key: 'totalHours', 
-      width: 220,
-      render: (h) => {
-        const hrs = Math.floor(h);
-        const mins = Math.round((h - hrs) * 60);
+      title: 'Hours Worked', 
+      dataIndex: 'hours', 
+      key: 'hours', 
+      width: 140,
+      render: (h, record) => {
+        const wHrs = Math.floor(record.workHours || 0);
+        const wMins = Math.round(((record.workHours || 0) - wHrs) * 60);
+        
+        const lHrs = Math.floor(record.leaveHours || 0);
+        const lMins = Math.round(((record.leaveHours || 0) - lHrs) * 60);
+
+        if (record.workHours > 0 && record.leaveHours > 0) {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div>
+                <span style={{ fontSize: '11px', color: t2 }}>Work: </span>
+                <span style={{ fontWeight: 700, color: '#10b981' }}>{wHrs}h {wMins}m</span>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: t2 }}>Leave: </span>
+                <span style={{ fontWeight: 700, color: '#ef4444' }}>{lHrs}h {lMins}m</span>
+              </div>
+            </div>
+          );
+        }
+
+        if (record.leaveHours > 0) {
+          return (
+            <span style={{ fontWeight: 700, color: '#ef4444' }}>
+              {lHrs}h {lMins}m (Leave)
+            </span>
+          );
+        }
+
         return (
           <span style={{ fontWeight: 700, color: '#10b981' }}>
+            {wHrs}h {wMins}m
+          </span>
+        );
+      }
+    },
+    {
+      title: 'Remaining Hours',
+      key: 'remainingHours',
+      width: 150,
+      render: (_, record) => {
+        const reportedHours = record.hours || 0;
+        const remaining = Math.max(0, 8.5 - reportedHours);
+        
+        const hrs = Math.floor(remaining);
+        const mins = Math.round((remaining - hrs) * 60);
+
+        return (
+          <span style={{ fontWeight: 700, color: remaining > 0 ? '#ff4d4f' : '#10b981' }}>
             {hrs}h {mins}m
           </span>
+        );
+      }
+    },
+    {
+      title: 'Description (Work Done)',
+      dataIndex: 'workDone',
+      key: 'workDone',
+      render: (_, record) => {
+        return (
+          <Space direction="vertical" size={6} style={{ width: '100%' }}>
+            {record.leaveLabel && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontWeight: 700, color: '#ef4444' }}>Leave</span>
+                <span style={{ color: t2, fontSize: '12px', fontStyle: 'italic', whiteSpace: 'pre-wrap', marginTop: 2 }}>
+                  {record.leaveReason || 'No reason provided'}
+                </span>
+              </div>
+            )}
+            {record.workItems && record.workItems.length > 0 && (
+              <div style={{ 
+                marginTop: record.leaveLabel ? 6 : 0, 
+                paddingTop: record.leaveLabel ? 6 : 0, 
+                borderTop: record.leaveLabel ? `1px dashed ${border}` : 'none' 
+              }}>
+                {record.leaveLabel && <div style={{ fontWeight: 600, color: t1, fontSize: '11px', marginBottom: 2 }}>Work Done Today:</div>}
+                {record.workItems.map((item, idx) => (
+                  <div key={idx} style={{ color: t2, fontSize: '12px', whiteSpace: 'pre-wrap', marginBottom: idx < record.workItems.length - 1 ? 4 : 0 }}>
+                    {record.workItems.length > 1 && <strong>{item.ticketCode}: </strong>}
+                    {item.workDone}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Space>
         );
       }
     }
@@ -360,11 +554,31 @@ const EmployeeReportsPage = () => {
       render: (name) => <span style={{ fontWeight: 600, color: t1 }}>{name}</span>
     },
     { 
-      title: 'Date', 
+      title: 'Ticket Start Date', 
+      dataIndex: 'ticketStartDate', 
+      key: 'ticketStartDate', 
+      width: 140,
+      render: (date, record) => {
+        if (record.isLeave || !date) return <span style={{ color: t2 }}>-</span>;
+        return <span style={{ color: t2 }}>{dayjs(date).format('DD MMM YYYY')}</span>;
+      }
+    },
+    { 
+      title: 'Ticket End Date', 
+      dataIndex: 'ticketDueDate', 
+      key: 'ticketDueDate', 
+      width: 140,
+      render: (date, record) => {
+        if (record.isLeave || !date) return <span style={{ color: t2 }}>-</span>;
+        return <span style={{ color: t2 }}>{dayjs(date).format('DD MMM YYYY')}</span>;
+      }
+    },
+    { 
+      title: 'Reporting Date', 
       dataIndex: 'date', 
-      key: 'date', 
-      width: 120,
-      render: (date) => dayjs(date).format('DD MMM YYYY')
+      key: 'reportingDate', 
+      width: 130,
+      render: (date) => <span style={{ fontWeight: 600, color: '#4f46e5' }}>{dayjs(date).format('DD MMM YYYY')}</span>
     },
     { 
       title: 'Ticket Code', 
@@ -424,7 +638,26 @@ const EmployeeReportsPage = () => {
       key: 'workDone',
       render: (text, record) => {
         if (record.isLeave) {
-          return <span style={{ color: '#8c8c8c', fontStyle: 'italic' }}>{text}</span>;
+          const cleanText = (text || '').replace(/^\[Leave Reason\]\s*/i, '');
+          const workDescs = getWorkDescriptionsForUserAndDate(record);
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontWeight: 700, color: '#ef4444' }}>Leave</span>
+              <span style={{ color: t2, fontSize: '12px', whiteSpace: 'pre-wrap', marginTop: 2 }}>
+                {cleanText}
+              </span>
+              {workDescs.length > 0 && (
+                <div style={{ marginTop: 8, paddingTop: 6, borderTop: `1px dashed ${border}` }}>
+                  <div style={{ fontWeight: 600, color: t1, fontSize: '11px', marginBottom: 2 }}>Work Done Today:</div>
+                  {workDescs.map((desc, i) => (
+                    <div key={i} style={{ fontSize: '11px', color: t2, marginLeft: 6 }}>
+                      • {desc}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
         }
         return <span style={{ color: t2, whiteSpace: 'pre-wrap' }}>{text}</span>;
       }
@@ -532,7 +765,7 @@ const EmployeeReportsPage = () => {
           </div>
 
           <Table 
-            dataSource={groupedData} 
+            dataSource={filteredData} 
             columns={columns} 
             loading={loading}
             rowKey="key"
@@ -540,15 +773,17 @@ const EmployeeReportsPage = () => {
             style={{ borderRadius: 8, overflow: 'hidden' }}
             summary={(pageData) => {
               let total = 0;
-              pageData.forEach(({ totalHours }) => { total += totalHours; });
+              pageData.forEach(({ hours }) => { total += hours; });
+              const colSpan = isManager ? 4 : 3;
               return (
                 <Table.Summary.Row style={{ background: isDarkMode ? '#1e2130' : '#f8fafc' }}>
-                  <Table.Summary.Cell index={0} colSpan={1}>
+                  <Table.Summary.Cell index={0} colSpan={colSpan}>
                     <Text strong style={{ color: t1 }}>Total Hours in Current View</Text>
                   </Table.Summary.Cell>
                   <Table.Summary.Cell index={1} align="left">
                     <Text strong style={{ color: '#10b981' }}>{total.toFixed(1)} hrs</Text>
                   </Table.Summary.Cell>
+                  <Table.Summary.Cell index={2} colSpan={2} />
                 </Table.Summary.Row>
               );
             }}
