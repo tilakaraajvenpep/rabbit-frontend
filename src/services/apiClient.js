@@ -22,7 +22,39 @@ const apiClient = axios.create({
 ------------------------ */
 apiClient.interceptors.request.use(
   (config) => {
-    const { token, tenantCode } = useAuthStore.getState();
+    let { token, tenantCode } = useAuthStore.getState();
+
+    // Direct fallbacks if store values are empty/null
+    if (!token) {
+      token = localStorage.getItem('token');
+    }
+    if (!tenantCode) {
+      tenantCode = localStorage.getItem('tenantCode');
+    }
+
+    // Fallbacks by parsing persisted Zustand stores
+    if (!token || !tenantCode) {
+      const storeKeys = ['rabbit-auth-storage', 'auth-storage'];
+      for (const key of storeKeys) {
+        const persistedRaw = localStorage.getItem(key);
+        if (persistedRaw) {
+          try {
+            const parsed = JSON.parse(persistedRaw);
+            const state = parsed?.state;
+            if (state) {
+              if (!token && state.token) {
+                token = state.token;
+              }
+              if (!tenantCode && state.tenantCode) {
+                tenantCode = state.tenantCode;
+              }
+            }
+          } catch (e) {
+            console.error(`Failed to parse persisted store key: ${key}`, e);
+          }
+        }
+      }
+    }
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
